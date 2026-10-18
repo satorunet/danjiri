@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=88';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=88';
-import { buildWorld } from './world.js?v=88';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=88';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS } from './models.js?v=88';
-import { FX, SpeedShader } from './fx.js?v=88';
-import * as AU from './audio.js?v=88';
+import * as SIM from './sim.js?v=89';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=89';
+import { buildWorld } from './world.js?v=89';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=89';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS } from './models.js?v=89';
+import { FX, SpeedShader } from './fx.js?v=89';
+import * as AU from './audio.js?v=89';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -863,9 +863,18 @@ function updateCamera(dt, t) {
   const fx0 = Math.sin(cam.yaw), fz0 = Math.cos(cam.yaw), rx = -fz0, rz = fx0;
   let want;
   if (camMode === 0) {
-    const dist = 10.5 + sp * 0.12 + (c.air ? 3 : 0), h = 4.3 + sp * 0.04 + (c.air ? 1.5 : 0);
+    // すぐ前に別のだんじりがいて前が見えない時（スタートの団子など）は、カメラを引いて少し上から見下ろす
+    let block = 0;
+    for (const r of racers) {
+      if (r === player || r.ghost || r.hidden) continue;
+      const v = r.vis, dx = v.x - c.x, dz = v.z - c.z, f = dx * fx0 + dz * fz0, l = Math.abs(dx * rx + dz * rz);
+      if (f > 2 && f < 16 && l < 3.2) block = Math.max(block, (1 - (f - 2) / 14) * (1 - l / 3.2 * 0.5));
+    }
+    cam.lift = (cam.lift || 0) + (clamp(block * 1.6, 0, 1) - (cam.lift || 0)) * Math.min(1, dt * (block > (cam.lift || 0) ? 2.5 : 0.8));
+    const lf = cam.lift;
+    const dist = 10.5 + sp * 0.12 + (c.air ? 3 : 0) + lf * 5, h = 4.3 + sp * 0.04 + (c.air ? 1.5 : 0) + lf * 7;
     want = tmpP.set(c.x - fx0 * dist, c.y + h, c.z - fz0 * dist);
-    cam.look.set(c.x + fx0 * 6, c.y + 2.6, c.z + fz0 * 6);
+    cam.look.set(c.x + fx0 * (6 + lf * 8), c.y + 2.6, c.z + fz0 * (6 + lf * 8));
   } else if (camMode === 1) {
     want = tmpP.set(c.x - fx0 * 14, c.y + 10, c.z - fz0 * 14);
     cam.look.set(c.x + fx0 * 8, c.y + 1.5, c.z + fz0 * 8);
