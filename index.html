@@ -261,6 +261,17 @@
   #turnEdge { position: absolute; top: 0; bottom: 0; width: 22%; pointer-events: none; opacity: 0; transition: opacity .2s; }
   #turnEdge.L { left: 0; background: linear-gradient(90deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
   #turnEdge.R { right: 0; background: linear-gradient(270deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
+  /* 曲がる向きにチッカチッカ（矢印が出たあと、外向きに流れて点滅） */
+  #turn .blk { position: absolute; top: 50%; display: flex; gap: 4px; opacity: 0; filter: drop-shadow(2px 0 0 #1b1020) drop-shadow(-2px 0 0 #1b1020) drop-shadow(0 2px 0 #1b1020) drop-shadow(0 -2px 0 #1b1020) drop-shadow(0 0 10px rgba(255,190,20,.8)); transform: translateY(-50%); animation: blkIn .2s .35s forwards; }
+  #turn.L .blk { right: calc(100% + 8px); flex-direction: row-reverse; } #turn.R .blk { left: calc(100% + 8px); }
+  #turn .blk i { width: 36px; height: 62px; background: #ffd21c; clip-path: polygon(0 0, 45% 0, 100% 50%, 45% 100%, 0 100%, 55% 50%); opacity: .2; animation: chikka .7s linear infinite; }
+  #turn.L .blk i { transform: scaleX(-1); }
+  #turn .blk i:nth-child(2) { animation-delay: .12s; } #turn .blk i:nth-child(3) { animation-delay: .24s; }
+  #turn.now .blk i { background: #ff4a2a; animation-duration: .45s; }
+  #turn.now .blk i:nth-child(2) { animation-delay: .08s; } #turn.now .blk i:nth-child(3) { animation-delay: .16s; }
+  @keyframes blkIn { to { opacity: 1; } }
+  @keyframes chikka { 0%, 45% { opacity: 1; } 46%, 100% { opacity: .2; } }
+  @media (max-width: 700px) { #turn .blk i { width: 22px; height: 40px; } #turn .blk { gap: 2px; top: calc(100% + 10px); transform: none; } #turn.L .blk { right: auto; left: 6px; } #turn.R .blk { left: auto; right: 6px; } }   /* スマホは画面からはみ出さないよう札の下に */
   @keyframes turnArr { from { transform: translateX(0); } to { transform: translateX(var(--dx)); } }
   #warn { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font-family: 'Dela Gothic One', sans-serif; font-size: 34px; color: #ff4d4d; text-shadow: 0 3px 0 #300; animation: blink .4s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0.2; } }
@@ -374,7 +385,7 @@
   <div id="endCount" class="hidden"></div>
   <div id="backBtn" class="hidden" data-en="↩ Back to course<small>or press R</small>">↩ コースに戻る<small>R キーでも戻れる</small></div>
   <div id="turnEdge"></div>
-  <div id="turn" class="hidden"><div class="arr"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M34 96 V58 Q34 34 58 34 H66" fill="none" stroke="currentColor" stroke-width="19" stroke-linecap="round"/><path d="M60 8 L96 34 L60 60 Z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/></svg></div><div class="tb"><div class="tx"></div><small></small></div></div>
+  <div id="turn" class="hidden"><div class="blk"><i></i><i></i><i></i></div><div class="arr"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M34 96 V58 Q34 34 58 34 H66" fill="none" stroke="currentColor" stroke-width="19" stroke-linecap="round"/><path d="M60 8 L96 34 L60 60 Z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/></svg></div><div class="tb"><div class="tx"></div><small></small></div></div>
   <div id="help" class="panel" data-en="<kbd>↑</kbd><kbd>↓</kbd> Pull / Stop　<kbd>←</kbd><kbd>→</kbd> Steer<br><kbd>Shift</kbd> SORYA! (boost)<br><kbd>C</kbd> Camera　<kbd>R</kbd> Reset　<kbd>M</kbd> Sound　<kbd>Esc</kbd> Pause"><kbd>↑</kbd><kbd>↓</kbd> 引く / 止める　<kbd>←</kbd><kbd>→</kbd> 向き<br><kbd>Shift</kbd> ソーリャ!（加速）<br><kbd>C</kbd> 視点　<kbd>R</kbd> 立て直す　<kbd>M</kbd> 音　<kbd>Esc</kbd> 一時停止</div>
 </div>
 <div id="count" class="hidden"></div>
@@ -541,6 +552,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=123"></script>
+<script type="module" src="js/game.js?v=124"></script>
 </body>
 </html>
