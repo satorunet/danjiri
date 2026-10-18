@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=91';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=91';
-import { buildWorld } from './world.js?v=91';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=91';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=91';
-import { FX, SpeedShader } from './fx.js?v=91';
-import * as AU from './audio.js?v=91';
+import * as SIM from './sim.js?v=92';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=92';
+import { buildWorld } from './world.js?v=92';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=92';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=92';
+import { FX, SpeedShader } from './fx.js?v=92';
+import * as AU from './audio.js?v=92';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -213,7 +213,7 @@ function makeRacer(teamIdx, slot, kind, extra = {}) {
   if (fn) setFinish(D, fn);
   r.form = kind === 'me' ? myForm : extra.id != null ? NET.forms?.[extra.id] || 0 : 0;
   r.crew = kind === 'me' ? myCrew : extra.id != null ? NET.crews?.[extra.id] || null : null;
-  if (kind === 'me') car.mod = SIM.FORMS[myForm].mod;
+  if (kind === 'me') car.mod = SIM.carMod(myForm, myType);
   return r;
 }
 // ================= アイコン旗（タイトルで設定した画像を、だんじり後ろの大きな旗に） =================
@@ -223,7 +223,7 @@ let myFinish = +store.get('danjiri-finish', 0) || 0;
 let myForm = +store.get('danjiri-form', 0) || 0;
 let myType = clamp(+store.get('danjiri-type', 0) || 0, 0, DJ_TYPES.length - 1);
 // 引き手のカスタム: 髪型・服装・法被のマーク（def=祭 / txt=文字 / img=写真）
-const cleanCrew = c => ({ hair: clamp(c?.hair | 0, 0, HAIRS.length - 1), outfit: clamp(c?.outfit | 0, 0, OUTFITS.length - 1), mark: ['def', 'txt', 'img'].includes(c?.mark) ? c.mark : 'def', mtext: [...String(c?.mtext || '').replace(/[\s<>&"']/g, '')].slice(0, 2).join('') });
+const cleanCrew = c => ({ face: !!c?.face, hair: clamp(c?.hair | 0, 0, HAIRS.length - 1), outfit: clamp(c?.outfit | 0, 0, OUTFITS.length - 1), mark: ['def', 'txt', 'img'].includes(c?.mark) ? c.mark : 'def', mtext: [...String(c?.mtext || '').replace(/[\s<>&"']/g, '')].slice(0, 2).join('') });
 let myCrew = cleanCrew((() => { try { return JSON.parse(store.get('danjiri-crew', '') || 'null') || { mark: 'img' }; } catch { return { mark: 'img' }; } })());
 const saveCrew = () => store.set('danjiri-crew', JSON.stringify(myCrew));
 // 法被のテクスチャ（このだんじりの引き手の分）
@@ -231,6 +231,7 @@ function crewTex(r) {
   if (r.slotIdx == null || r.slotIdx >= 8 || racers[r.slotIdx] !== r) return;
   const c = r.crew || {}, img = c.mark === 'img' && r.iconUrl ? iconImgs.get(r.iconUrl) : null;
   crowd.setTeamTexture(r.slotIdx, r.team, img || null, c.mark === 'txt' ? c.mtext : '');
+  crowd.setFace(r.slotIdx, c.face && r.iconUrl ? iconImgs.get(r.iconUrl) || null : null);   // 顔に写真
 }
 const cleanBanner = s => [...String(s || '').replace(/[\s\u0000-\u001f<>&"']/g, '')].slice(0, 4).join('');
 // 幟の文字を差し替え（2 本の幟は同じ材質）
@@ -341,7 +342,7 @@ function cuSummary() {
   setT($('cuValForm'), L(SIM.FORMS[myForm].ja, SIM.FORMS[myForm].en));
   $('cuValTeam').innerHTML = `<span class="sw" style="background:${TEAMS[selTeam].css}"></span>${esc(teamName(TEAMS[selTeam]))}`;
   setT($('cuValText'), myText || L('御祭禮（標準）', 'Default'));
-  setT($('cuValCrew'), `${L(HAIRS[myCrew.hair].ja, HAIRS[myCrew.hair].en)}・${L(OUTFITS[myCrew.outfit].ja, OUTFITS[myCrew.outfit].en)}・${myCrew.mark === 'img' ? L('写真', 'Photo') : myCrew.mark === 'txt' ? (myCrew.mtext || '祭') : '祭'}`);
+  setT($('cuValCrew'), `${myCrew.face ? L('顔写真・', 'Face photo · ') : ''}${L(HAIRS[myCrew.hair].ja, HAIRS[myCrew.hair].en)}・${L(OUTFITS[myCrew.outfit].ja, OUTFITS[myCrew.outfit].en)}・${myCrew.mark === 'img' ? L('写真', 'Photo') : myCrew.mark === 'txt' ? (myCrew.mtext || '祭') : '祭'}`);
   $('cuValIcon').innerHTML = myIcon ? `<img src="${myIcon}" alt="">` : esc(L('なし', 'None'));
 }
 // 引き手を変えた時は、後ろの押し手の背中が見える向きに
@@ -355,12 +356,14 @@ function customOpen(on) {
     document.querySelector('#showcase .sc-bar').classList.add('hidden');
     $('cuTeams').innerHTML = TEAMS.map((t, i) => `<button data-t="${i}" class="${i === selTeam ? 'sel' : ''}"><span class="sw" style="background:${t.css}"></span>${esc(teamName(t))}</button>`).join('');
     $('cuType').innerHTML = DJ_TYPES.map((f, i) => `<button data-f="${i}" class="${i === myType ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
-    $('cuType').querySelectorAll('button').forEach(b => b.onclick = () => { myType = +b.dataset.f; store.set('danjiri-type', myType); $('cuType').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); buildSolo(); soloOnlyMe(); cuSummary(); SC.auto = true; SC.dist = Math.max(SC.dist, 18); SC.pitch = 0.4; });
+    $('cuType').querySelectorAll('button').forEach(b => b.onclick = () => { myType = +b.dataset.f; store.set('danjiri-type', myType); $('cuType').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); buildSolo(); soloOnlyMe(); cuSummary(); typeDesc(); SC.auto = true; SC.dist = Math.max(SC.dist, 18); SC.pitch = 0.4; });
+    const typeDesc = () => setT($('cuTypeD'), L(SIM.TYPE_MODS[myType].dja, SIM.TYPE_MODS[myType].den));
+    typeDesc();
     $('cuFin').innerHTML = FINISHES.map((f, i) => `<button data-f="${i}" class="${i === myFinish ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
     $('cuFin').querySelectorAll('button').forEach(b => b.onclick = () => { myFinish = +b.dataset.f; store.set('danjiri-finish', myFinish); $('cuFin').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); setFinish(player.D, myFinish); cuSummary(); });
     const formDesc = () => setT($('cuFormD'), L(SIM.FORMS[myForm].dja, SIM.FORMS[myForm].den));
     $('cuForm').innerHTML = SIM.FORMS.map((f, i) => `<button data-f="${i}" class="${i === myForm ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
-    $('cuForm').querySelectorAll('button').forEach(b => b.onclick = () => { myForm = +b.dataset.f; store.set('danjiri-form', myForm); $('cuForm').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); player.form = myForm; player.car.mod = SIM.FORMS[myForm].mod; formDesc(); cuSummary(); SC.dist = Math.max(SC.dist, 21); });
+    $('cuForm').querySelectorAll('button').forEach(b => b.onclick = () => { myForm = +b.dataset.f; store.set('danjiri-form', myForm); $('cuForm').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); player.form = myForm; player.car.mod = SIM.carMod(myForm, myType); formDesc(); cuSummary(); SC.dist = Math.max(SC.dist, 21); });
     formDesc();
     // 引き手: 髪型・服装・法被のマーク
     const pick = (id, list, key) => {
@@ -368,6 +371,9 @@ function customOpen(on) {
       $(id).querySelectorAll('button').forEach(b => b.onclick = () => { myCrew[key] = +b.dataset.v; saveCrew(); $(id).querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); cuSummary(); crewView(); });
     };
     pick('cuHair', HAIRS, 'hair'); pick('cuOutfit', OUTFITS, 'outfit');
+    const faceUI = () => $('cuFace').querySelectorAll('button').forEach(b => b.classList.toggle('sel', (b.dataset.v === '1') === myCrew.face));
+    $('cuFace').querySelectorAll('button').forEach(b => b.onclick = () => { myCrew.face = b.dataset.v === '1'; saveCrew(); faceUI(); crewTex(player); cuSummary(); SC.auto = false; SC.yaw = 0.25; SC.pitch = 0.22; SC.dist = 16; setT($('cuMarkNote'), myCrew.face && !myIcon ? L('顔の写真は「旗のアイコン」で選んだ画像を使います', 'Uses the image from "Flag icon"') : ''); });
+    faceUI();
     const MARKS = [['def', '祭（標準）', 'Default'], ['txt', '文字', 'Text'], ['img', '写真', 'Photo']];
     const markUI = () => { $('cuMark').querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.v === myCrew.mark)); $('cuMarkTx').classList.toggle('hidden', myCrew.mark !== 'txt'); };
     $('cuMark').innerHTML = MARKS.map(([v, ja, en]) => `<button data-v="${v}">${esc(L(ja, en))}</button>`).join('');

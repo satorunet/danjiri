@@ -460,7 +460,7 @@
   <div class="cu-card" id="cuCard">
     <div class="cu-head"><span class="cu-title" data-en="🏮 Customize">🏮 だんじりカスタム</span><button class="cu-min" id="cuHide" aria-label="たたむ" data-en="▼ Hide">▼ たたむ</button></div>
     <details class="cu-sec" name="cu"><summary><span data-en="Danjiri">だんじり</span><span class="cu-val" id="cuValFin"></span></summary>
-      <div class="cu-sub" data-en="Type">型</div><div class="cu-fin" id="cuType"></div>
+      <div class="cu-sub" data-en="Type">型</div><div class="cu-fin" id="cuType"></div><div class="cu-note" id="cuTypeD"></div>
       <div class="cu-sub" data-en="Finish">仕上げ</div><div class="cu-fin" id="cuFin"></div>
     </details>
     <details class="cu-sec" name="cu"><summary><span data-en="Crew formation">引き手の配置</span><span class="cu-val" id="cuValForm"></span></summary>
@@ -470,6 +470,7 @@
     <details class="cu-sec" name="cu"><summary><span data-en="Crew">引き手</span><span class="cu-val" id="cuValCrew"></span></summary>
       <div class="cu-sub" data-en="Hair">髪型</div><div class="cu-fin" id="cuHair"></div>
       <div class="cu-sub" data-en="Outfit">服装</div><div class="cu-fin" id="cuOutfit"></div>
+      <div class="cu-sub" data-en="Face">顔</div><div class="cu-fin" id="cuFace"><button data-v="0" data-en="Normal">ふつう</button><button data-v="1" data-en="Photo">写真をはる</button></div>
       <div class="cu-sub" data-en="Happi mark">はっぴのマーク</div><div class="cu-fin" id="cuMark"></div>
       <div class="cu-icon hidden" id="cuMarkTx"><input id="cuMarkIn" class="cu-text" maxlength="4" placeholder="祭" autocomplete="off"><span class="cu-note" data-en="up to 2">2文字まで</span></div>
       <div class="cu-note" id="cuMarkNote"></div>
@@ -518,6 +519,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=91"></script>
+<script type="module" src="js/game.js?v=92"></script>
 </body>
 </html>

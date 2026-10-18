@@ -32,6 +32,16 @@ export const FORMS = [
   { ja: 'やりまわし', en: 'Drift crew', dja: 'やりまわしで気合がたまりやすい', den: 'Drifts charge the gauge faster', mod: { acc: 1, vmax: 0.97, steer: 1.08, tip: 1.05, drift: 1.6 } },
 ];
 const NOMOD = FORMS[0].mod;
+// だんじりの型ごとの走りのくせ（見た目の型と同じ並び: 岸和田・布団太鼓・提灯山・鳳凰神輿・龍の曳山）
+export const TYPE_MODS = [
+  { dja: '標準', den: 'Standard', mod: { acc: 1, vmax: 1, steer: 1, tip: 1, drift: 1 } },
+  { dja: '重くて倒れにくい・出足はゆっくり', den: 'Heavy and stable, slow start', mod: { acc: 0.93, vmax: 1, steer: 0.96, tip: 1.2, drift: 1 } },
+  { dja: '軽くて速いが倒れやすい', den: 'Light and fast, tips easily', mod: { acc: 1.06, vmax: 1.03, steer: 1.04, tip: 0.86, drift: 1 } },
+  { dja: 'やりまわしで気合がたまる', den: 'Drifts charge the gauge', mod: { acc: 1, vmax: 0.98, steer: 1.03, tip: 1, drift: 1.3 } },
+  { dja: '最高速が高いが曲がりにくい', den: 'High top speed, wide turns', mod: { acc: 1, vmax: 1.05, steer: 0.92, tip: 1.02, drift: 1 } },
+];
+// 引き手の配置 × 型 をかけ合わせる
+export const carMod = (form, type) => { const a = (FORMS[form] || FORMS[0]).mod, b = (TYPE_MODS[type] || TYPE_MODS[0]).mod, o = {}; for (const k in a) o[k] = a[k] * b[k]; return o; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
 const lerp = (a, b, t) => a + (b - a) * t;

@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=91';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=92';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -216,6 +216,10 @@ export class CrowdRig {
     this.sh = mk(BODY.shin, this.limbMat, capacity * 2);
     this.torsos = [];
     for (let i = 0; i < teamCount; i++) this.torsos.push(mk(BODY.torso, toon({ color: 0xffffff }), capacity));
+    // 顔に貼る写真（カスタム）: 町ごとに丸い板を顔の前へ
+    const faceGeo = new THREE.CircleGeometry(0.135, 20).translate(0, 0.215, 0.158);
+    this.faces = []; this.faceOn = new Array(teamCount).fill(false); this.fcn = new Array(teamCount).fill(0);
+    for (let i = 0; i < teamCount; i++) { const m = mk(faceGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), capacity, false); m.castShadow = false; this.faces.push(m); }
     // 大工方のうちわ（赤と白）
     this.fans = [0xd42a1e, 0xf6f2ea].map(c => mk(merge([col(cyl(0.012, 0.012, 0.22, 5, 0, -0.1, 0), 0x4a2e14), col(T(new THREE.CircleGeometry(0.17, 18), 0, -0.32, 0), c)]), toon({ vertexColors: true, side: THREE.DoubleSide }), capacity, false));
     this.nf = 0;
@@ -230,7 +234,14 @@ export class CrowdRig {
     if (t.material.map) t.material.map.dispose();
     t.material.map = happiTex(team, icon, text); t.material.needsUpdate = true;
   }
-  begin() { this.n = 0; this.nf = 0; this.tn.fill(0); this.hn.fill(0); }
+  setFace(i, img) {   // img: 画像（なければ顔の写真はなし）
+    const f = this.faces[i]; if (!f) return;
+    if (f.material.map) { f.material.map.dispose(); f.material.map = null; }
+    this.faceOn[i] = !!img;
+    if (img) { const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; f.material.map = t; }
+    f.material.needsUpdate = true;
+  }
+  begin() { this.n = 0; this.nf = 0; this.tn.fill(0); this.hn.fill(0); this.fcn.fill(0); }
   // look: { hair, outfit }（引き手のカスタム）
   add(root, pose, slot, sleeveColor, fans = false, look = null) {
     if (this.n >= this.capacity) return;
@@ -240,6 +251,7 @@ export class CrowdRig {
     this.belt.setMatrixAt(n, o.torso);
     const hi = look && HAIRS[look.hair] ? look.hair : 0, of = (look && OUTFITS[look.outfit]) || OUTFITS[0];
     this.heads[hi].setMatrixAt(this.hn[hi]++, o.head);
+    if (this.faceOn[slot] && look && look.face) this.faces[slot].setMatrixAt(this.fcn[slot]++, o.head);
     for (let k = 0; k < 2; k++) {
       this.ua.setMatrixAt(n * 2 + k, o.ua[k]); this.fa.setMatrixAt(n * 2 + k, o.fa[k]);
       this.th.setMatrixAt(n * 2 + k, o.th[k]); this.sh.setMatrixAt(n * 2 + k, o.sh[k]);
@@ -254,6 +266,7 @@ export class CrowdRig {
   end() {
     const all = [this.belt, this.ua, this.fa, this.th, this.sh];
     for (const m of all) { m.count = this.n * (m === this.belt ? 1 : 2); m.instanceMatrix.needsUpdate = true; if (m.userData.outline) m.userData.outline.count = m.count; }
+    this.faces.forEach((f, i) => { f.count = this.fcn[i]; f.instanceMatrix.needsUpdate = true; });
     this.heads.forEach((h, i) => { h.count = this.hn[i]; h.instanceMatrix.needsUpdate = true; if (h.userData.outline) h.userData.outline.count = h.count; });
     for (const m of [this.ua, this.fa, this.th, this.sh]) if (m.instanceColor) m.instanceColor.needsUpdate = true;
     this.torsos.forEach((t, i) => { t.count = this.tn[i]; t.instanceMatrix.needsUpdate = true; if (t.userData.outline) t.userData.outline.count = t.count; });
