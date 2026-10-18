@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=79';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=79';
-import { buildWorld } from './world.js?v=79';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=79';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=79';
-import { FX, SpeedShader } from './fx.js?v=79';
-import * as AU from './audio.js?v=79';
+import * as SIM from './sim.js?v=80';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=80';
+import { buildWorld } from './world.js?v=80';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=80';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=80';
+import { FX, SpeedShader } from './fx.js?v=80';
+import * as AU from './audio.js?v=80';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -181,14 +181,17 @@ let propGrid = new Map();
 const goalS = () => SIM.START_S + LAPS * course.L;
 
 // ================= だんじり（レーサー） =================
+// 頭上の名札: チーム色の太い縁＋大きな文字。屋根より上に出して、遠くでも読める大きさを保つ（updateTags）
 function nameTag(text, css) {
-  const c = document.createElement('canvas'); c.width = 320; c.height = 72; const g = c.getContext('2d');
-  g.fillStyle = 'rgba(16,12,32,0.8)'; g.beginPath(); g.roundRect ? g.roundRect(4, 4, 312, 64, 18) : g.rect(4, 4, 312, 64); g.fill();
-  g.fillStyle = css; g.fillRect(16, 18, 10, 36);
-  g.fillStyle = '#fff6e4'; g.font = `34px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 168, 38, 260);
+  const c = document.createElement('canvas'); c.width = 512; c.height = 120; const g = c.getContext('2d');
+  g.fillStyle = 'rgba(12,8,26,0.88)'; g.strokeStyle = css; g.lineWidth = 10;
+  g.beginPath(); g.roundRect ? g.roundRect(8, 8, 496, 92, 28) : g.rect(8, 8, 496, 92); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(236, 100); g.lineTo(256, 118); g.lineTo(276, 100); g.closePath(); g.fillStyle = css; g.fill();   // 下向きの矢印
+  g.fillStyle = '#fff'; g.font = `900 56px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 8; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(text, 256, 56, 450); g.fillText(text, 256, 56, 450);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
-  sp.scale.set(3.3, 0.75, 1); sp.position.set(0, 7.6, 0); sp.renderOrder = 20;
+  sp.scale.set(4.6, 1.08, 1); sp.position.set(0, 10.6, 0); sp.renderOrder = 20;
   sp.userData.tag = true;
   return sp;
 }
@@ -200,7 +203,7 @@ function makeRacer(teamIdx, slot, kind, extra = {}) {
   const r = { team, teamIdx, slot, kind, car, D, vis: car, ai: kind === 'cpu' ? SIM.makeAI(slot) : null, phase: Math.random() * 6, finished: false, finishTime: 0, prevAir: false, prevCrash: 0, ...extra };
   r.stick = { body: D.body, list: [] };
   r.ropes = [-1, 1].map(sd => ({ sd, nodes: Array.from({ length: 7 }, () => ({ x: 0, y: 0, z: 0, i: -1 })), init: false }));
-  if (r.name && kind !== 'me') D.group.add(nameTag(r.name, team.css));
+  if (r.name && kind !== 'me') D.group.add(r.tag = nameTag(r.name, team.css));
   return r;
 }
 function clearRacers() {
@@ -809,6 +812,7 @@ function prepMini() {
 const mm = (x, z) => [MB.ox + (x - MB.minX) * MB.sc, MB.oz + (z - MB.minZ) * MB.sc];
 function drawMini() {
   const g = mctx; g.clearRect(0, 0, 220, 220); g.drawImage(miniBase, 0, 0);
+  if (CU.on && CU.obj) { const [x, y] = mm(CU.obj.position.x, CU.obj.position.z); g.fillStyle = '#ffd34d'; g.strokeStyle = '#c4161c'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill(); g.stroke(); }
   for (const r of [...racers].reverse()) {
     const [x, y] = mm(r.vis.x, r.vis.z);
     // 向き: 進行方向に 1 歩進めた点をミニマップに写して、そっちへ ▲ の先を向ける
@@ -905,7 +909,63 @@ function startSolo() {
   buildSolo();
   beginRace(AU.now() + 3.2);
 }
+// ================= 追い上げアイテム「お神酒」 =================
+// 2 位以下で先頭から離されると、少し先の道に光る樽酒が出る。取ると気合満タン＋しばらくソーリャ全開
+const CU = { obj: null, on: false, s: 0, lane: 0, cd: 8 };
+function cuObj() {
+  if (CU.obj) return CU.obj;
+  const g = new THREE.Group();
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 1.3, 16), new THREE.MeshBasicMaterial({ color: 0xc8a06a }));
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.5, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64; const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, 128, 64); x.fillStyle = '#c4161c'; x.font = "900 46px 'Zen Old Mincho', serif"; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('御神酒', 64, 34);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  band.material = [new THREE.MeshBasicMaterial({ map: tex }), new THREE.MeshBasicMaterial({ color: 0xffffff }), new THREE.MeshBasicMaterial({ color: 0xffffff })];
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.86, 0.06, 16), new THREE.MeshBasicMaterial({ color: 0x8a5a2b })); lid.position.y = 0.68;
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.12, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.85 }));
+  halo.rotation.x = Math.PI / 2; halo.position.y = -0.4;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.4, 9, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 3.8;
+  g.add(barrel, band, lid, halo, beam);
+  g.userData.halo = halo; g.visible = false;
+  scene.add(g);
+  return (CU.obj = g);
+}
+function catchupReset() { CU.on = false; CU.cd = 8; if (CU.obj) CU.obj.visible = false; if (player) player.rushT = 0; }
+function updateCatchup(dt, t) {
+  if (state !== 'race' || !player || player.kind !== 'me') { if (CU.on) catchupReset(); return; }
+  const me = player.car;
+  if (CU.on) {
+    const o = CU.obj; o.rotation.y += dt * 2.2;
+    const p = SIM.sampleS(course, ((CU.s % course.L) + course.L) % course.L);
+    o.position.set(p.x - p.tz * CU.lane, SIM.heightS(course, CU.s % course.L) + 1.5 + Math.sin(t * 3) * 0.25, p.z + p.tx * CU.lane);
+    o.userData.halo.scale.setScalar(1 + Math.sin(t * 6) * 0.12);
+    const d = CU.s - me.prog;
+    if (d < -6 || player.finished) { catchupReset(); CU.cd = 5; return; }
+    if (Math.abs(d) < 4 && Math.abs((me.u ?? 0) - CU.lane) < 3.6) {
+      // 取った: 離されているほど長く
+      const lead = rankOrder()[0], gap = lead && lead !== player ? (lead.vis.prog ?? lead.car.prog) - me.prog : 0;
+      player.rushT = clamp(2.5 + gap / 60, 2.5, 4.5); me.boost = 1;
+      CU.on = false; o.visible = false; CU.cd = 10;
+      message(L('御神酒で気合全開!! ソーリャ!!', 'Sacred sake! FULL SORYA!!'), 'gold', true);
+      AU.sfx('boost'); AU.shout(); AU.cheer(0.6, 2);
+      fx.burst('confetti', me.x, me.y + 6, me.z, 80, { speed: 7, up: 6, life: 2.5 });
+    }
+    return;
+  }
+  if (player.finished || (CU.cd -= dt) > 0) return;
+  CU.cd = 1.5;
+  const lead = rankOrder()[0];
+  if (!lead || lead === player) return;
+  const gap = (lead.vis.prog ?? lead.car.prog) - me.prog;
+  if (gap < 35) return;
+  // 自分の進むあたりに置く（少し左右にずらす）
+  CU.s = me.prog + 70 + Math.random() * 25;
+  CU.lane = clamp((me.u ?? 0) + (Math.random() - 0.5) * 5, -7, 7);
+  CU.on = true; cuObj().visible = true;
+}
 function beginRace(start) {
+  catchupReset();
   if (SC.on) showcaseOpen(false);
   rec = { team: selTeam, f: [] }; recT = 0;
   resetStats(); lastPreview = null; sandT = 0; $('rankForm').classList.add('hidden');
@@ -924,6 +984,7 @@ function titleStep(n) {
 }
 function toTitle() {
   titleStep(1); if (SC.on) showcaseOpen(false);
+  roomsOpen(false);
   if (mode === 'online') netLeave();
   mode = 'solo'; soloStage();
   state = 'title'; AU.stopMusic();
@@ -1384,7 +1445,7 @@ function netConnect() {
   ws.onopen = () => {
     NET.retry = 0; netPing(); NET.pingTimer = setInterval(netPing, 4000);
     // 最初の 1 回はレース中の部屋があるか聞く（あれば ゴースト / 観戦 / 待つ を選んでもらう）
-    if (NET.how) netJoin(NET.how === 'pick' ? 'auto' : NET.how === 'ghost' ? 'auto' : NET.how, NET.joinRoom); else { NET.how = 'pick'; netSend({ t: 'peek' }); setTimeout(() => { if (NET.ws === ws && NET.how === 'pick' && !NET.choice) netJoin('auto'); }, 2500); }   // 返事がなければふつうに参加
+    if (NET.how) netJoin(['pick', 'ghost', 'new'].includes(NET.how) ? 'auto' : NET.how, NET.joinRoom); else { NET.how = 'pick'; netSend({ t: 'peek' }); setTimeout(() => { if (NET.ws === ws && NET.how === 'pick' && !NET.choice) netJoin('auto'); }, 2500); }   // 返事がなければふつうに参加
   };
   ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } onNet(m); };
   ws.onclose = () => {
@@ -1425,6 +1486,28 @@ function netJoin(how, room) {
   netSend({ t: 'join', name: myName, team: selTeam, v: 3, how, room }); netSend({ t: 'hold', on: holdWait });
   renderLobby();
 }
+// 部屋えらび: 部屋番号・状況・人数を見て入る
+let roomPoll = 0;
+function roomsOpen(on) {
+  $('roomPick').classList.toggle('hidden', !on);
+  clearInterval(roomPoll);
+  if (on) { netSend({ t: 'rooms' }); roomPoll = setInterval(() => { if (state === 'lobby' && !$('roomPick').classList.contains('hidden')) netSend({ t: 'rooms' }); else clearInterval(roomPoll); }, 3000); }
+}
+function renderRooms(m) {
+  const now = m.now, el = $('roomList');
+  if (!m.list.length) { el.innerHTML = `<div class="collNone" style="text-align:center;padding:8px">${L('いま部屋はありません', 'No rooms right now')}</div>`; return; }
+  el.innerHTML = m.list.map(r => {
+    const [mp, mt] = r.stage.split('-'), town = PLACES[mp] ? placeName(mp, mt === 'night') : '';
+    const st = r.phase === 'race' ? `🏁 ${L('レース中', 'Racing')} ${Math.max(0, Math.round((now - r.startAt) / 1000))}${L('秒', 's')}${town ? ' · ' + town : ''}`
+      : r.phase === 'result' ? `🏆 ${L('結果発表中', 'Results')}` : r.hold ? `⏸ ${L('だれか待ち', 'Waiting for players')}` : `⏳ ${L('出発まで', 'Starts in')} ${Math.max(0, Math.ceil((r.phaseEnd - now) / 1000))}${L('秒', 's')}`;
+    const full = r.n >= r.max, cur = r.room === m.me;
+    const btns = cur ? `<small style="color:var(--gold)">${L('ここにいます', 'You are here')}</small>` : full ? `<small>${L('満員', 'Full')}</small>`
+      : r.phase === 'race' ? `<button data-h="watch" data-r="${r.room}">👀</button><button data-h="ghost" data-r="${r.room}">👻</button><button data-h="room" data-r="${r.room}">${L('待つ', 'Wait')}</button>`
+      : `<button data-h="room" data-r="${r.room}">${L('入る', 'Join')}</button>`;
+    return `<div class="rp-row ${cur ? 'cur' : ''}"><span class="rp-no">${L(`部屋${r.room}`, `#${r.room}`)}</span><span class="rp-st">${st}<br><small>${r.n}/${r.max}${L('人', '')} ${esc(r.names.join('・'))}</small></span>${btns}</div>`;
+  }).join('');
+  el.querySelectorAll('button[data-h]').forEach(b => b.onclick = () => { roomsOpen(false); NET.raceKey = null; netJoin(b.dataset.h, +b.dataset.r); });
+}
 function onPeek(m) {
   if (mode !== 'online' || NET.how !== 'pick') return;
   const r = m.races && m.races[0];
@@ -1446,6 +1529,7 @@ function onNet(m) {
   else if (m.t === 'pong') { const n = Date.now(), rtt = n - m.c; if (rtt <= NET.bestRtt + 15) { NET.bestRtt = Math.min(NET.bestRtt, rtt); NET.offset = m.s - (m.c + rtt / 2); } }
   else if (m.t === 'room') onRoom(m);
   else if (m.t === 'peek') onPeek(m);
+  else if (m.t === 'rooms') renderRooms(m);
   else if (m.t === 'chat') onChat(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
@@ -1504,6 +1588,7 @@ function toLobby() {
   $('lobby').classList.remove('hidden'); state = 'lobby'; renderLobby();
 }
 function startGhostRace(m, gStart) {
+  chatClear();
   const [mp, mt] = String(m.stage || '').split('-');
   if (PLACES[mp] && (mp !== place || (mt === 'night') !== night)) loadStage(mp, mt === 'night');
   clearRacers();
@@ -1517,6 +1602,7 @@ function startGhostRace(m, gStart) {
 }
 // 観戦
 function startWatch(m) {
+  chatClear();
   const [mp, mt] = String(m.stage || '').split('-');
   if (PLACES[mp] && (mp !== place || (mt === 'night') !== night)) loadStage(mp, mt === 'night');
   clearRacers();
@@ -1562,7 +1648,9 @@ function showGhostResult() {
   $('result').classList.remove('hidden'); $('result').scrollTop = 0;
 }
 function netVis() { return { x: 0, y: 0, z: 0, yaw: 0, roll: 0, pitch: 0, vx: 0, vz: 0, speed: 0, vF: 0, air: false, crashT: 0, tipped: false, boosting: false, drift: false, slip: 0, steerIn: 0, w: 0, prog: SIM.START_S, si: -1 }; }
+function chatClear() { NET.chat = []; renderChat(); roomsOpen(false); }   // 試合ごとにチャットはまっさら
 function startOnlineRace(m) {
+  chatClear();
   const [mp, mt] = String(m.stage || '').split('-');
   if (PLACES[mp] && (mp !== place || (mt === 'night') !== night)) loadStage(mp, mt === 'night');
   clearRacers();
@@ -1692,6 +1780,9 @@ function setupTitle() {
   $('startBtn').onclick = startSolo; $('onlineBtn').onclick = startOnline;
   $('soloBtn').onclick = () => titleStep(2); $('stepBack').onclick = () => titleStep(1);
   $('lobbyQuit').onclick = toTitle;
+  $('lobbyRooms').onclick = () => roomsOpen($('roomPick').classList.contains('hidden'));
+  $('lcRooms').onclick = () => { $('lobbyChoice').classList.add('hidden'); NET.choice = null; netJoin('auto'); roomsOpen(true); };
+  $('rpNew').onclick = () => { roomsOpen(false); NET.raceKey = null; netJoin('new'); };
   for (const k of ['res', 'lobby']) {
     $(k + 'ChatForm').onsubmit = e => { e.preventDefault(); const i = $(k + 'ChatIn'); sendChat(i.value); i.value = ''; };
     // 定型文はプルダウン: 選んだらすぐ送って「定型文 ▼」に戻す
@@ -1724,13 +1815,14 @@ function step(dt) {
     if (r.kind === 'net') continue;
     let inp;
     if (r.kind === 'me' && debugInp) inp = { ...debugInp };
-    else if (r.kind === 'me' && state === 'race' && !r.finished && !debugAuto) inp = readInput(dt);
+    else if (r.kind === 'me' && state === 'race' && !r.finished && !debugAuto) { inp = readInput(dt); if (r.rushT > 0) inp.boost = true; }   // お神酒: しばらく自動でソーリャ
     else if (r.kind === 'me') inp = SIM.aiInput(r.car, course, r.autoAI || (r.autoAI = SIM.makeAI(2)), dt);
     else inp = SIM.aiInput(r.car, course, r.ai, dt);
     if (r.finished && r.kind === 'cpu') { inp.throttle *= 0.4; inp.boost = false; }
     const wasBoost = r.car.boosting;
     const ev = SIM.stepCar(r.car, inp, dt, course);
     handleEvents(r, ev);
+    if (r === player && r.rushT > 0) { r.rushT -= dt; r.car.boost = Math.max(r.car.boost, 0.4); }
     if (r === player && r.car.boosting && !wasBoost) { message(L('ソーリャ!!', 'SORYA!!'), 'gold', true); AU.sfx('boost'); AU.shout(); }
   }
   // だんじりどうしの押し合い
@@ -1803,8 +1895,11 @@ function frame(nowMs) {
   if (state === 'race' || state === 'finish' || state === 'watch') { for (const r of racers) { if (r.ghost) continue; hitProps(r); grabReach(r); carEffects(r, sdt, camera.position); } }
   if (state === 'watch') updateWatchBar();
   updateCamera(dt, t);
+  // 名札は遠いほど少し大きく（画面上で小さくなりすぎない）
+  for (const r of racers) if (r.tag) { const k = clamp(camera.position.distanceTo(r.D.group.position) / 26, 1, 3.2); r.tag.scale.set(4.6 * k, 1.08 * k, 1); r.tag.position.y = 10.6 + (k - 1) * 0.8; }
   const p = player.vis;
   if (state === 'race') updateHappenings(sdt);
+  updateCatchup(sdt, t);
   updateSand(dt);
   // NY: 道ばたの煙突から蒸気
   if (world.steamSpots) for (const sp of world.steamSpots) if (sp.alive && Math.random() < 0.25 && Math.abs(sp.x - camera.position.x) + Math.abs(sp.z - camera.position.z) < 110) fx.burst('dust', sp.x + (Math.random() - 0.5) * 0.3, sp.y + 2.5, sp.z + (Math.random() - 0.5) * 0.3, 1, { size: 2.6, color: [0.93, 0.93, 0.95] });
@@ -1862,7 +1957,7 @@ async function boot() {
       placeAt(s, lane = 0, mode = 0) { SIM.placeCar(player.car, course, s, lane); player.car.prog = s; camMode = mode; cam.ready = false; for (const r of racers) r.ropes.forEach(o => (o.init = false)); },
       breakdown() { const out = {}; const tally = (o, k) => o.traverse(x => { if ((x.isMesh || x.isPoints || x.isLine) && x.visible && x.material && x.material.visible !== false) out[k] = (out[k] || 0) + 1; }); racers.forEach(r => tally(r.D.group, 'danjiri')); scene.children.forEach(c => { if (!racers.some(r => r.D.group === c)) tally(c, c.isInstancedMesh ? 'instanced' : c.type); }); return out; },
       SIM, course, get world() { return world; },
-      run(n, inp) { debugInp = inp; for (let i = 0; i < n; i++) { step(DT); gameTime += DT; cordIdx = 0; for (const r of racers) { updateVisual(r, DT, gameTime); hitProps(r); snagSpans(r); updateTangle(r, DT); } cordMesh.count = cordIdx; cordMesh.instanceMatrix.needsUpdate = true; world.update(DT, gameTime, camera.position, racers.map(r => r.vis)); } debugInp = null; const c = player.car; return { s: c.s | 0, u: +c.u.toFixed(1), v: +c.v.toFixed(1), roll: +c.roll.toFixed(2), stuck: player.stick.list.length, smash: stats.smash, crash: c.crashT > 0 }; }, auto(v) { debugAuto = v; }, info() { renderer.info.autoReset = true; return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r({ ...renderer.info.render, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures })))); }, get state() { return state; }, get player() { return player; }, get racers() { return racers; }, get stats() { return stats; }, get night() { return night; }, startSolo, showSoloResult, input, keys, setCam: m => { camMode = m; }, setNight: v => { night = v; applyTimeOfDay(); }, loadStage, get place() { return place; }, displayDj, djData };
+      run(n, inp) { debugInp = inp; for (let i = 0; i < n; i++) { step(DT); gameTime += DT; cordIdx = 0; for (const r of racers) { updateVisual(r, DT, gameTime); hitProps(r); snagSpans(r); updateTangle(r, DT); } cordMesh.count = cordIdx; cordMesh.instanceMatrix.needsUpdate = true; world.update(DT, gameTime, camera.position, racers.map(r => r.vis)); } debugInp = null; const c = player.car; return { s: c.s | 0, u: +c.u.toFixed(1), v: +c.v.toFixed(1), roll: +c.roll.toFixed(2), stuck: player.stick.list.length, smash: stats.smash, crash: c.crashT > 0 }; }, auto(v) { debugAuto = v; }, info() { renderer.info.autoReset = true; return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r({ ...renderer.info.render, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures })))); }, get state() { return state; }, get player() { return player; }, get racers() { return racers; }, get stats() { return stats; }, get night() { return night; }, startSolo, showSoloResult, input, keys, setCam: m => { camMode = m; }, setNight: v => { night = v; applyTimeOfDay(); }, loadStage, get place() { return place; }, displayDj, djData, get cu() { return CU; } };
   }
 }
 boot();

@@ -110,6 +110,16 @@
   .chat-row { display: flex; gap: 6px; margin-top: 6px; }
   .chat-row input { flex: 1 1 0; width: 0; min-width: 0; font: inherit; font-size: 16px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(242,193,78,0.45); background: rgba(0,0,0,0.3); color: var(--paper); }
   .chat-row .go { flex: none; margin: 0; padding: 6px 12px; font-size: 14px; }
+  #roomPick { margin: 8px auto; max-width: 420px; text-align: left; }
+  #roomPick .rp-head { font-weight: 900; font-size: 13px; color: var(--muted); margin-bottom: 4px; text-align: center; }
+  #roomList { max-height: 220px; overflow-y: auto; }
+  .rp-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 14px; }
+  .rp-row.cur { background: rgba(242,193,78,0.14); border-radius: 8px; }
+  .rp-row .rp-no { font-family: 'Dela Gothic One', sans-serif; color: var(--gold); flex: none; }
+  .rp-row .rp-st { flex: 1 1 0; width: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rp-row .rp-st small { color: var(--muted); }
+  .rp-row button { flex: none; font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(255,246,228,0.08); color: var(--paper); cursor: pointer; }
+  #roomPick .rp-new { display: block; margin: 8px auto 0; font-size: 14px; padding: 6px 16px; }
   #lobbyChoice .lc-note { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   #showcase { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
   #showcase .sc-hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,6,24,0.7); padding: 6px 14px; border-radius: 16px; font-size: 13px; font-weight: 700; }
@@ -345,7 +355,7 @@
     <h2 data-en="Online Race">オンライン対戦</h2>
     <div id="lobbyStatus" class="best">接続中…</div>
     <div id="lobbyChoice" class="hidden">
-      <div class="lc-btns"><button class="go online" id="lcGhost" data-en="👻 Run as a ghost">👻 ゴーストで走る</button><button class="go" id="lcWatch" data-en="👀 Watch">👀 観戦する</button><button class="go ghost" id="lcWait" data-en="⏳ Wait in the room">⏳ 待合室で待つ</button></div>
+      <div class="lc-btns"><button class="go online" id="lcGhost" data-en="👻 Run as a ghost">👻 ゴーストで走る</button><button class="go" id="lcWatch" data-en="👀 Watch">👀 観戦する</button><button class="go ghost" id="lcWait" data-en="⏳ Wait in the room">⏳ 待合室で待つ</button><button class="go ghost" id="lcRooms" data-en="🚪 Other rooms">🚪 ほかの部屋</button></div>
       <div class="lc-note" data-en="Ghost: run the same course now, see-through, no bumping, not in the standings. Watch / Wait: you join from the next race.">ゴースト：今すぐ同じコースを走る（すり抜け・順位には入らない）。観戦・待つ：次のレースから参加。</div>
     </div>
     <div class="lobbyCount" id="lobbyCount"></div>
@@ -353,7 +363,8 @@
     <div class="best" data-en="Up to 8 · CPUs fill to 4 · 2 laps · random town">最大8台・4台未満はCPU・2周・町はくじ引き</div>
     <div class="chat hidden" id="lobbyChat"><div class="chat-log" id="lobbyChatLog"></div><form class="chat-row" id="lobbyChatForm"><select class="chat-stamp" id="lobbyStamp" aria-label="定型文"><option value="" data-en="Quick">定型文</option><option value="おつかれ!">おつかれ!</option><option value="ナイス!">ナイス!</option><option value="もう一回!">もう一回!</option><option value="やりまわし最高!">やりまわし最高!</option><option value="GG">GG</option></select><input id="lobbyChatIn" maxlength="40" autocomplete="off" placeholder="ひとこと（40字まで）" data-en-ph="Say something (40 chars)"><button class="go" type="submit" data-en="Send">送る</button></form></div>
     <div class="ranking" id="lobbyRank"></div>
-    <button class="go ghost" id="lobbyHold">だれか来るまで待つ：OFF</button><button class="go ghost" id="lobbyQuit" data-en="Leave">やめる</button>
+    <div id="roomPick" class="hidden"><div class="rp-head" data-en="Pick a room">部屋をえらぶ</div><div id="roomList"></div><button class="go ghost rp-new" id="rpNew" data-en="+ New room">＋ 新しい部屋</button></div>
+    <button class="go ghost" id="lobbyRooms" data-en="🚪 Rooms">🚪 部屋をえらぶ</button><button class="go ghost" id="lobbyHold">だれか来るまで待つ：OFF</button><button class="go ghost" id="lobbyQuit" data-en="Leave">やめる</button>
   </div>
 </div>
 
@@ -421,6 +432,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=79"></script>
+<script type="module" src="js/game.js?v=80"></script>
 </body>
 </html>

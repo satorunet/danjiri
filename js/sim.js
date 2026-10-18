@@ -2,16 +2,16 @@
 // クライアント（js/game.js）とオンラインサーバ（server/race.mjs）の両方がこのファイルを読む。
 // three.js には依存しない。座標は x/z が地面、y が高さ。yaw=0 で +z を向き、yaw が増えると左へ回る。
 
-export const HALF_W = 12.5;     // 道路（歩道込み）の半幅
-export const WALL = 11.0;       // 走れる範囲（人垣・ガードレールの線）。町を壊すとここから広がる
-export const SIDE = 13.2;       // 家の正面までの距離
+export const HALF_W = 15.5;     // 道路（歩道込み）の半幅（8 台で走れるよう広め）
+export const WALL = 14.0;       // 走れる範囲（人垣・ガードレールの線）。町を壊すとここから広がる
+export const SIDE = 16.2;       // 家の正面までの距離
 export const CORNER_R = 24;
 export const BIN = 3;           // 壊れた幅を覚えておく区切り（m）
 export const EXT_MAX = 11;      // 町を壊して広げられる最大の幅
 export const START_S = 40;
 export const CAR_R = 1.5;       // 当たり判定の円の半径（前後 2 つ）
 export const CAR_OFF = 1.35;    // 円の中心の前後オフセット
-export const LANES = [-6.6, -2.2, 2.2, 6.6];
+export const LANES = [-8.4, -2.8, 2.8, 8.4];
 export const WP = [[200, 0], [200, 90], [120, 90], [120, 180], [210, 180], [210, 260], [-50, 260], [-50, 0]];
 // segs[i] は WP[i] → WP[i+1] の通り。町並みの種類
 export const SEG_STYLE = ['modern', 'old', 'old', 'modern', 'hill', 'high', 'shrine', 'start'];

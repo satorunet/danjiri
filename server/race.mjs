@@ -294,10 +294,18 @@ wss.on('connection', (ws, req) => {
         p.name = cleanName(m.name);
         p.watch = m.how === 'watch';
         { // how: wait / watch / ghost は指定のレース中の部屋へ（いっぱい・終わっていたら普通の部屋えらび）
+          // 部屋えらび画面から: 指定の部屋（空きがあれば）/ 新しい部屋
+          if (!legacy && m.how === 'new') { new Room().add(p, Number(m.team)); break; }
+          if (!legacy && m.how === 'room') { const r = [...rooms].find(r => r.id === Number(m.room) && !r.legacy && r.players.size < r.max); (r || findRoom()).add(p, Number(m.team)); break; }
           const want = !legacy && ['wait', 'watch', 'ghost'].includes(m.how) ? [...rooms].find(r => r.id === Number(m.room) && !r.legacy && r.phase === 'race' && r.players.size < r.max) : null;
           (want || findRoom(legacy)).add(p, Number(m.team), want && m.how === 'ghost');
         }
         break;
+      case 'rooms': { // 部屋えらび画面: 部屋番号・状況・人数
+        const list = [...rooms].filter(r => !r.legacy).sort((a, b) => a.id - b.id).map(r => ({ room: r.id, phase: r.phase, stage: r.stage || '', n: r.players.size, max: r.max, hold: !!r.hold, phaseEnd: r.phaseEnd, startAt: r.startAt, names: [...r.players.values()].map(q => q.name).slice(0, 8) }));
+        send(p, { t: 'rooms', list, now, me: room ? room.id : 0 });
+        break;
+      }
       case 'peek': { // みんなで を押した時: レース中の部屋があれば、どうするか選んでもらう
         const waiting = [...rooms].some(r => !r.legacy && r.phase !== 'race' && r.players.size > 0 && r.players.size < r.max);
         send(p, { t: 'peek', races: waiting ? [] : racingRooms(), now });
