@@ -174,6 +174,7 @@
   #custom .cu-note { font-size: 11px; color: var(--muted); margin: 2px 0 6px; }
   #custom #cuDone { margin: 2px 0 0; padding: 8px 28px; }
   .icon-img { width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--gold); object-fit: cover; }
+  .rf-would { grid-column: 1 / -1; font-size: 13px; font-weight: 700; color: var(--gold); }
   #lobbyChoice .lc-note { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   #showcase { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
   #showcase .sc-hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,6,24,0.7); padding: 6px 14px; border-radius: 16px; font-size: 13px; font-weight: 700; }
@@ -540,6 +541,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=121"></script>
+<script type="module" src="js/game.js?v=122"></script>
 </body>
 </html>

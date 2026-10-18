@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=121';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=121';
-import { buildWorld } from './world.js?v=121';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=121';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=121';
-import { FX, SpeedShader } from './fx.js?v=121';
-import * as AU from './audio.js?v=121';
+import * as SIM from './sim.js?v=122';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=122';
+import { buildWorld } from './world.js?v=122';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=122';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=122';
+import { FX, SpeedShader } from './fx.js?v=122';
+import * as AU from './audio.js?v=122';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1633,10 +1633,25 @@ function displayDj(dj, e, pl) {
   });
 }
 // 結果画面の登録フォーム
-function showRankForm() {
-  const f = $('rankForm');
+// ランクインできそうな時だけ登録フォームを出す（今のランキングと比べる。30 位以内か、表がまだ埋まっていない部門があれば）
+const RK_LIMITS = { lap: [22, 600, true], speed: [1, 160], drift: [0.3, 15], stuck: [1, 2e7], smash: [1, 3000], air: [0.2, 5] };
+async function showRankForm() {
+  const f = $('rankForm'); f.classList.add('hidden');
   const st = { place, tod: night ? 'night' : 'day', laps: LAPS, time: player.finished ? player.finishTime : 0, speed: stats.topSpeed * 3.6, drift: stats.bestDrift, stuck: stuckKg(player), smash: stats.smash, air: stats.maxAir };
+  const vals = { lap: st.time > 0 ? st.time / st.laps : 0, speed: st.speed, drift: st.drift, stuck: st.stuck, smash: st.smash, air: st.air };
+  const shownFor = state;
+  let m; try { m = await rankAsk({ t: 'ranks', place: st.place }, 'ranks'); } catch { return; }
+  if (state !== shownFor || $('result').classList.contains('hidden') && $('podium').classList.contains('hidden')) return;
+  const would = [];
+  for (const [k, [lo, hi, asc]] of Object.entries(RK_LIMITS)) {
+    const v = vals[k]; if (!(v >= lo && v <= hi)) continue;
+    const list = m.cats?.[k] || [], n = list.filter(e => (asc ? e.val <= v : e.val >= v)).length + 1;
+    if (n <= 30) would.push([k, n]);
+  }
+  if (!would.length) return;   // ランク外: フォームは出さない
+  would.sort((a, b) => a[1] - b[1]);
   f.innerHTML = `<div class="rf-title">🏆 ${L('ランキングに登録', 'Submit to the rankings')}　<small>${esc(pName(place))}</small></div>
+    <div class="rf-would">${L('ランクイン見込み', 'You can rank')}: ${would.slice(0, 3).map(([k, n]) => `${esc(catTitle(k))} ${L(`${n}位`, `#${n}`)}`).join('・')}</div>
     <img src="${lastPreview || ''}" alt="">
     <div class="rf-row"><input id="rfName" maxlength="12" value="${esc(myName || '')}" placeholder="${L('名前', 'Name')}"><select id="rfCountry">${COUNTRIES.map(c => `<option value="${c[0]}"${c[0] === myCountry ? ' selected' : ''}>${esc(L(c[1], c[2]))}</option>`).join('')}</select></div>
     <input id="rfComment" maxlength="60" placeholder="${L('ひとこと（60字まで）', 'Comment (up to 60 chars)')}">
@@ -2181,7 +2196,7 @@ function afterGoal(r, inp) {
   else if (past < 100) inp.throttle *= 0.3;
   else { inp.throttle = 0; inp.brake = 1; }
 }
-const END_AFTER = 30;   // 1 位のゴールから決着までの秒数
+const END_AFTER = 20;   // 1 位のゴールから決着までの秒数
 function step(dt) {
   const racing = state === 'race' || state === 'finish' || state === 'result';
   if (!racing) return;
@@ -2248,7 +2263,7 @@ function frame(nowMs) {
       if (n <= 3) { cnt.classList.remove('hidden'); setT(cnt, n); if (n !== lastCount) { lastCount = n; AU.sfx('count'); } }
     } else { cnt.classList.add('hidden'); state = 'race'; message(L('ソーリャ!!', 'SORYA!!'), 'gold', true); AU.sfx('go'); }
   }
-  // 1 位がゴールしてから 30 秒で決着（ひとりで: ここで決める / みんなで: サーバーが決める。残り時間を出す）
+  // 1 位がゴールしてから 20 秒で決着（ひとりで: ここで決める / みんなで: サーバーが決める。残り時間を出す）
   if (state === 'race' || state === 'finish') {
     let left = null;
     if (mode === 'solo') {
