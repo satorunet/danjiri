@@ -10,7 +10,9 @@ import * as SIM from '../js/sim.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3340;
-const ROOM_MAX = 4;
+const ROOM_MAX = 8;
+const SLOTS = [1, 2, 0, 3, 5, 6, 4, 7];   // 人が入る順のスタート位置（0〜3 前列・4〜7 後列）
+const MIN_CARS = 4;                       // 4 台に満たない分は CPU
 const LAPS = 2;
 const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 40000, T_RACE = 420000, T_RESULT = 20000;
 const VMAX = 48;                     // m/s: どのだんじりもこれより速くは進めない
@@ -75,7 +77,7 @@ function submitRank(p, m) {
   // 走りの記録（データで再生するプレビュー）: 0.1 秒ごとに 7 個の整数
   const rec = m.rec;
   if (rec && Array.isArray(rec.f) && rec.f.length >= 70 && rec.f.length <= 7 * 4000 && rec.f.length % 7 === 0 && rec.f.every(v => Number.isInteger(v) && Math.abs(v) < 1e6)) {
-    try { fs.mkdirSync(REP_DIR, { recursive: true }); fs.writeFileSync(path.join(REP_DIR, id + '.json'), JSON.stringify({ v: 1, team: num(rec.team, 0, 3, 0) | 0, f: rec.f })); e.rep = true; } catch (err) { console.error(err); }
+    try { fs.mkdirSync(REP_DIR, { recursive: true }); fs.writeFileSync(path.join(REP_DIR, id + '.json'), JSON.stringify({ v: 1, team: num(rec.team, 0, 7, 0) | 0, f: rec.f })); e.rep = true; } catch (err) { console.error(err); }
   }
   // 積んだもの（だんじり表示用）: どの物を、だんじりのどこに付けていたか
   const dj = m.dj;
@@ -83,7 +85,7 @@ function submitRank(p, m) {
     const okS = dj.stuck.every(e => e && ['p', 's', 'r', 'g'].includes(e.k) && Number.isInteger(e.i) && e.i >= 0 && e.i < 100000 && Array.isArray(e.L) && e.L.length === 16 && e.L.every(v => Number.isFinite(v) && Math.abs(v) < 1e4));
     const okI = dj.items.every(it => Array.isArray(it) && typeof it[0] === 'string' && it[0].length <= 24 && Number.isInteger(it[1]) && it[1] > 0 && it[1] < 1000);
     if (okS && okI) {
-      try { fs.mkdirSync(DJ_DIR, { recursive: true }); fs.writeFileSync(path.join(DJ_DIR, id + '.json'), JSON.stringify({ team: num(dj.team, 0, 3, 0) | 0, stuck: dj.stuck.map(e => ({ k: e.k, i: e.i, L: e.L })), items: dj.items.map(it => [cleanText(it[0], 24), it[1]]) })); e.dj = true; } catch (err) { console.error(err); }
+      try { fs.mkdirSync(DJ_DIR, { recursive: true }); fs.writeFileSync(path.join(DJ_DIR, id + '.json'), JSON.stringify({ team: num(dj.team, 0, 7, 0) | 0, stuck: dj.stuck.map(e => ({ k: e.k, i: e.i, L: e.L })), items: dj.items.map(it => [cleanText(it[0], 24), it[1]]) })); e.dj = true; } catch (err) { console.error(err); }
     }
   }
   const got = {};
@@ -124,7 +126,8 @@ const rooms = new Set();
 let nextId = 1, nextRoom = 1;
 
 class Room {
-  constructor() { this.id = freeRoomId(); this.players = new Map(); this.cpus = []; this.phase = 'wait'; this.phaseEnd = 0; this.startAt = 0; this.firstFin = 0; rooms.add(this); }
+  // legacy: 古い画面（v2: 4 台・4 チームまで）の人だけの部屋。ページを読み直すまではこちらで遊べる
+  constructor(legacy = false) { this.legacy = legacy; this.max = legacy ? 4 : ROOM_MAX; this.id = freeRoomId(); this.players = new Map(); this.cpus = []; this.phase = 'wait'; this.phaseEnd = 0; this.startAt = 0; this.firstFin = 0; rooms.add(this); }
   broadcast(msg) { const d = JSON.stringify(msg); for (const p of this.players.values()) send(p, d); }
   info() {
     return {
@@ -138,18 +141,18 @@ class Room {
     p.room = this; p.racing = false; p.slot = -1; p.fin = null; p.ghost = null;
     // レース中の部屋にゴーストで参加: 今からスタートラインを走る（当たり判定なし・順位には入らない）
     if (ghost && this.phase === 'race') {
-      const now = Date.now(), c = SIM.newCar(course, SIM.START_S, SIM.LANES[GHOST_SLOT]);
+      const now = Date.now(), c = SIM.gridCar(course, GHOST_SLOT);
       p.ghost = { start: now + T_COUNT, fin: null }; p.lastSt = 0;
       p.car = { x: c.x, z: c.z, y: c.y, yaw: c.yaw, roll: 0, pitch: 0, vx: 0, vz: 0, f: 0, prog: SIM.START_S };
     }
     const used = new Set([...this.players.values()].map(q => q.team));
-    p.team = !used.has(wantTeam) && wantTeam >= 0 && wantTeam < 4 ? wantTeam : [0, 1, 2, 3].find(t => !used.has(t));
+    p.team = !used.has(wantTeam) && wantTeam >= 0 && wantTeam < this.max ? wantTeam : [0, 1, 2, 3, 4, 5, 6, 7].find(t => !used.has(t));
     this.players.set(p.id, p);
     this.updateHold(false);
     if (this.phase === 'wait') {
       const now = Date.now();
       this.phaseEnd = Math.max(this.phaseEnd || 0, now + (this.players.size === 1 ? T_WAIT : T_JOIN));
-      if (this.players.size >= ROOM_MAX) this.phaseEnd = Math.min(this.phaseEnd, now + T_FULL);
+      if (this.players.size >= this.max) this.phaseEnd = Math.min(this.phaseEnd, now + T_FULL);
     }
     this.sync();
   }
@@ -173,16 +176,15 @@ class Room {
     // 人がいなければ（全員やめた）CPU だけで始めずに部屋を閉じる
     if (!this.players.size) { rooms.delete(this); return; }
     if (!humans.length) { this.phaseEnd = now + T_JOIN; return; }
-    const slots = [1, 2, 0, 3];
     humans.forEach((p, i) => {
-      p.racing = true; p.slot = slots[i]; p.fin = null; p.lastSt = 0;
-      const c = SIM.newCar(course, SIM.START_S, SIM.LANES[p.slot]);
-      p.car = { x: c.x, z: c.z, y: c.y, yaw: c.yaw, roll: 0, pitch: 0, vx: 0, vz: 0, f: 0, prog: SIM.START_S };
+      p.racing = true; p.slot = SLOTS[i]; p.fin = null; p.lastSt = 0;
+      const c = SIM.gridCar(course, p.slot);
+      p.car = { x: c.x, z: c.z, y: c.y, yaw: c.yaw, roll: 0, pitch: 0, vx: 0, vz: 0, f: 0, prog: c.prog };
     });
-    const freeTeams = [0, 1, 2, 3].filter(t => !humans.some(p => p.team === t));
-    const freeSlots = slots.filter(s => !humans.some(p => p.slot === s));
+    const freeTeams = [0, 1, 2, 3, 4, 5, 6, 7].filter(t => !humans.some(p => p.team === t));
+    const freeSlots = SLOTS.slice(humans.length, Math.max(MIN_CARS, humans.length));
     this.cpus = freeSlots.map((slot, k) => {
-      const car = SIM.newCar(course, SIM.START_S, SIM.LANES[slot]);
+      const car = SIM.gridCar(course, slot);
       return { id: `c${this.id}_${slot}`, team: freeTeams[k], slot, car, ai: SIM.makeAI(k), fin: null };
     });
     // ステージ（昼 / 夜）は部屋ごとにくじ引き。みんな同じ町を走る
@@ -260,13 +262,13 @@ class Room {
 function freeRoomId() { const used = new Set([...rooms].map(r => r.id)); let i = 1; while (used.has(i)) i++; return i; }
 // レース中の部屋（観戦・ゴースト参加・その部屋で待つ の候補）
 function racingRooms() {
-  return [...rooms].filter(r => r.phase === 'race' && r.players.size < ROOM_MAX && [...r.players.values()].some(q => q.racing))
+  return [...rooms].filter(r => !r.legacy && r.phase === 'race' && r.players.size < r.max && [...r.players.values()].some(q => q.racing))
     .sort((a, b) => b.players.size - a.players.size)
     .map(r => ({ room: r.id, stage: r.stage, startAt: r.startAt, n: [...r.players.values()].filter(q => q.racing).length, names: [...r.players.values()].filter(q => q.racing).map(q => q.name).slice(0, 4) }));
 }
-function findRoom() {
-  const open = [...rooms].filter(r => r.players.size < ROOM_MAX && (r.phase === 'wait' || r.phase === 'result'));
-  return open.sort((a, b) => b.players.size - a.players.size)[0] || new Room();
+function findRoom(legacy = false) {
+  const open = [...rooms].filter(r => r.legacy === legacy && r.players.size < r.max && (r.phase === 'wait' || r.phase === 'result'));
+  return open.sort((a, b) => b.players.size - a.players.size)[0] || new Room(legacy);
 }
 
 const wss = new WebSocketServer({ host: '127.0.0.1', port: PORT, maxPayload: 120000 });
@@ -286,17 +288,18 @@ wss.on('connection', (ws, req) => {
     switch (m.t) {
       case 'ping': send(p, { t: 'pong', c: Number(m.c) || 0, s: now }); break;
       case 'join':
-        if (m.v !== 2) { send(p, { t: 'old' }); break; }
+        if (m.v !== 2 && m.v !== 3) { send(p, { t: 'old' }); break; }
+        const legacy = m.v === 2;
         if (room) room.remove(p);
         p.name = cleanName(m.name);
         p.watch = m.how === 'watch';
         { // how: wait / watch / ghost は指定のレース中の部屋へ（いっぱい・終わっていたら普通の部屋えらび）
-          const want = ['wait', 'watch', 'ghost'].includes(m.how) ? [...rooms].find(r => r.id === Number(m.room) && r.phase === 'race' && r.players.size < ROOM_MAX) : null;
-          (want || findRoom()).add(p, Number(m.team), want && m.how === 'ghost');
+          const want = !legacy && ['wait', 'watch', 'ghost'].includes(m.how) ? [...rooms].find(r => r.id === Number(m.room) && !r.legacy && r.phase === 'race' && r.players.size < r.max) : null;
+          (want || findRoom(legacy)).add(p, Number(m.team), want && m.how === 'ghost');
         }
         break;
       case 'peek': { // みんなで を押した時: レース中の部屋があれば、どうするか選んでもらう
-        const waiting = [...rooms].some(r => r.phase !== 'race' && r.players.size > 0 && r.players.size < ROOM_MAX);
+        const waiting = [...rooms].some(r => !r.legacy && r.phase !== 'race' && r.players.size > 0 && r.players.size < r.max);
         send(p, { t: 'peek', races: waiting ? [] : racingRooms(), now });
         break;
       }

@@ -105,8 +105,8 @@
   .chat-log .cm b { margin-right: 6px; }
   .chat-log .cm.me { opacity: .85; }
   .chat-log .none { color: var(--muted); font-size: 12px; }
-  .chat-stamps { display: flex; gap: 4px; overflow-x: auto; margin: 6px 0; scrollbar-width: none; }
-  .chat-stamps button { flex: none; font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.45); background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
+  .chat-stamps { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0; }
+  .chat-stamps button { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.45); background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
   .chat-row { display: flex; gap: 6px; }
   .chat-row input { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(242,193,78,0.45); background: rgba(0,0,0,0.3); color: var(--paper); }
   .chat-row .go { margin: 0; padding: 6px 14px; font-size: 14px; }
@@ -350,7 +350,7 @@
     </div>
     <div class="lobbyCount" id="lobbyCount"></div>
     <ul class="lobbyList" id="lobbyList"></ul>
-    <div class="best" data-en="Up to 4 danjiri. CPU fills empty slots. 2 laps. Town and time of day are drawn by lot.">最大4台。人が足りない分はCPUの町が参加。2周勝負。町と時間はくじ引き。</div>
+    <div class="best" data-en="Up to 8 · CPUs fill to 4 · 2 laps · random town">最大8台・4台未満はCPU・2周・町はくじ引き</div>
     <div class="chat hidden" id="lobbyChat"><div class="chat-log" id="lobbyChatLog"></div><div class="chat-stamps"><button data-s="おつかれ!">おつかれ!</button><button data-s="ナイス!">ナイス!</button><button data-s="もう一回!">もう一回!</button><button data-s="やりまわし最高!">やりまわし最高!</button><button data-s="GG">GG</button></div><form class="chat-row" id="lobbyChatForm"><input id="lobbyChatIn" maxlength="40" autocomplete="off" placeholder="ひとこと（40字まで）" data-en-ph="Say something (40 chars)"><button class="go" type="submit" data-en="Send">送る</button></form></div>
     <div class="ranking" id="lobbyRank"></div>
     <button class="go ghost" id="lobbyHold">だれか来るまで待つ：OFF</button><button class="go ghost" id="lobbyQuit" data-en="Leave">やめる</button>
@@ -421,6 +421,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=77"></script>
+<script type="module" src="js/game.js?v=78"></script>
 </body>
 </html>

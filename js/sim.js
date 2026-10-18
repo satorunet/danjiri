@@ -251,6 +251,9 @@ export function newCar(course, s, lane) {
   c.lapBase = 0; c.prog = s;
   return c;
 }
+// スタートの並び: 0〜3 は前列、4〜7 は 12 m 後ろの 2 列目
+export const gridS = slot => START_S - (slot >= 4 ? 12 : 0);
+export const gridCar = (course, slot) => newCar(course, gridS(slot), LANES[slot % 4]);
 export function placeCar(c, course, s, lane = 0) {
   const p = sampleS(course, s);
   c.x = p.x - p.tz * lane; c.z = p.z + p.tx * lane;

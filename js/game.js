@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=77';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=77';
-import { buildWorld } from './world.js?v=77';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=77';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=77';
-import { FX, SpeedShader } from './fx.js?v=77';
-import * as AU from './audio.js?v=77';
+import * as SIM from './sim.js?v=78';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=78';
+import { buildWorld } from './world.js?v=78';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=78';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=78';
+import { FX, SpeedShader } from './fx.js?v=78';
+import * as AU from './audio.js?v=78';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -22,6 +22,10 @@ const TEAMS = [
   { name: '西町', en: 'West Town', kanji: '西', color: 0xb3221a, css: '#d2382c', happi: '#8a1a14' },
   { name: '浜町', en: 'Beach Town', kanji: '浜', color: 0x0e7a6c, css: '#139a88', happi: '#0d5a50' },
   { name: '本町', en: 'Main Town', kanji: '本', color: 0x6a2aa6, css: '#8a45cc', happi: '#4a1f78' },
+  { name: '北町', en: 'North Town', kanji: '北', color: 0xd9741a, css: '#ee8a2a', happi: '#9a4f10' },
+  { name: '南町', en: 'South Town', kanji: '南', color: 0xc9a01a, css: '#e0b52a', happi: '#8a6c0e' },
+  { name: '中町', en: 'Middle Town', kanji: '中', color: 0xc23a7a, css: '#e0559a', happi: '#7a1f4c' },
+  { name: '新町', en: 'New Town', kanji: '新', color: 0x3a3f48, css: '#6b7280', happi: '#22252b' },
 ];
 const DT = 1 / 60;
 const teamName = t => (LANG === 'en' ? t.en : t.name);
@@ -160,7 +164,7 @@ function loadStage(pl, nt = night) {
 // ================= コースと町 =================
 let course;
 const fx = new FX(scene);
-const crowd = new CrowdRig(scene, 4 * 19, 4);
+const crowd = new CrowdRig(scene, 8 * 19, 8);
 const ropeMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 0.07, 1), new THREE.MeshToonMaterial({ color: 0xd8c08a }), 4 * 2 * 7);
 ropeMesh.frustumCulled = false; ropeMesh.castShadow = true; scene.add(ropeMesh);
 // 絡まった提灯の紐
@@ -190,7 +194,7 @@ function nameTag(text, css) {
 }
 function makeRacer(teamIdx, slot, kind, extra = {}) {
   const team = TEAMS[teamIdx];
-  const car = SIM.newCar(course, SIM.START_S, SIM.LANES[slot]);
+  const car = SIM.gridCar(course, slot);
   const D = makeDanjiri(team);
   scene.add(D.group);
   const r = { team, teamIdx, slot, kind, car, D, vis: car, ai: kind === 'cpu' ? SIM.makeAI(slot) : null, phase: Math.random() * 6, finished: false, finishTime: 0, prevAir: false, prevCrash: 0, ...extra };
@@ -204,7 +208,7 @@ function clearRacers() {
   racers = []; player = null;
 }
 function finishRoster() {
-  racers.forEach((r, i) => { r.slotIdx = Math.min(i, 3); if (i < 4) crowd.setTeamTexture(i, r.team); });
+  racers.forEach((r, i) => { r.slotIdx = Math.min(i, 7); if (i < 8) crowd.setTeamTexture(i, r.team); });
   const n = rankOrder().length;
   $('rankOf').textContent = L(`位 / ${n}`, ` / ${n}`);
   for (const r of racers) updateVisual(r, 0, 0);
@@ -1418,7 +1422,7 @@ const STAMP_EN = { 'おつかれ!': 'GG, well run!', 'ナイス!': 'Nice!', 'も
 function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (text) netSend({ t: 'chat', text }); }
 function netJoin(how, room) {
   NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
-  netSend({ t: 'join', name: myName, team: selTeam, v: 2, how, room }); netSend({ t: 'hold', on: holdWait });
+  netSend({ t: 'join', name: myName, team: selTeam, v: 3, how, room }); netSend({ t: 'hold', on: holdWait });
   renderLobby();
 }
 function onPeek(m) {
@@ -1622,7 +1626,7 @@ function renderLobby() {
   setT($('lobbyStatus'), m.phase === 'wait' ? L(`部屋 ${m.room}：ほかの人を待っています`, `Room ${m.room}: waiting for players`) : m.phase === 'race' ? L(`部屋 ${m.room}：レース中。次のレースから参加します`, `Room ${m.room}: race in progress, you join the next one`) : L(`部屋 ${m.room}：結果発表中…`, `Room ${m.room}: results…`));
   let html = m.players.map(p => `<li class="${p.id === NET.id ? 'me' : ''}">${swatch(TEAMS[p.team])}${esc(p.name)}${p.id === NET.id ? L('（あなた）', ' (you)') : ''}<span style="margin-left:auto;color:var(--muted)">${teamName(TEAMS[p.team])}</span></li>`).join('');
   const used = new Set(m.players.map(p => p.team));
-  [0, 1, 2, 3].filter(t => !used.has(t)).slice(0, Math.max(0, 4 - m.players.length)).forEach(t => { html += `<li class="cpu">${swatch(TEAMS[t])}${L('CPU（空き枠）', 'CPU (open slot)')}<span style="margin-left:auto">${teamName(TEAMS[t])}</span></li>`; });
+  [0, 1, 2, 3, 4, 5, 6, 7].filter(t => !used.has(t)).slice(0, Math.max(0, 4 - m.players.length)).forEach(t => { html += `<li class="cpu">${swatch(TEAMS[t])}${L('CPU（空き枠）', 'CPU (open slot)')}<span style="margin-left:auto">${teamName(TEAMS[t])}</span></li>`; });
   $('lobbyList').innerHTML = html;
   updateLobbyCount();
 }
