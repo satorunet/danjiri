@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3340;
 const ROOM_MAX = 4;
 const LAPS = 2;
-const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 40000, T_RACE = 420000, T_RESULT = 10000;
+const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 40000, T_RACE = 420000, T_RESULT = 20000;
 const VMAX = 48;                     // m/s: どのだんじりもこれより速くは進めない
 const NAME_MAX = 12;
 const BEST_FILE = process.env.BEST_FILE || path.join(__dirname, 'data', 'best2.json');
@@ -311,6 +311,13 @@ wss.on('connection', (ws, req) => {
       case 'rankimg': send(p, { t: 'rankimg', id: String(m.id || ''), data: readImg(m.id) }); break;
       case 'rankdj': send(p, { t: 'rankdj', id: String(m.id || ''), dj: readDj(m.id) }); break;
       case 'rankrep': send(p, { t: 'rankrep', id: String(m.id || ''), rec: readRep(m.id) }); break;
+      case 'chat': { // 試合後・待合室のひとこと（40 字・1.5 秒に 1 回まで）
+        const text = cleanText(m.text, 40);
+        if (!room || !text || now - (p.lastChat || 0) < 1500) break;
+        p.lastChat = now;
+        room.broadcast({ t: 'chat', id: p.id, name: p.name, team: p.team, text });
+        break;
+      }
       case 'hold': p.hold = !!m.on; if (room) room.updateHold(); break;
       case 'stats': { // トップ画面の人数表示: 待っている人・レース中の人
         let wait = 0, play = 0;

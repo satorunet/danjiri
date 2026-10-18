@@ -100,6 +100,16 @@
   #watchBar .go { font-size: 14px; padding: 6px 12px; margin: 0; }
   #watchBar #wbName { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   #lobbyChoice .lc-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0; }
+  .chat { margin: 10px auto; max-width: 460px; text-align: left; }
+  .chat-log { max-height: 140px; overflow-y: auto; padding: 6px 10px; border-radius: 10px; background: rgba(255,246,228,0.06); border: 1px solid rgba(242,193,78,0.3); font-size: 14px; line-height: 1.5; min-height: 28px; }
+  .chat-log .cm b { margin-right: 6px; }
+  .chat-log .cm.me { opacity: .85; }
+  .chat-log .none { color: var(--muted); font-size: 12px; }
+  .chat-stamps { display: flex; gap: 4px; overflow-x: auto; margin: 6px 0; scrollbar-width: none; }
+  .chat-stamps button { flex: none; font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.45); background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
+  .chat-row { display: flex; gap: 6px; }
+  .chat-row input { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(242,193,78,0.45); background: rgba(0,0,0,0.3); color: var(--paper); }
+  .chat-row .go { margin: 0; padding: 6px 14px; font-size: 14px; }
   #lobbyChoice .lc-note { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   #showcase { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
   #showcase .sc-hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,6,24,0.7); padding: 6px 14px; border-radius: 16px; font-size: 13px; font-weight: 700; }
@@ -341,6 +351,7 @@
     <div class="lobbyCount" id="lobbyCount"></div>
     <ul class="lobbyList" id="lobbyList"></ul>
     <div class="best" data-en="Up to 4 danjiri. CPU fills empty slots. 2 laps. Town and time of day are drawn by lot.">最大4台。人が足りない分はCPUの町が参加。2周勝負。町と時間はくじ引き。</div>
+    <div class="chat hidden" id="lobbyChat"><div class="chat-log" id="lobbyChatLog"></div><div class="chat-stamps"><button data-s="おつかれ!">おつかれ!</button><button data-s="ナイス!">ナイス!</button><button data-s="もう一回!">もう一回!</button><button data-s="やりまわし最高!">やりまわし最高!</button><button data-s="GG">GG</button></div><form class="chat-row" id="lobbyChatForm"><input id="lobbyChatIn" maxlength="40" autocomplete="off" placeholder="ひとこと（40字まで）" data-en-ph="Say something (40 chars)"><button class="go" type="submit" data-en="Send">送る</button></form></div>
     <div class="ranking" id="lobbyRank"></div>
     <button class="go ghost" id="lobbyHold">だれか来るまで待つ：OFF</button><button class="go ghost" id="lobbyQuit" data-en="Leave">やめる</button>
   </div>
@@ -363,6 +374,7 @@
     <div id="resColl"></div>
     <div id="rankForm" class="rank-form hidden"></div>
     <div id="nextInfo"></div>
+    <div class="chat hidden" id="resChat"><div class="chat-log" id="resChatLog"></div><div class="chat-stamps"><button data-s="おつかれ!">おつかれ!</button><button data-s="ナイス!">ナイス!</button><button data-s="もう一回!">もう一回!</button><button data-s="やりまわし最高!">やりまわし最高!</button><button data-s="GG">GG</button></div><form class="chat-row" id="resChatForm"><input id="resChatIn" maxlength="40" autocomplete="off" placeholder="ひとこと（40字まで）" data-en-ph="Say something (40 chars)"><button class="go" type="submit" data-en="Send">送る</button></form></div>
     <button class="go" id="retryBtn" data-en="Again">もう一回</button><button class="go ghost" id="titleBtn" data-en="Title">タイトルへ</button><button class="go ghost" id="resRankBtn" data-en="🏆 Rankings">🏆 ランキング</button>
     <div><button class="go ghost" id="resMbBtn" data-en="⭐ My Best">⭐ マイベスト</button><button class="go online" id="showBtn" data-en="🔍 View danjiri in 3D">🔍 だんじりを3Dで見る</button></div>
   </div>
@@ -409,6 +421,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=72"></script>
+<script type="module" src="js/game.js?v=75"></script>
 </body>
 </html>

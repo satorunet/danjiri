@@ -1,6 +1,6 @@
 // エフェクト: 火花・砂ぼこり・破片・紙吹雪・タイヤ痕・金の軌跡・集中線
 import * as THREE from 'three';
-import { toon } from './gfx.js?v=72';
+import { toon } from './gfx.js?v=75';
 
 const VS = `
 attribute float size; attribute float alpha; attribute vec3 pcolor;

@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=72';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=72';
-import { buildWorld } from './world.js?v=72';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=72';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=72';
-import { FX, SpeedShader } from './fx.js?v=72';
-import * as AU from './audio.js?v=72';
+import * as SIM from './sim.js?v=75';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=75';
+import { buildWorld } from './world.js?v=75';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=75';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=75';
+import { FX, SpeedShader } from './fx.js?v=75';
+import * as AU from './audio.js?v=75';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -702,7 +702,7 @@ const input = { throttle: 0, brake: 0, steer: 0, drift: false, boost: false };
 const touch = { steer: 0, thr: 0, brake: false, drift: false, boost: false, active: false };
 let steerKey = 0;
 addEventListener('keydown', e => {
-  if (e.target && e.target.tagName === 'INPUT') { if (e.code === 'Enter') e.target.blur(); return; }
+  if (e.target && e.target.tagName === 'INPUT') { if (e.code === 'Enter' && !e.target.closest('.chat-row')) e.target.blur(); return; }   // チャット欄は Enter で送信
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   keys.add(e.code);
   if (e.repeat) return;
@@ -807,7 +807,9 @@ function drawMini() {
   const g = mctx; g.clearRect(0, 0, 220, 220); g.drawImage(miniBase, 0, 0);
   for (const r of [...racers].reverse()) {
     const [x, y] = mm(r.vis.x, r.vis.z);
-    g.save(); g.translate(x, y); g.rotate(-r.vis.yaw + Math.PI);
+    // 向き: 進行方向に 1 歩進めた点をミニマップに写して、そっちへ ▲ の先を向ける
+    const [x2, y2] = mm(r.vis.x + Math.sin(r.vis.yaw) * 5, r.vis.z + Math.cos(r.vis.yaw) * 5);
+    g.save(); g.translate(x, y); g.rotate(Math.atan2(y2 - y, x2 - x) - Math.PI / 2);
     g.fillStyle = r.team.css; g.strokeStyle = '#fff'; g.lineWidth = r === player ? 2.5 : 1.5;
     const s = r === player ? 9 : 6.5;
     g.beginPath(); g.moveTo(0, s); g.lineTo(s * 0.75, -s * 0.7); g.lineTo(-s * 0.75, -s * 0.7); g.closePath(); g.fill(); g.stroke();
@@ -1032,7 +1034,7 @@ function showSoloResult() {
   if (!best || player.finishTime < best) { store.set(bestKey(), player.finishTime); $('resNew').textContent = best ? L('ベストタイム更新!', 'New best time!') : L('ベストタイム記録!', 'Best time set!'); }
   else $('resNew').textContent = L(`ベスト ${fmt(best)}`, `Best ${fmt(best)}`);
   $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
-  $('retryBtn').classList.remove('hidden'); setT($('nextInfo'), '');
+  $('retryBtn').classList.remove('hidden'); setT($('nextInfo'), ''); showChat(false);
   $('result').classList.remove('hidden'); $('result').scrollTop = 0;
 }
 
@@ -1399,6 +1401,21 @@ function netConnect() {
     setTimeout(() => { if (mode === 'online' && !NET.ws) netConnect(); }, 1200 * NET.retry);
   };
 }
+// ひとことチャット（試合後・待合室）
+NET.chat = []; NET.chatRoom = null;
+function onChat(m) {
+  if (mode !== 'online') return;
+  NET.chat.push(m); if (NET.chat.length > 30) NET.chat.shift();
+  renderChat();
+  if (m.id !== NET.id && (state === 'result' || state === 'lobby')) AU.sfx('join');
+}
+function renderChat() {
+  const html = NET.chat.length ? NET.chat.map(c => `<div class="cm ${c.id === NET.id ? 'me' : ''}"><b style="color:${TEAMS[c.team]?.css || '#fff'}">${esc(c.name)}</b>${esc(c.text)}</div>`).join('') : `<div class="none">${L('ひとこと送ってみよう', 'Say hi!')}</div>`;
+  for (const k of ['res', 'lobby']) { const el = $(k + 'ChatLog'); if (el) { el.innerHTML = html; el.scrollTop = el.scrollHeight; } }
+}
+function showChat(on) { for (const k of ['res', 'lobby']) $(k + 'Chat').classList.toggle('hidden', !on); if (on) renderChat(); }
+const STAMP_EN = { 'おつかれ!': 'GG, well run!', 'ナイス!': 'Nice!', 'もう一回!': 'One more!', 'やりまわし最高!': 'Sweet drift!' };
+function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (text) netSend({ t: 'chat', text }); }
 function netJoin(how, room) {
   NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   netSend({ t: 'join', name: myName, team: selTeam, v: 2, how, room }); netSend({ t: 'hold', on: holdWait });
@@ -1425,6 +1442,7 @@ function onNet(m) {
   else if (m.t === 'pong') { const n = Date.now(), rtt = n - m.c; if (rtt <= NET.bestRtt + 15) { NET.bestRtt = Math.min(NET.bestRtt, rtt); NET.offset = m.s - (m.c + rtt / 2); } }
   else if (m.t === 'room') onRoom(m);
   else if (m.t === 'peek') onPeek(m);
+  else if (m.t === 'chat') onChat(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
 }
@@ -1434,6 +1452,8 @@ function onRoom(m) {
   const ids = new Set(m.players.map(p => p.id));
   if (NET.seen && NET.seenRoom === m.room && state === 'lobby' && [...ids].some(id => id !== NET.id && !NET.seen.has(id))) AU.sfx('join');
   NET.seen = ids; NET.seenRoom = m.room;
+  if (NET.chatRoom !== m.room) { NET.chatRoom = m.room; NET.chat = []; renderChat(); }
+  showChat(true);
   NET.room = m; LAPS = m.laps;
   const me = m.players.find(p => p.id === NET.id);
   const key = m.room + ':' + m.startAt;
@@ -1668,6 +1688,11 @@ function setupTitle() {
   $('startBtn').onclick = startSolo; $('onlineBtn').onclick = startOnline;
   $('soloBtn').onclick = () => titleStep(2); $('stepBack').onclick = () => titleStep(1);
   $('lobbyQuit').onclick = toTitle;
+  for (const k of ['res', 'lobby']) {
+    $(k + 'ChatForm').onsubmit = e => { e.preventDefault(); const i = $(k + 'ChatIn'); sendChat(i.value); i.value = ''; };
+    $(k + 'Chat').querySelectorAll('.chat-stamps button').forEach(b => { if (STAMP_EN[b.dataset.s]) b.dataset.en = STAMP_EN[b.dataset.s]; });
+    $(k + 'Chat').querySelectorAll('.chat-stamps button').forEach(b => b.onclick = () => sendChat(LANG === 'en' ? (STAMP_EN[b.dataset.s] || b.dataset.s) : b.dataset.s));
+  }
   $('wbPrev').onclick = () => watchPick(-1); $('wbNext').onclick = () => watchPick(1); $('wbQuit').onclick = toTitle;
   showHold(); $('lobbyHold').onclick = () => { holdWait = !holdWait; store.set('danjiri-hold', holdWait ? '1' : '0'); showHold(); netSend({ t: 'hold', on: holdWait }); }; $('retryBtn').onclick = startSolo; $('titleBtn').onclick = toTitle;
   $('resumeBtn').onclick = togglePause; $('quitBtn').onclick = () => { AU.audio.ctx?.resume(); toTitle(); };
