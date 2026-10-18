@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=78';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=78';
-import { buildWorld } from './world.js?v=78';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=78';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=78';
-import { FX, SpeedShader } from './fx.js?v=78';
-import * as AU from './audio.js?v=78';
+import * as SIM from './sim.js?v=79';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=79';
+import { buildWorld } from './world.js?v=79';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=79';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=79';
+import { FX, SpeedShader } from './fx.js?v=79';
+import * as AU from './audio.js?v=79';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1694,8 +1694,10 @@ function setupTitle() {
   $('lobbyQuit').onclick = toTitle;
   for (const k of ['res', 'lobby']) {
     $(k + 'ChatForm').onsubmit = e => { e.preventDefault(); const i = $(k + 'ChatIn'); sendChat(i.value); i.value = ''; };
-    $(k + 'Chat').querySelectorAll('.chat-stamps button').forEach(b => { if (STAMP_EN[b.dataset.s]) b.dataset.en = STAMP_EN[b.dataset.s]; });
-    $(k + 'Chat').querySelectorAll('.chat-stamps button').forEach(b => b.onclick = () => sendChat(LANG === 'en' ? (STAMP_EN[b.dataset.s] || b.dataset.s) : b.dataset.s));
+    // 定型文はプルダウン: 選んだらすぐ送って「定型文 ▼」に戻す
+    const st = $(k + 'Stamp');
+    st.querySelectorAll('option[value]').forEach(o => { if (STAMP_EN[o.value]) o.dataset.en = STAMP_EN[o.value]; });
+    st.onchange = () => { const v = st.value; st.value = ''; if (v) sendChat(LANG === 'en' ? (STAMP_EN[v] || v) : v); };
   }
   $('wbPrev').onclick = () => watchPick(-1); $('wbNext').onclick = () => watchPick(1); $('wbQuit').onclick = toTitle;
   showHold(); $('lobbyHold').onclick = () => { holdWait = !holdWait; store.set('danjiri-hold', holdWait ? '1' : '0'); showHold(); netSend({ t: 'hold', on: holdWait }); }; $('retryBtn').onclick = startSolo; $('titleBtn').onclick = toTitle;
