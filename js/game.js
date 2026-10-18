@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=110';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=110';
-import { buildWorld } from './world.js?v=110';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=110';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=110';
-import { FX, SpeedShader } from './fx.js?v=110';
-import * as AU from './audio.js?v=110';
+import * as SIM from './sim.js?v=111';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=111';
+import { buildWorld } from './world.js?v=111';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=111';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=111';
+import { FX, SpeedShader } from './fx.js?v=111';
+import * as AU from './audio.js?v=111';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -269,9 +269,12 @@ function setFlagIcon(r, url) {
       // 大きめの旗。竿側を固定して、外へ行くほどはためく（frame のはためき）
       const W = 1.35, H = 1.1, geo = new THREE.PlaneGeometry(W, H, 10, 4);
       const cloth = new THREE.Mesh(geo, clothMat);
-      cloth.position.set(sx * W / 2, 2.8, 0); cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）
+      // 旗の布だけ、竿に付いている側を軸にして外へもう少し倒す（竿の角度はそのまま）
+      const hinge = new THREE.Group(); hinge.position.set(0, 2.8, 0); hinge.rotation.z = -sx * 0.3;
+      cloth.position.set(sx * W / 2, 0, 0); cloth.rotation.set(0, Math.PI, 0);
+      hinge.add(cloth);
       cloth.userData.base = geo.attributes.position.array.slice(); cloth.userData.sx = sx; cloth.userData.W = W;
-      arm.add(pole, knob, cloth); flag.add(arm); flags.push(cloth);
+      arm.add(pole, knob, hinge); flag.add(arm); flags.push(cloth);
     }
     flag.userData.cloth = { material: clothMat }; flag.userData.cloths = flags;
     D.body.add(flag); D.iconFlag = flag;
