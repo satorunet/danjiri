@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=98';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=99';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -493,12 +493,36 @@ export function makeDanjiri(team, type = 0) {
     put(S.black, box(2.9, 0.16, 3.6, 0, 3.92, -0.1));
     put(S.gold, new THREE.ConeGeometry(2.25, 1.5, 4, 1).rotateY(Math.PI / 4).scale(1, 1, 1.22).translate(0, 4.75, -0.1));
     put(S.gold, cyl(0.12, 0.2, 0.45, 8, 0, 5.65, -0.1));
-    // 鳳凰
-    put(S.gold, sph(0.32, 0, 6.15, -0.1, 10, 8).scale(1, 0.8, 1.5));
-    put(S.gold, sph(0.16, 0, 6.45, 0.35, 8, 6));
-    put(S.vc, col(new THREE.ConeGeometry(0.06, 0.22, 5).rotateX(Math.PI / 2).translate(0, 6.45, 0.56), 0xd42a1e));
-    for (const sx of [-1, 1]) put(S.gold, new THREE.BoxGeometry(1.1, 0.05, 0.5).rotateZ(sx * 0.45).translate(sx * 0.6, 6.35, -0.15));
-    for (let i = -1; i <= 1; i++) put(S.vc, col(rotX(new THREE.ConeGeometry(0.08, 1.2, 5), -2.2).translate(i * 0.15, 6.35, -0.75), [0xd42a1e, 0xf0bc3c, 0x1d7a5a][i + 1]));
+    // 鳳凰: 宝珠の上で翼を大きく広げ、首をもたげて長い尾羽を跳ね上げる
+    {
+      const cx = 0, cy = 6.0, cz = -0.1, RED = 0xd42a1e, GRN = 0x1d7a5a, PUR = 0x6a2aa6;
+      const tube = (pts, r, c) => put(S.vc, col(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(([x, y, z]) => new THREE.Vector3(cx + x, cy + y, cz + z))), 24, r, 6), c));
+      put(S.gold, sph(0.26, cx, cy - 0.12, cz, 12, 10));                                       // 宝珠
+      put(S.vc, col(new THREE.TorusGeometry(0.27, 0.04, 6, 20).rotateX(Math.PI / 2).translate(cx, cy - 0.12, cz), RED));
+      put(S.gold, sph(0.34, cx, cy + 0.38, cz - 0.05, 12, 10).scale(1, 1, 1));                 // 胴
+      put(S.gold, new THREE.SphereGeometry(0.3, 12, 10).scale(0.85, 0.75, 1.5).translate(cx, cy + 0.42, cz - 0.08));
+      // 首（S 字）と頭
+      tube([[0, 0.55, 0.25], [0, 0.85, 0.42], [0, 1.15, 0.38], [0, 1.32, 0.52]], 0.09, 0xf0bc3c);
+      put(S.gold, sph(0.17, cx, cy + 1.36, cz + 0.6, 10, 8));
+      put(S.vc, col(new THREE.ConeGeometry(0.07, 0.3, 6).rotateX(Math.PI / 2).translate(cx, cy + 1.32, cz + 0.84), RED));   // くちばし
+      for (const sx of [-1, 1]) put(S.vc, col(sph(0.04, cx + sx * 0.11, cy + 1.42, cz + 0.7, 6, 4), RED));               // 目
+      for (let i = 0; i < 4; i++) put(S.vc, col(new THREE.ConeGeometry(0.045, 0.45 - i * 0.06, 5).rotateX(-0.6 - i * 0.25).translate(cx, cy + 1.6 - i * 0.04, cz + 0.5 - i * 0.12), i % 2 ? RED : 0xf0bc3c));   // 冠羽
+      tube([[0, 1.2, 0.45], [0, 1.0, 0.62], [0, 0.82, 0.58]], 0.04, RED);                         // あごの垂れ
+      // 翼: 羽根を扇に 7 枚ずつ、内側は金・外側は赤と緑
+      for (const sx of [-1, 1]) for (let j = 0; j < 7; j++) {
+        const a = 0.25 + j * 0.2, len = 0.9 + j * 0.12;
+        const g = new THREE.ConeGeometry(0.13, len, 4).scale(1, 1, 0.22).translate(0, len / 2, 0)
+          .rotateZ(-sx * (Math.PI / 2 - a)).rotateY(sx * 0.25).translate(cx + sx * 0.22, cy + 0.55, cz - 0.05 - j * 0.03);
+        put(j < 3 ? S.gold : S.vc, j < 3 ? g : col(g, j % 2 ? RED : GRN));
+      }
+      for (const sx of [-1, 1]) put(S.gold, new THREE.BoxGeometry(0.75, 0.08, 0.32).rotateZ(sx * 0.55).translate(cx + sx * 0.42, cy + 0.72, cz - 0.05));   // 翼の付け根
+      // 尾羽: 5 本、後ろへ流れて先が跳ね上がる
+      [[0, RED], [-0.28, 0xf0bc3c], [0.28, 0xf0bc3c], [-0.5, GRN], [0.5, PUR]].forEach(([sx, c], i) => {
+        const L = 1 + (i < 3 ? 0.35 : 0);
+        tube([[0, 0.35, -0.35], [sx * 0.4, 0.1, -0.9 * L], [sx * 0.9, 0.25, -1.5 * L], [sx * 1.15, 0.85, -1.85 * L], [sx * 1.0, 1.25, -1.7 * L]], 0.05, c);
+        put(S.gold, sph(0.09, cx + sx * 1.0, cy + 1.27, cz - 1.7 * L, 8, 6));
+      });
+    }
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(S.vc, col(new THREE.ConeGeometry(0.12, 0.5, 8).translate(sx * 1.45, 3.6, -0.1 + sz * 1.78), 0xd42a1e));
     daikuAt = [{ x: 0, y: 2.28, z: 1.65, s: 1, base: 2.28 }, { x: 0, y: 2.28, z: -1.65, s: 0.92, base: 2.28 }];
   }

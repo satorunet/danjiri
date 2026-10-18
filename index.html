@@ -165,8 +165,9 @@
   #custom .cu-teams .sw { width: 14px; height: 14px; border-radius: 3px; }
   #custom .cu-icon { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0; }
   #custom .cu-icon .go { margin: 0; font-size: 14px; padding: 6px 12px; }
-  #custom .cu-fin { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 4px 0 6px; }
-  #custom .cu-fin button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
+  #custom .cu-fin { display: flex; flex-wrap: nowrap; justify-content: flex-start; gap: 4px; margin: 4px 0 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  #custom .cu-fin::-webkit-scrollbar { display: none; }
+  #custom .cu-fin button { flex: none; white-space: nowrap; font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
   #custom .cu-fin button.sel { border-color: var(--gold); background: rgba(242,193,78,0.18); }
   #custom .cu-sub { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 2px; }
   #custom .cu-text { width: 130px; font: inherit; font-size: 18px; text-align: center; padding: 5px 8px; border-radius: 8px; border: 1px solid rgba(242,193,78,0.5); background: rgba(0,0,0,0.3); color: var(--paper); }
@@ -531,6 +532,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=98"></script>
+<script type="module" src="js/game.js?v=99"></script>
 </body>
 </html>

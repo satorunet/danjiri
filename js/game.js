@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=98';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=98';
-import { buildWorld } from './world.js?v=98';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=98';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=98';
-import { FX, SpeedShader } from './fx.js?v=98';
-import * as AU from './audio.js?v=98';
+import * as SIM from './sim.js?v=99';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=99';
+import { buildWorld } from './world.js?v=99';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=99';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=99';
+import { FX, SpeedShader } from './fx.js?v=99';
+import * as AU from './audio.js?v=99';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -254,12 +254,19 @@ function setFlagIcon(r, url) {
     g.fillStyle = '#f2c14e'; g.fillRect(14, 14, 228, 228);
     g.drawImage(img, 20, 20, 216, 216);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-    const flag = new THREE.Group(); flag.position.set(0, 2.3, -2.25);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 4.9, 6).translate(0, 2.45, 0), new THREE.MeshBasicMaterial({ color: 0x2a1a0e }));
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf0bc3c })); knob.position.y = 4.95;
-    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true }));
-    cloth.position.set(0.9, 3.95, 0); cloth.rotation.y = Math.PI;   // 後ろ（追いかける側）から見える向き
-    flag.add(pole, knob, cloth); flag.userData.cloth = cloth;
+    // 交差旗: だんじりの後ろに 2 本、根元で交差させて左右へ開く（後ろ＝追いかける側から見える向き）
+    const flag = new THREE.Group(); flag.position.set(0, 2.3, -2.3);
+    const clothMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true });
+    const poleMat = new THREE.MeshBasicMaterial({ color: 0x2a1a0e }), knobMat = new THREE.MeshBasicMaterial({ color: 0xf0bc3c });
+    for (const sx of [-1, 1]) {
+      const arm = new THREE.Group(); arm.position.set(-sx * 0.35, 0, 0); arm.rotation.z = sx * 0.42;   // 根元は反対側 → 上で左右へ
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 4.4, 6).translate(0, 2.2, 0), poleMat);
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), knobMat); knob.position.y = 4.45;
+      const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.25), clothMat);
+      cloth.position.set(sx * 0.66, 3.65, 0); cloth.rotation.set(0, Math.PI, sx * 0.42);   // 布はまっすぐ立つように傾きを戻す
+      arm.add(pole, knob, cloth); flag.add(arm);
+    }
+    flag.userData.cloth = { material: clothMat };
     D.body.add(flag); D.iconFlag = flag;
     crewTex(r);   // 法被の背中（マークが「写真」の時）
   };
@@ -2122,7 +2129,7 @@ function setupTitle() {
   const cuFold = f => { $('cuCard').classList.toggle('hidden', f); $('cuShow').classList.toggle('hidden', !f); SC.lift = f ? 0 : 1; };
   $('cuHide').onclick = () => cuFold(true);
   // ひとつ開いたら他は閉じる（name 属性に対応していないブラウザ向け）
-  document.querySelectorAll('#custom .cu-sec').forEach(d => d.addEventListener('toggle', () => { if (d.open) document.querySelectorAll('#custom .cu-sec').forEach(o => { if (o !== d) o.open = false; }); })); $('cuShow').onclick = () => cuFold(false);
+  document.querySelectorAll('#custom .cu-sec').forEach(d => d.addEventListener('toggle', () => { if (d.open) d.querySelectorAll('.cu-fin .sel').forEach(b => b.scrollIntoView({ block: 'nearest', inline: 'center' })); if (d.open) document.querySelectorAll('#custom .cu-sec').forEach(o => { if (o !== d) o.open = false; }); })); $('cuShow').onclick = () => cuFold(false);
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
   $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');
