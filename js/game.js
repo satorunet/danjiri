@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=69';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=69';
-import { buildWorld } from './world.js?v=69';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=69';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=69';
-import { FX, SpeedShader } from './fx.js?v=69';
-import * as AU from './audio.js?v=69';
+import * as SIM from './sim.js?v=70';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=70';
+import { buildWorld } from './world.js?v=70';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=70';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=70';
+import { FX, SpeedShader } from './fx.js?v=70';
+import * as AU from './audio.js?v=70';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1265,6 +1265,9 @@ function showRankForm() {
 }
 // 共有: その記録（またはその町・部門の表）を開く URL
 const rankURL = (pl, cat, id) => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?rank=${pl}&cat=${cat}${id ? '&id=' + id : ''}`;
+// 見ているランキング/記録をアドレスバーにも反映（そのままコピーで共有できる）
+const setURL = u => { try { history.replaceState(null, '', u); } catch { } };
+const homeURL = () => location.pathname + (location.search.includes('debug') ? '?debug' : '');
 const catName = k => { const c = RK_CATS.find(x => x[0] === k); return c ? L(c[1], c[2]) : k; };
 const pName = p => (LANG === 'en' ? PLACE_EN[p] : PLACES[p]);
 function shareButtons(url, text) {
@@ -1292,6 +1295,7 @@ function renderRkTabs() {
   ddify($('rkPlace'));
   $('rkCat').querySelectorAll('button').forEach(b => b.onclick = () => { rkCat = b.dataset.c; renderRkTabs(); renderRkList(); });
   const selTab = $('rkCat').querySelector('.sel'); if (selTab) selTab.scrollIntoView({ block: 'nearest', inline: 'center' });
+  if (!rkOpenId) setURL(rankURL(rkPlace, rkCat));
   $('rkShareBar').innerHTML = shareButtons(rankURL(rkPlace, rkCat), L(`だんじり疾走「${pName(rkPlace)}」${catName(rkCat)}ランキング`, `Danjiri Dash — ${pName(rkPlace)} ${catName(rkCat)} ranking`));
 }
 async function loadRk() {
@@ -1323,7 +1327,8 @@ function showRkDetail(e, cat, n) {
     <div class="rk-share">${shareButtons(rankURL(rkPlace, rkCat, e.id), L(`だんじり疾走「${pName(rkPlace)}」${catName(rkCat)} ${n}位 ${e.name}（${cat[3](e.val)}）`, `Danjiri Dash — ${pName(rkPlace)} ${catName(rkCat)} #${n} ${e.name} (${cat[3](e.val)})`))}</div>
     <button class="go ghost" id="rkBack">${L('もどる', 'Back')}</button>`;
   d.classList.remove('hidden');
-  $('rkBack').onclick = () => d.classList.add('hidden');
+  setURL(rankURL(rkPlace, rkCat, e.id));
+  $('rkBack').onclick = () => { d.classList.add('hidden'); setURL(rankURL(rkPlace, rkCat)); };
   if (e.rep) $('rkPlay').onclick = () => { d.classList.add('hidden'); playReplay(e, rkPlace, e.tod); };
   if (e.dj) {
     $('rkDj').onclick = () => { d.classList.add('hidden'); showRankDanjiri(e, rkPlace); };
@@ -1539,7 +1544,7 @@ function setupTitle() {
   $('resumeBtn').onclick = togglePause; $('quitBtn').onclick = () => { AU.audio.ctx?.resume(); toTitle(); };
   $('nameIn').value = myName;
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
-  $('rkClose').onclick = () => $('ranking').classList.add('hidden');
+  $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');
   $('showBtn').onclick = () => showcaseOpen(true); $('rpStop').onclick = replayStop;
   $('scBack').onclick = () => { if (state === 'display') { showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); openRanking(rkPlace); } else showcaseOpen(false); }; 
