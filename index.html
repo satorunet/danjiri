@@ -143,11 +143,18 @@
   #podium .pd-cup { font-size: 54px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); }
   #podium .pd-title { font-family: 'Dela Gothic One', sans-serif; font-size: clamp(40px, 11vw, 72px); color: var(--gold); text-shadow: 0 5px 0 #6b3d10, 0 0 30px rgba(226,64,47,0.6); letter-spacing: .15em; }
   #podium .pd-name { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-family: 'Dela Gothic One', sans-serif; font-size: clamp(20px, 5vw, 30px); color: #fff; background: rgba(18,12,36,0.8); border: 2px solid var(--gold); border-radius: 30px; padding: 4px 18px; }
-  #podium .pd-like { position: absolute; right: 18px; bottom: calc(110px + env(safe-area-inset-bottom)); width: 76px; height: 76px; border-radius: 50%; border: 3px solid #fff; background: radial-gradient(circle at 35% 30%, #ff7aa0, #e8205a); color: #fff; font: inherit; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(232,32,90,0.55); cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-  #podium .pd-like .pd-heart { font-size: 30px; line-height: 1; }
-  #podium .pd-like span:last-child { font-size: 14px; font-family: 'Dela Gothic One', sans-serif; }
-  #podium .pd-like.pop { animation: likePop .25s ease-out; }
-  @keyframes likePop { 40% { transform: scale(1.18); } }
+  #podium .pd-like { position: absolute; right: 18px; bottom: calc(110px + env(safe-area-inset-bottom)); width: 88px; height: 88px; border-radius: 50%; border: 3px solid #fff; background: radial-gradient(circle at 35% 30%, #ff5f7e, #fe2c55 60%, #d0103a); color: #fff; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; box-shadow: 0 6px 18px rgba(254,44,85,0.6); cursor: pointer; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #podium .pd-like .pd-thumb { font-size: 32px; line-height: 1; }
+  #podium .pd-like .pd-lbl { font-size: 11px; font-weight: 900; line-height: 1; }
+  #podium .pd-like #pdLikeN { font-size: 15px; font-family: 'Dela Gothic One', sans-serif; line-height: 1; }
+  #podium .pd-like.pop { animation: likePop .12s ease-out; }
+  #podium .pd-like.hold { box-shadow: 0 0 0 6px rgba(255,255,255,.35), 0 6px 26px rgba(254,44,85,0.9); }
+  @keyframes likePop { 50% { transform: scale(1.16) rotate(-8deg); } }
+  /* 連打の数（TikTok のように ×N がはねる） */
+  #podium .pd-combo { position: absolute; right: 14px; bottom: calc(206px + env(safe-area-inset-bottom)); min-width: 96px; text-align: center; font-family: 'Dela Gothic One', sans-serif; font-size: 34px; color: #fff; -webkit-text-stroke: 1.5px #fe2c55; text-shadow: 0 3px 0 #8a0a26, 0 0 18px rgba(254,44,85,.8); pointer-events: none; opacity: 0; transition: opacity .3s; }
+  #podium .pd-combo.on { opacity: 1; transition: none; }
+  #podium .pd-combo.pop { animation: comboPop .14s ease-out; }
+  @keyframes comboPop { 0% { transform: scale(1.45); } 100% { transform: scale(1); } }
   #likeLayer { position: fixed; inset: 0; pointer-events: none; z-index: 41; overflow: hidden; }
   #likeLayer .lk { position: absolute; font-size: 30px; will-change: transform, opacity; animation: lkUp var(--t, 2.4s) cubic-bezier(.2,.6,.4,1) forwards; }
   @keyframes lkUp {
@@ -181,10 +188,16 @@
   .lb-cu { margin: 10px 0 4px; text-align: left; background: rgba(255,246,228,0.05); border: 1px solid rgba(242,193,78,0.35); border-radius: 14px; padding: 6px 10px; }
   .lb-cu summary { cursor: pointer; font-weight: 700; color: var(--gold); padding: 4px 0; text-align: center; }
   .lb-cu .lc-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
-  .lb-cu .lc-row { display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 3px 0; }
+  .lb-cu .lc-row { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 0; }   /* 全部見えるように折り返す（選んだものが横にはみ出して見えなくならない） */
   .lb-cu .lc-row::-webkit-scrollbar { display: none; }
   .lb-cu .lc-row button { flex: none; white-space: nowrap; font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
-  .lb-cu .lc-row button.sel { border-color: var(--gold); background: rgba(242,193,78,0.18); }
+  .lb-cu .lc-row button { display: inline-flex; align-items: center; gap: 5px; }
+  .lb-cu .lc-row button.sel { border-color: #fff; background: var(--gold); color: #1b1020; font-weight: 900; box-shadow: 0 0 10px rgba(242,193,78,.6); }
+  .lb-cu .lc-row button.sel::before { content: '✓'; font-weight: 900; }
+  .lb-cu .lc-row .ic { font-size: 16px; line-height: 1; }
+  .lb-cu .lc-row .swc { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.8); display: inline-block; }
+  .lb-cu .lc-cur { display: block; font-size: 12px; font-weight: 700; color: var(--paper); margin-top: 2px; }
+  .lb-cu .lc-prev { display: block; width: 100%; max-width: 360px; aspect-ratio: 9 / 5; margin: 6px auto 2px; border-radius: 10px; border: 1px solid rgba(242,193,78,.4); background: rgba(0,0,0,.25); }
   .lb-cu .lc-txt { display: flex; gap: 6px; align-items: center; margin-top: 3px; }
   .lb-cu .lc-txt input { flex: 1 1 0; width: 0; font: inherit; font-size: 15px; padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.3); color: var(--paper); }
   .lb-cu .lc-txt .go { margin: 0; padding: 6px 14px; font-size: 14px; }
@@ -294,20 +307,20 @@
   body.touch #backBtn small { display: none; }
   @keyframes backPulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
   /* 曲がり角の案内: 道路標識のような曲がる矢印を、曲がる側に大きく */
-  #turn { position: absolute; top: 15%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; text-align: center; font-family: 'Dela Gothic One', sans-serif; color: #1b1020; pointer-events: none; transition: left .25s; background: linear-gradient(#ffe14a, #f2a81c); border: 4px solid #1b1020; border-radius: 22px; padding: 8px 22px 8px 14px; box-shadow: 0 6px 0 #1b1020, 0 0 30px rgba(255,200,40,0.7); }
+  #turn { position: absolute; top: 15%; display: flex; align-items: center; gap: 10px; text-align: center; font-family: 'Dela Gothic One', sans-serif; color: #1b1020; pointer-events: none; transition: left .25s; transform: translateX(var(--tx, -50%)); background: linear-gradient(#ffe14a, #f2a81c); border: 4px solid #1b1020; border-radius: 22px; padding: 8px 22px 8px 14px; box-shadow: 0 6px 0 #1b1020, 0 0 30px rgba(255,200,40,0.7); }
   #turn.L { left: 32%; } #turn.R { left: 68%; flex-direction: row-reverse; padding: 8px 14px 8px 22px; }
-  @media (max-width: 700px) { #turn.L, #turn.R { left: 50%; } }
+  @media (max-width: 700px) { #turn { --tx: 0px; } #turn.L { left: 10px; transform-origin: left center; } #turn.R { left: auto; right: 10px; transform-origin: right center; } }   /* スマホは中央に寄せず、曲がる側の端に小さく出す */
   #turn .arr { width: 92px; height: 92px; flex: none; animation: turnArr .38s ease-in-out infinite alternate; }
   #turn .arr svg { width: 100%; height: 100%; display: block; }
   #turn.L .arr svg { transform: scaleX(-1); }
   #turn.L .arr { --dx: -12px; } #turn.R .arr { --dx: 12px; }
   #turn .tx { font-size: 50px; line-height: 1.05; white-space: nowrap; }
-  @media (max-width: 480px) { #turn .arr { width: 70px; height: 70px; } #turn .tx { font-size: 38px; } #turn.now .tx { font-size: 46px !important; } }
+  @media (max-width: 480px) { #turn .arr { width: 40px; height: 40px; } #turn .tx { font-size: 24px; } #turn.now .tx { font-size: 28px !important; } #turn small { font-size: 11px !important; } #turn { gap: 6px; border-width: 3px; border-radius: 16px; } }
   #turn .tx:empty { display: none; }
   #turn small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 18px; color: #1b1020; }
   #turn.now { background: linear-gradient(#ff5a3c, #c8180c); color: #fff; animation: turnPulse .32s ease-in-out infinite alternate; }
   #turn.now small { color: #fff; } #turn.now .tx { font-size: 66px; }
-  @keyframes turnPulse { from { transform: translateX(-50%) scale(1); box-shadow: 0 6px 0 #1b1020, 0 0 20px rgba(255,60,40,0.6); } to { transform: translateX(-50%) scale(1.1); box-shadow: 0 6px 0 #1b1020, 0 0 60px rgba(255,60,40,1); } }
+  @keyframes turnPulse { from { transform: translateX(var(--tx, -50%)) scale(1); box-shadow: 0 6px 0 #1b1020, 0 0 20px rgba(255,60,40,0.6); } to { transform: translateX(var(--tx, -50%)) scale(1.1); box-shadow: 0 6px 0 #1b1020, 0 0 60px rgba(255,60,40,1); } }
   #turnEdge { position: absolute; top: 0; bottom: 0; width: 22%; pointer-events: none; opacity: 0; transition: opacity .2s; }
   #turnEdge.L { left: 0; background: linear-gradient(90deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
   #turnEdge.R { right: 0; background: linear-gradient(270deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
@@ -380,6 +393,12 @@
   table.res td:first-child { font-family: 'Dela Gothic One', sans-serif; color: var(--gold); width: 52px; }
   table.res td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
   table.res tr.me { background: rgba(242,193,78,0.16); }
+  table.res td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
+  table.res td.lkc { width: 1%; white-space: nowrap; padding-left: 4px; }
+  .rlk { display: inline-flex; align-items: center; gap: 2px; min-height: 30px; padding: 6px 9px; border: 1.5px solid #fff; border-radius: 10px; background: linear-gradient(#ff5f7e, #fe2c55); color: #fff; font: inherit; font-size: 11px; line-height: 1; cursor: pointer; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; box-shadow: 0 2px 5px rgba(254,44,85,.4); }
+  .rlk b { font-family: 'Dela Gothic One', sans-serif; font-size: 11px; font-weight: normal; }
+  .rlk.pop { animation: likePop .12s ease-out; }
+  .rlk.hold { box-shadow: 0 0 0 4px rgba(255,255,255,.35), 0 3px 14px rgba(254,44,85,.9); }
   .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
   .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 14px; color: var(--muted); }
   .stats b { color: var(--paper); }
@@ -391,6 +410,21 @@
   .ci img { display: block; width: 40px; height: 40px; margin: 0 auto 1px; }
   .ci b { display: block; color: var(--paper); font-size: 11px; }
   .collNone { font-size: 13px; color: var(--muted); }
+  /* 計量の演出 */
+  .ci.wz { opacity: 0; transform: scale(.3) translateY(-14px); }
+  .ci.on { opacity: .5; border-style: dashed; }
+  .ci.in { animation: ciIn .26s cubic-bezier(.2,1.8,.4,1); }
+  @keyframes ciIn { from { opacity: .5; transform: scale(1.35); } to { opacity: 1; transform: none; } }
+  .collHead b { display: inline-block; }
+  #likeLayer .wfly { position: absolute; left: 0; top: 0; width: 44px; height: 44px; filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); will-change: transform; }
+  .ci img { transition: opacity .12s; }
+  .ci.hit { animation: ciHit .14s ease-out; }
+  @keyframes ciHit { 50% { transform: translateY(3px) scale(1.06); border-color: var(--gold); } }
+  .collHead b.bump { animation: collBump .12s ease-out; }
+  @keyframes collBump { 50% { transform: scale(1.25); color: var(--gold); } }
+  .collHead .wDone { display: inline-block; margin-left: 8px; padding: 1px 8px; border: 2px solid #ff5a3c; border-radius: 6px; color: #ff5a3c; font-size: 15px; transform: rotate(-8deg); animation: wStamp .3s cubic-bezier(.2,1.6,.4,1); }
+  .collHead .wDone.hidden { display: none; }
+  @keyframes wStamp { from { transform: rotate(-8deg) scale(2.6); opacity: 0; } to { transform: rotate(-8deg) scale(1); opacity: 1; } }
   .newrec { color: var(--perfect); font-family: 'Dela Gothic One', sans-serif; margin-bottom: 6px; }
   .lobbyList { list-style: none; margin: 10px 0; text-align: left; }
   .lobbyList li { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 16px; }
@@ -412,9 +446,10 @@
     #mini { width: 112px; height: 112px; }
     #tl { min-width: 118px; padding: 6px 10px; } #tl .rank { font-size: 34px; }
     .msg { font-size: 26px; } .msg.big { font-size: 44px; } #backBtn { font-size: 19px; padding: 9px 18px; bottom: 30%; }
-    #turn .arr { font-size: 46px; } #turn .tx { font-size: 30px; } #turn.now .tx { font-size: 40px; } #turn small { font-size: 13px; } #turn { padding: 4px 16px 8px; }
+    #turn .arr { width: 56px; height: 56px; } #turn .tx { font-size: 30px; } #turn.now .tx { font-size: 38px; } #turn small { font-size: 13px; } #turn, #turn.R { padding: 4px 12px 6px; }
     #count { font-size: 96px; }
     body.touch #meter { top: 136px; width: 112px; }
+    body.touch #turn { top: 318px; }   /* 右に出たとき速度計に重ならないよう、その下に */
     .grid2 { grid-template-columns: 1fr; }
   }
 </style>
@@ -493,7 +528,8 @@
     <ul class="lobbyList" id="lobbyList"></ul>
     <div class="best" data-en="Up to 8 · CPUs fill to 4 · 2 laps · random town">最大8台・4台未満はCPU・2周・町はくじ引き</div>
     <div class="chat hidden" id="lobbyChat"><div class="chat-log" id="lobbyChatLog"></div><form class="chat-row" id="lobbyChatForm"><select class="chat-stamp" id="lobbyStamp" aria-label="定型文"><option value="" data-en="Quick">定型文</option><option value="おつかれ!">おつかれ!</option><option value="ナイス!">ナイス!</option><option value="もう一回!">もう一回!</option><option value="やりまわし最高!">やりまわし最高!</option><option value="GG">GG</option></select><input id="lobbyChatIn" maxlength="40" autocomplete="off" placeholder="ひとこと（40字まで）" data-en-ph="Say something (40 chars)"><button class="go" type="submit" data-en="Send">送る</button></form></div>
-    <details class="lb-cu" id="lobbyCu"><summary data-en="🎨 Quick custom (from the next race)">🎨 かんたんカスタム（次のレースから）</summary>
+    <details class="lb-cu" id="lobbyCu"><summary><span data-en="🎨 Custom (from the next race)">🎨 カスタム（次のレースから）</span><span class="lc-cur" id="lcCur"></span></summary>
+      <canvas class="lc-prev" id="lcPrev" width="360" height="200"></canvas>
       <div class="lc-sub" data-en="Type">型</div><div class="lc-row" id="lcType"></div>
       <div class="lc-sub" data-en="Finish">仕上げ</div><div class="lc-row" id="lcFin"></div>
       <div class="lc-sub" data-en="Crew formation">引き手の配置</div><div class="lc-row" id="lcForm"></div>
@@ -602,7 +638,7 @@
     <div><button class="go" id="crOk" data-en="Use this">これにする</button><button class="go ghost" id="crCancel" data-en="Cancel">やめる</button></div>
   </div>
 </div>
-<div id="podium" class="hidden"><div class="pd-box"><div class="pd-cup" id="pdCup">🏆</div><div class="pd-title" id="pdTitle">優 勝</div><div class="pd-name" id="pdName"></div><div class="pd-skip" data-en="Tap to continue">タップで結果へ</div></div><button class="pd-like" id="pdLike" aria-label="いいね"><span class="pd-heart">❤️</span><span id="pdLikeN">0</span></button></div>
+<div id="podium" class="hidden"><div class="pd-box"><div class="pd-cup" id="pdCup">🏆</div><div class="pd-title" id="pdTitle">優 勝</div><div class="pd-name" id="pdName"></div><div class="pd-skip" data-en="Tap to continue">タップで結果へ</div></div><button class="pd-like" id="pdLike" aria-label="いいね"><span class="pd-thumb">👍</span><span class="pd-lbl" data-en="LIKE">いいね!</span><span id="pdLikeN">0</span></button><div class="pd-combo" id="pdCombo"></div></div>
 <div id="likeLayer"></div>
 <div id="showcase" class="hidden">
   <div class="sc-hint" data-en="Drag to rotate · scroll / pinch to zoom">ドラッグで回す・ホイール / 2本指でズーム</div>
@@ -626,6 +662,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=136"></script>
+<script type="module" src="js/game.js?v=156"></script>
 </body>
 </html>

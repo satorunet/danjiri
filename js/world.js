@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import {
   toon, withOutline, atlasify, atlasAttr, canvasTex, col, colored, asphaltTex, stoneTex, tileWalkTex, gravelTex, grassTex, waterTex, plankTex,
   facadeAtlas, machiyaAtlas, roofTileTex, awningTex, signAtlas, noboriAtlas, lanternTex, shideGeo, stripeTex,
-} from './gfx.js?v=136';
-import { merge, PROP_TYPES, spectatorGeo } from './models.js?v=136';
-import * as ST from './stages.js?v=136';
-import { HALF_W, WALL, SIDE, BIN, heightS, sampleS, project, binOf, sideOf, kickAt } from './sim.js?v=136';
+} from './gfx.js?v=156';
+import { merge, PROP_TYPES, spectatorGeo } from './models.js?v=156';
+import * as ST from './stages.js?v=156';
+import { HALF_W, WALL, SIDE, BIN, heightS, sampleS, project, binOf, sideOf, kickAt } from './sim.js?v=156';
 
 // 毎回同じ町並みになるように種つき乱数
 let seed = 20261018;
@@ -146,7 +146,13 @@ export function buildWorld(scene, course, opts = {}) {
   const FAC = { jp: facadeAtlas, paris: ST.parisFacade, ny: ST.nyFacade, giza: ST.gizaFacade, venice: ST.veniceFacade }[TH];
   const fac = atlasify(toon({ map: FAC(false), emissiveMap: FAC(true), emissive: 0xffffff, emissiveIntensity: 0 }), 4, 2);
   const mach = atlasify(toon({ map: machiyaAtlas(false), emissiveMap: machiyaAtlas(true), emissive: 0xffffff, emissiveIntensity: 0 }), 2, 1);
-  W.nightMats.push([fac, 0.55], [mach, 0.5]);
+  // 崩れる家のセル用（壁の一部分だけを貼る）
+  const facCell = atlasify(toon({ map: fac.map, emissiveMap: fac.emissiveMap, emissive: 0xffffff, emissiveIntensity: 0 }), 4, 2, true);
+  const machCell = atlasify(toon({ map: mach.map, emissiveMap: mach.emissiveMap, emissive: 0xffffff, emissiveIntensity: 0 }), 2, 1, true);
+  // カメラとだんじりの間に入った崩れた家は、透かして自分のだんじりを見せる
+  const facFade = atlasify(toon({ map: fac.map, emissiveMap: fac.emissiveMap, emissive: 0xffffff, emissiveIntensity: 0, transparent: true, opacity: 0.1, depthWrite: false }), 4, 2, true);
+  const machFade = atlasify(toon({ map: mach.map, emissiveMap: mach.emissiveMap, emissive: 0xffffff, emissiveIntensity: 0, transparent: true, opacity: 0.1, depthWrite: false }), 2, 1, true);
+  W.nightMats.push([fac, 0.55], [mach, 0.5], [facCell, 0.55], [machCell, 0.5], [facFade, 0.55], [machFade, 0.5]);
   const modern = [], machiya = [], occupied = [];
   const free = (x, z, r) => occupied.every(o => Math.hypot(o.x - x, o.z - z) > o.r + r);
   const roadClear = (x, z, w, d, rot) => {
@@ -235,6 +241,7 @@ export function buildWorld(scene, course, opts = {}) {
       d.position.set(b.x, b.base + gh / 2, b.z); d.scale.set(b.w, gh, b.d); d.updateMatrix(); ground.setMatrixAt(i, d.matrix); addPart(pc, ground, i, d.matrix);
       const shopTile = b.shop >= 0 ? b.shop : b.tile;
       ga.setXYZW(i, shopTile % 4, Math.floor(shopTile / 4), bays, 1);
+      pc.vox = { walls: [upper, ground], tile: b.tile, shop: shopTile, floors: b.floors, gh, fh, bays };
       if (b.base > 0.3) founds.push({ x: b.x, z: b.z, rot: b.rot, w: b.w, d: b.d, h: b.base });
       caps.push({ x: b.x, y: top, z: b.z, rot: b.rot, w: b.w + 0.3, d: b.d + 0.3, pc });
       if (TH === 'venice') for (let k = 0; k < 2; k++) chims.push({ x: b.x + lx * rr(-b.w / 3, b.w / 3), y: top + 0.2, z: b.z + lz * rr(-b.w / 3, b.w / 3), rot: b.rot, pc });
@@ -309,6 +316,7 @@ export function buildWorld(scene, course, opts = {}) {
       const pc = b.pc = piece('bld', b.x, b.base, b.z, b.d / 2, b.w, { w: b.w, d: b.d, rot: b.rot, col: [0x5a3a1c, 0xe8dcc0, 0x3a3a40, 0x8a6a4a] });
       d.rotation.set(0, b.rot, 0); d.position.set(b.x, b.base + b.h / 2 - 0.3, b.z); d.scale.set(b.w, b.h + 0.6, b.d); d.updateMatrix(); walls.setMatrixAt(i, d.matrix); addPart(pc, walls, i, d.matrix);
       wa.setXYZW(i, b.tile, 0, Math.max(1, Math.round(b.w / 4.5)), 1);
+      pc.vox = { walls: [walls], tile: b.tile, h: b.h, bays: Math.max(1, Math.round(b.w / 4.5)) };
       roofs.push({ x: b.x, y: b.base + b.h, z: b.z, rot: b.rot, w: b.w + 0.7, h: rr(1.8, 2.5), d: b.d + 1.6, pc });
       const fx = Math.sin(b.rot), fz = Math.cos(b.rot);
       eaves.push({ x: b.x + fx * (b.d / 2 + 0.55), y: b.base + b.h * 0.5 + 0.15, z: b.z + fz * (b.d / 2 + 0.55), rot: b.rot, w: b.w + 0.3, pc });
@@ -902,16 +910,6 @@ export function buildWorld(scene, course, opts = {}) {
     W.hideTrap = (t, hide) => { if (!t.mesh) return; const dd = new THREE.Object3D(); dd.position.set(t.x, t.y + 0.03, t.z); dd.rotation.set(0, t.rot, 0); dd.scale.setScalar(hide ? 0 : 1); dd.updateMatrix(); t.mesh.setMatrixAt(t.mi, dd.matrix); t.mesh.instanceMatrix.needsUpdate = true; };
   }
   // ---------- 壊れる・崩れる・くっつく ----------
-  const rubble = (() => {
-    const parts = [];
-    const cs = [0x8a8378, 0x6b5a48, 0xa59c8c, 0x5a4a3a, 0xb3a58e];
-    for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; parts.push(col(blob(0.42 + (k % 3) * 0.12, Math.cos(a) * 0.62, 0.12, Math.sin(a) * 0.62, 0), cs[k % 5])); }
-    parts.push(col(blob(0.6, 0, 0.25, 0, 0), cs[2]));
-    for (let k = 0; k < 6; k++) parts.push(col(T(new THREE.BoxGeometry(0.9, 0.08, 0.14).rotateY(k * 1.1).rotateZ(0.3), Math.cos(k) * 0.5, 0.3, Math.sin(k * 1.7) * 0.5), 0x7a5128));
-    const m = new THREE.InstancedMesh(merge(parts), toon({ vertexColors: true }), 60);
-    m.count = 0; m.receiveShadow = true; m.frustumCulled = false; scene.add(m); scene.add(withOutline(m, 0.02));
-    return m;
-  })();
   const M1 = new THREE.Matrix4(), M2 = new THREE.Matrix4(), M3 = new THREE.Matrix4(), MS = new THREE.Matrix4(), Q1 = new THREE.Quaternion(), E1 = new THREE.Euler(), V1 = new THREE.Vector3(), V2 = new THREE.Vector3(), AX = new THREE.Vector3();
   const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
   const active = new Set(), dirtyM = new Set();
@@ -933,11 +931,231 @@ export function buildWorld(scene, course, opts = {}) {
     pc.st = 2; pc.t = 0; pc.dx = vx / l; pc.dz = vz / l; pc.slide = Math.min(6, l * 0.15);
     active.add(pc);
   };
-  const collapse = (pc, vx, vz) => {
-    const l = Math.hypot(vx, vz) || 1;
-    pc.st = 3; pc.t = 0; pc.dx = vx / l; pc.dz = vz / l;
-    active.add(pc);
+  // ---------- 崩れる家: 箱を格子（セル）に分けて、当たったセルは塊になって飛ぶ ----------
+  // 支えを失ったセルは下の階から順に時間差で落ちる（真下に支えがあるか、横の支えから1セルまでなら持ちこたえる）。
+  // 屋根・看板・ひさしなどは、付いているセルが崩れたら落ちる
+  const vbs = [], UP = new THREE.Vector3(0, 1, 0), ONE = new THREE.Vector3(1, 1, 1);
+  let vclk = 0;
+  const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+  const cellOf = (f, n) => clampN(Math.floor(f), 0, n - 1);
+  const vLocal = (vb, x, z) => { const dx = x - vb.pc.px, dz = z - vb.pc.pz; return [vb.cs * dx - vb.sn * dz, vb.sn * dx + vb.cs * dz]; };
+  const vCell = (vb, x, y, z) => { // その点（箱の外なら一番近い所）のセル
+    const [lx, lz] = vLocal(vb, x, z);
+    let iy = 0; while (iy < vb.ny - 1 && y > vb.rows[iy][0] + vb.rows[iy][1]) iy++;
+    return vb.idx(cellOf((lx + vb.pc.w / 2) / vb.cx, vb.nx), iy, cellOf((lz + vb.pc.d / 2) / vb.cz, vb.nz));
   };
+  const vGround = (vb, x, z, y) => { // (x,z) の真下に残っている一番上の面（なければ地面）
+    const [lx, lz] = vLocal(vb, x, z);
+    if (Math.abs(lx) > vb.pc.w / 2 || Math.abs(lz) > vb.pc.d / 2) return vb.pc.py;
+    const ix = cellOf((lx + vb.pc.w / 2) / vb.cx, vb.nx), iz = cellOf((lz + vb.pc.d / 2) / vb.cz, vb.nz);
+    for (let iy = vb.ny - 1; iy >= 0; iy--) { const top = vb.rows[iy][0] + vb.rows[iy][1]; if (vb.occ[vb.idx(ix, iy, iz)] && top <= y + 0.6) return top; }
+    return vb.pc.py;
+  };
+  // セルを1つ塊にして飛ばす
+  const vRelease = (vb, i, v) => {
+    if (!vb.occ[i]) return 0;
+    vb.occ[i] = 0; vb.dirty = true; vb.fresh++;
+    const h = vb.rows[vb.iy(i)][1];
+    const e = { i, p: vb.P[i].clone(), v, q: vb.q0.clone(), w: new THREE.Vector3(rnd(-3, 3), rnd(-3, 3), rnd(-3, 3)), sc: new THREE.Vector3(vb.cx * rnd(0.55, 0.9), h * rnd(0.5, 0.88), vb.cz * rnd(0.55, 0.9)), sleepT: 0, done: false };
+    e.half = Math.min(e.sc.x, e.sc.y, e.sc.z) * 0.5;
+    vb.ch.push(e); vb.chOf[i] = e;
+    return 1;
+  };
+  // 中をえぐられて、表と裏の壁だけが薄く残ったら、その壁も崩れる
+  const vThin = (vb, ix, iy) => {
+    if (vb.nz < 3) return;
+    for (const [o, inn] of [[0, 1], [vb.nz - 1, vb.nz - 2]]) {
+      const i = vb.idx(ix, iy, o);
+      if (!vb.occ[i] || vb.occ[vb.idx(ix, iy, inn)]) continue;
+      const sd = o ? 1 : -1;
+      vRelease(vb, i, new THREE.Vector3(vb.sn * sd * rnd(1, 3.5) + rnd(-1.5, 1.5), rnd(-1, 1.5), vb.cs * sd * rnd(1, 3.5) + rnd(-1.5, 1.5)));
+    }
+  };
+  // だんじりが突っ込んだ: 当たった所から奥へ、通り道のセルを吹き飛ばす
+  const vBlast = (vb, car, reachH) => {
+    const pc = vb.pc, vx = car.vx || 0, vz = car.vz || 0, sp = Math.hypot(vx, vz);
+    let [lx, lz] = vLocal(vb, car.x, car.z);
+    lx = clampN(lx, -pc.w / 2, pc.w / 2); lz = clampN(lz, -pc.d / 2, pc.d / 2);
+    // 押し込む向き: 横の勢いは半分だけ、必ず家の奥（ローカルの -z）へ向ける
+    let ux = (vb.cs * vx - vb.sn * vz) * 0.5, uz = -(Math.abs(vb.sn * vx + vb.cs * vz) + sp * 0.3 + 1);
+    const ul = Math.hypot(ux, uz); ux /= ul; uz /= ul;
+    const depth = Math.min(pc.d + 1, 2.5 + sp * 0.3), R = 2.2 + sp * 0.06, yTop = (car.y ?? pc.py) + reachH + 0.5;
+    const hx = pc.px + vb.cs * lx + vb.sn * lz, hz = pc.pz - vb.sn * lx + vb.cs * lz;
+    const cols = new Set();
+    for (let ix = 0; ix < vb.nx; ix++) for (let iz = 0; iz < vb.nz; iz++) {
+      const cx = -pc.w / 2 + (ix + 0.5) * vb.cx - lx, cz = -pc.d / 2 + (iz + 0.5) * vb.cz - lz;
+      const t = clampN(cx * ux + cz * uz, 0, depth), dist = Math.hypot(cx - ux * t, cz - uz * t);
+      if (dist > R + rnd(-0.4, 0.6)) continue;
+      for (let iy = 0; iy < vb.ny && vb.rows[iy][0] < yTop; iy++) {
+        const i = vb.idx(ix, iy, iz), P = vb.P[i];
+        const ox = P.x - hx, oz = P.z - hz, ol = Math.hypot(ox, oz) || 1, k = rnd(1, 3);
+        if (vRelease(vb, i, new THREE.Vector3(vx * rnd(0.35, 0.9) + ox / ol * k + rnd(-1.5, 1.5), rnd(1.5, 6), vz * rnd(0.35, 0.9) + oz / ol * k + rnd(-1.5, 1.5)))) cols.add(ix * vb.ny + iy);
+      }
+    }
+    for (const c of cols) vThin(vb, Math.floor(c / vb.ny), c % vb.ny);
+  };
+  // 崩れている家に、だんじりが入り込んだ: 触れたセルとがれきを押しのける
+  const vPush = (vb, car) => {
+    const vx = car.vx || 0, vz = car.vz || 0; if (Math.hypot(vx, vz) < 2) return;
+    const [lx, lz] = vLocal(vb, car.x, car.z), pc = vb.pc;
+    if (Math.abs(lx) < pc.w / 2 + 2 && Math.abs(lz) < pc.d / 2 + 2) {
+      const yTop = (car.y ?? pc.py) + 6;
+      for (let ix = 0; ix < vb.nx; ix++) for (let iz = 0; iz < vb.nz; iz++) {
+        const dx = Math.max(0, Math.abs(-pc.w / 2 + (ix + 0.5) * vb.cx - lx) - vb.cx / 2), dz = Math.max(0, Math.abs(-pc.d / 2 + (iz + 0.5) * vb.cz - lz) - vb.cz / 2);
+        if (dx * dx + dz * dz > 1.9 * 1.9) continue;
+        for (let iy = 0; iy < vb.ny && vb.rows[iy][0] < yTop; iy++) vRelease(vb, vb.idx(ix, iy, iz), new THREE.Vector3(vx * rnd(0.4, 0.9) + rnd(-2, 2), rnd(1, 4), vz * rnd(0.4, 0.9) + rnd(-2, 2)));
+      }
+    }
+    for (const e of vb.ch) { // 道に散ったがれきは蹴散らす
+      if (Math.abs(e.p.x - car.x) > 2 || Math.abs(e.p.z - car.z) > 2 || e.v.y > 1) continue;
+      e.v.set(vx * rnd(0.6, 1.1) + rnd(-2, 2), rnd(2, 5), vz * rnd(0.6, 1.1) + rnd(-2, 2)); e.done = false; e.sleepT = 0;
+    }
+  };
+  const crumble = (pc, car, reachH) => {
+    const v = pc.vox, mod = !v.h, cs = Math.cos(pc.rot), sn = Math.sin(pc.rot);
+    pc.st = 3;
+    const nx = mod ? v.bays : Math.max(2, Math.round(pc.w / 2.6)), nz = Math.max(2, Math.round(pc.d / 3.2));
+    const rows = mod ? [[pc.py, v.gh]] : [];
+    if (mod) for (let k = 0; k < v.floors; k++) rows.push([pc.py + v.gh + k * v.fh, v.fh]);
+    else { const H = (v.h + 0.6) / 2; rows.push([pc.py - 0.3, H], [pc.py - 0.3 + H, H]); }
+    const ny = rows.length, N = nx * ny * nz, cx = pc.w / nx, cz = pc.d / nz;
+    const g = new THREE.BoxGeometry(1, 1, 1), aA = new THREE.InstancedBufferAttribute(new Float32Array(N * 4), 4), aS = new THREE.InstancedBufferAttribute(new Float32Array(N * 4), 4);
+    g.setAttribute('aAtlas', aA); g.setAttribute('aSub', aS);
+    const m = new THREE.InstancedMesh(g, mod ? facCell : machCell, N);
+    m.castShadow = m.receiveShadow = true; m.frustumCulled = false;
+    const vb = {
+      pc, m, nx, ny, nz, cx, cz, rows, cs, sn, mat: mod ? facCell : machCell, fadeMat: mod ? facFade : machFade, fadeT: 0, q0: new THREE.Quaternion().setFromAxisAngle(UP, pc.rot),
+      occ: new Uint8Array(N).fill(1), queued: new Uint8Array(N), pending: [], P: [], ch: [], chOf: [], decor: [], dirty: false, fresh: 0, thud: 0,
+      idx: (a, b, c) => (a * ny + b) * nz + c, iy: i => Math.floor(i / nz) % ny,
+    };
+    let i = 0;
+    for (let ix = 0; ix < nx; ix++) for (let iy = 0; iy < ny; iy++) for (let iz = 0; iz < nz; iz++, i++) {
+      const lx = -pc.w / 2 + (ix + 0.5) * cx, lz = -pc.d / 2 + (iz + 0.5) * cz;
+      const p = new THREE.Vector3(pc.px + cs * lx + sn * lz, rows[iy][0] + rows[iy][1] / 2, pc.pz - sn * lx + cs * lz);
+      vb.P.push(p); m.setMatrixAt(i, M1.compose(p, vb.q0, V1.set(cx, rows[iy][1], cz)));
+      if (mod) { const t = iy ? v.tile : v.shop; aA.setXYZW(i, t % 4, Math.floor(t / 4), 1, 1); aS.setXYZW(i, ix * v.bays / nx, 0, v.bays / nx, 1); }
+      else { aA.setXYZW(i, v.tile, 0, 1, 1); aS.setXYZW(i, ix * v.bays / nx, iy / ny, v.bays / nx, 1 / ny); }
+    }
+    scene.add(m);
+    // 壁の箱はセルに置きかえる。ほかの部品は支えのセルを決めておく（屋根は最上階の 3x3 で支え、2か所崩れたら落ちる）
+    const top = rows[ny - 1][0] + rows[ny - 1][1], xs = [0, nx >> 1, nx - 1], zs = [0, nz >> 1, nz - 1];
+    for (const p of pc.parts) {
+      if (v.walls.includes(p.m)) { p.m.setMatrixAt(p.i, ZERO); dirtyM.add(p.m); continue; }
+      V1.setFromMatrixPosition(p.base); V2.setFromMatrixScale(p.base);
+      const roofish = V1.y > top - 0.5 && Math.max(V2.x, V2.z) > 3;
+      const pts = roofish ? [...new Set(xs.flatMap(a => zs.map(c => vb.idx(a, ny - 1, c))))] : [vCell(vb, V1.x, V1.y, V1.z)];
+      vb.decor.push({ p, pts, k: roofish ? 2 : 1, p0: V1.clone(), pos: null, cap: roofish ? 3 : 7 });
+    }
+    vbs.push(vb);
+    vBlast(vb, car, reachH);
+  };
+  // 支えを失ったセルを、下の階から順に少しずつ時間差で落とす
+  const vSettle = vb => {
+    vb.dirty = false;
+    const { nx, ny, nz, occ, idx } = vb, sup = new Uint8Array(occ.length), add = [];
+    for (let iy = 0; iy < ny; iy++) {
+      for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
+        const i = idx(ix, iy, iz);
+        if (occ[i] && (iy === 0 || sup[idx(ix, iy - 1, iz)])) sup[i] = 1;
+      }
+      add.length = 0;
+      for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
+        const i = idx(ix, iy, iz);
+        if (!occ[i] || sup[i]) continue;
+        if ((ix > 0 && sup[idx(ix - 1, iy, iz)] === 1) || (ix < nx - 1 && sup[idx(ix + 1, iy, iz)] === 1) ||
+            (iz > 0 && sup[idx(ix, iy, iz - 1)] === 1) || (iz < nz - 1 && sup[idx(ix, iy, iz + 1)] === 1)) add.push(i);
+      }
+      for (const i of add) sup[i] = 2;
+    }
+    let minY = 1e9; const fall = [];
+    for (let i = 0; i < occ.length; i++) if (occ[i] && !sup[i] && !vb.queued[i]) { fall.push(i); minY = Math.min(minY, vb.iy(i)); }
+    for (const i of fall) { vb.queued[i] = 1; vb.pending.push({ i, t: vclk + 0.07 * (vb.iy(i) - minY) + rnd(0, 0.09) }); }
+    // 上で止まっていたがれき・部品は、下がなくなったらまた落ちる
+    for (const e of vb.ch) if (e.done && e.p.y - e.half > vGround(vb, e.p.x, e.p.z, e.p.y) + 0.15) { e.done = false; e.sleepT = 0; e.v.set(rnd(-0.4, 0.4), -0.5, rnd(-0.4, 0.4)); }
+    for (const d of vb.decor) if (d.done && d.pos.y > vGround(vb, d.pos.x, d.pos.z, d.pos.y) + 0.35) { d.done = false; d.sleepT = 0; }
+  };
+  // 落ちる・跳ねる・止まる（止まったら true）
+  const vInteg = (vb, d, p, half, dt) => {
+    d.v.y -= 20 * dt; p.addScaledVector(d.v, dt);
+    const wl = d.w.length();
+    if (wl > 1e-4) { AX.copy(d.w).multiplyScalar(1 / wl); Q1.setFromAxisAngle(AX, wl * dt); d.q.premultiply(Q1); }
+    const g = vGround(vb, p.x, p.z, p.y);
+    if (p.y - half < g) {
+      const sp = -d.v.y; p.y = g + half;
+      if (sp > 7 && !d.hitG) { d.hitG = true; vb.thud++; }
+      d.v.y = sp * 0.22; d.v.x *= 0.55; d.v.z *= 0.55; d.w.multiplyScalar(0.5);
+      if (d.v.lengthSq() < 0.6) { d.v.set(0, 0, 0); d.w.multiplyScalar(0.2); return true; }
+    }
+    return false;
+  };
+  const stepVox = (dt, cars) => {
+    vclk += dt;
+    for (const vb of vbs) {
+      vb.fadeT = Math.max(0, vb.fadeT - dt);
+      const mt = vb.fadeT > 0 ? vb.fadeMat : vb.mat; if (vb.m.material !== mt) { vb.m.material = mt; vb.m.castShadow = mt === vb.mat; }
+      for (const c of cars) if (Math.abs(c.x - vb.pc.px) < 40 && Math.abs(c.z - vb.pc.pz) < 40) vPush(vb, c);
+      if (vb.dirty) vSettle(vb);
+      for (let k = vb.pending.length - 1; k >= 0; k--) {
+        const e = vb.pending[k]; if (vclk < e.t) continue;
+        vb.pending.splice(k, 1);
+        const P = vb.P[e.i]; // 内側へつぶれる
+        vRelease(vb, e.i, new THREE.Vector3(rnd(-1.2, 1.2) - (P.x - vb.pc.px) * 0.05, rnd(-3, -0.5), rnd(-1.2, 1.2) - (P.z - vb.pc.pz) * 0.05));
+      }
+      let moved = false;
+      for (const e of vb.ch) {
+        if (e.done) continue;
+        moved = true;
+        if (vInteg(vb, e, e.p, e.half, dt)) { if ((e.sleepT += dt) > 1.2) e.done = true; } else e.sleepT = 0;
+        vb.m.setMatrixAt(e.i, M1.compose(e.p, e.q, e.sc));
+      }
+      if (moved) vb.m.instanceMatrix.needsUpdate = true;
+      for (const d of vb.decor) {
+        if (!d.pos) {
+          let n = 0; for (const i of d.pts) if (!vb.occ[i]) n++;
+          if (n < d.k) continue;
+          // 支えのセルがかけらになって飛んだ勢いを引き継ぐ（屋根のような大物は、角を突かれても飛ばされない）
+          const e = d.pts.map(i => vb.chOf[i]).find(Boolean);
+          d.v = e ? e.v.clone().multiplyScalar(d.k > 1 ? 0.45 : rnd(0.85, 1)) : new THREE.Vector3(rnd(-1, 1), 0, rnd(-1, 1));
+          const hz = Math.hypot(d.v.x, d.v.z); if (hz > d.cap) { d.v.x *= d.cap / hz; d.v.z *= d.cap / hz; }
+          d.v.y = clampN(d.v.y, -7, 2);
+          d.pos = d.p0.clone(); d.q = new THREE.Quaternion(); d.w = new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(d.k > 1 ? 0.6 : 4); d.sleepT = 0; d.done = false;
+        }
+        if (d.done) continue;
+        if (vInteg(vb, d, d.pos, 0.3, dt)) { if ((d.sleepT += dt) > 1.2) d.done = true; } else d.sleepT = 0;
+        M1.compose(d.pos, d.q, ONE); M2.makeTranslation(-d.p0.x, -d.p0.y, -d.p0.z); M1.multiply(M2).multiply(d.p.base);
+        d.p.m.setMatrixAt(d.p.i, M1); dirtyM.add(d.p.m);
+      }
+      if (W.onCrumble && (vb.fresh > 2 || vb.thud > 3)) W.onCrumble(vb.pc, vb.fresh, vb.thud);
+      if (vb.fresh > 2 || vb.thud > 3) vb.fresh = vb.thud = 0;
+    }
+    flushM();
+  };
+  // カメラ a からだんじり b までの間に、崩れた家の塊・残った壁・飛んでいる物がどれだけ挟まっているか（見失わないよう俯瞰にする目安）
+  const segD = (p, a, b, abx, aby, abz, L2) => {
+    const t = clampN(((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / L2, 0.08, 0.92);
+    const dx = a.x + abx * t - p.x, dy = a.y + aby * t - p.y, dz = a.z + abz * t - p.z;
+    return dx * dx + dy * dy + dz * dz;
+  };
+  // fade: 挟まっている家をしばらく透かす（俯瞰にしても隠れる時）
+  W.occluded = (a, b, fade = false) => {
+    const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z, L2 = abx * abx + aby * aby + abz * abz || 1;
+    let n = 0;
+    for (const vb of vbs) {
+      if (Math.abs(vb.pc.px - b.x) > 45 || Math.abs(vb.pc.pz - b.z) > 45) continue;
+      // だんじりは大きいので、線のまわりを太めに見る。カメラのすぐ前（5m 以内）にある塊も視界をふさぐ
+      const r = Math.max(vb.cx, vb.cz) * 0.55 + 1.8, r2 = r * r, n0 = n;
+      for (let i = 0; i < vb.occ.length; i++) if (vb.occ[i] && segD(vb.P[i], a, b, abx, aby, abz, L2) < r2) n++;
+      for (const e of vb.ch) if (segD(e.p, a, b, abx, aby, abz, L2) < r2 || e.p.distanceToSquared(a) < 25) n++;
+      if (fade && n > n0) vb.fadeT = 0.8;
+    }
+    for (const pc of active) { // 飛んでいる物（よそのだんじりが飛ばした家財・看板など）
+      if (pc.st !== 1) continue;
+      V1.set(pc.px + pc.f.x, pc.py + pc.f.y, pc.pz + pc.f.z);
+      if (segD(V1, a, b, abx, aby, abz, L2) < 1.4) n++;
+    }
+    return n;
+  };
+  const clearVox = () => { for (const vb of vbs) { scene.remove(vb.m); vb.m.geometry.dispose(); vb.m.dispose(); } vbs.length = 0; };
   const flee = (pc, car) => {
     const sp = pc.sp; if (sp.fl) return;
     pc.st = 6;
@@ -1108,7 +1326,7 @@ export function buildWorld(scene, course, opts = {}) {
         if (pc.kind === 'spec') { if (who && (who.specs || []).length < 10 && Math.random() < 0.3) cling(pc, who); else flee(pc, car); continue; }
         // 壊れた物はけっこうな確率でくっつく（家はミニチュアになって乗る）
         if (who && Math.random() < (pc.kind === 'bld' ? 0.2 : 0.42)) W.stick(pc, who, pc.px, pc.pz, { sc: pc.kind === 'bld' ? rnd(0.11, 0.15) : pc.tall ? rnd(0.22, 0.35) : undefined });
-        else if (pc.kind === 'bld') collapse(pc, car.vx || 0, car.vz || 0);
+        else if (pc.kind === 'bld') crumble(pc, car, W.reach(who || {}).h);
         else if (pc.tall) topple(pc, (car.vx || 0) + (pc.px - car.x) * 2, (car.vz || 0) + (pc.pz - car.z) * 2);
         else fly(pc, car.vx || 0, car.vz || 0, Math.hypot(car.vx || 0, car.vz || 0));
         out.push(pc);
@@ -1137,7 +1355,7 @@ export function buildWorld(scene, course, opts = {}) {
     }
     for (const p of W.props) restore(p.pc);
     for (const pc of [...(W.bigObjs || [])].reverse()) if (pc.st) homeObj(pc);
-    active.clear(); rubble.count = 0;
+    active.clear(); clearVox();
     for (const p of W.movers || []) { const mv = p.mover; mv.on = false; mv.pass = null; mv.lat = mv.lat0; mv.dir = mv.dir0; placeMover(p, 0); }
     for (const t of W.traps || []) { t.cool = 0; t.gone = 0; if (W.hideTrap) W.hideTrap(t, false); }
     flushM();
@@ -1161,20 +1379,6 @@ export function buildWorld(scene, course, opts = {}) {
         M1.makeRotationAxis(AX, ang); M1.setPosition(pc.px + pc.dx * sl, pc.py + (k >= 1 ? Math.max(0, Math.sin((pc.t - 0.67) * 12) * 0.2 * Math.exp(-(pc.t - 0.67) * 4)) : 0), pc.pz + pc.dz * sl);
         setParts(pc, M1);
         if (pc.t > 2) active.delete(pc);
-      } else if (pc.st === 3) { // 崩れる（家）
-        const T1 = 1.3, u = Math.min(1, pc.t / T1), k = 1 - u * u * 0.97, sh = u < 1 ? Math.sin(pc.t * 55) * 0.18 * (1 - u) : 0;
-        AX.set(pc.dz, 0, -pc.dx);
-        M1.makeRotationAxis(AX, u * 0.14);
-        MS.makeScale(1, k, 1); M1.multiply(MS);
-        M1.setPosition(pc.px + sh, pc.py, pc.pz + sh * 0.6);
-        setParts(pc, M1);
-        if (pc.t > T1 + 0.05) {
-          hideParts(pc); pc.st = 9; active.delete(pc);
-          if (rubble.count < 60) {
-            M1.compose(V1.set(pc.px + pc.dx * 1.5, pc.py, pc.pz + pc.dz * 1.5), Q1.setFromAxisAngle(V2.set(0, 1, 0), pc.rot || 0), V2.set(pc.w * 0.42, 1.3, pc.d * 0.4));
-            rubble.setMatrixAt(rubble.count++, M1); rubble.instanceMatrix.needsUpdate = true;
-          }
-        }
       } else if (pc.st === 5) { // くっついている（提灯は揺れる、鳥居はぐらつく）
         if (!pc.L) continue;
         M1.multiplyMatrices(pc.who.body.matrixWorld, pc.L);
@@ -1235,6 +1439,7 @@ export function buildWorld(scene, course, opts = {}) {
       if (dirty) m.instanceMatrix.needsUpdate = true;
     }
     stepPieces(dt);
+    stepVox(dt, cars);
   };
   W.setNight = night => {
     for (const [m, v] of W.nightMats) m.emissiveIntensity = night ? v : (m === W.lanMat ? 0.1 : 0);

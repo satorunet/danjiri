@@ -250,6 +250,15 @@ export function sfx(kind, power = 1) {
     s.connect(f).connect(g).connect(A.master); s.start(t); s.stop(t + 0.9);
     taiko(t, 1.1, 0.9); taiko(t + 0.12, 1.1, 0.9);
   }
+  else if (kind === 'weighTick') { const f = 900 + power * 1300; tone(t, 'square', f, f, 0.035, 0.025); }   // 計量のカウント: チキチキと上がっていく
+  else if (kind === 'weighPut') { const k = Math.min(1, Math.log10(Math.max(10, power)) / 5); tone(t, 'sine', 180 - k * 100, 60, 0.25 + k * 0.4, 0.18); noiseHit(t, 0.12 + k * 0.25, 'lowpass', 900, 0.08); }   // 台に載せた: 重い物ほど低くドスン
+  else if (kind === 'weighDone') { tone(t, 'sine', 120, 50, 0.7, 0.4); noiseHit(t, 0.4, 'lowpass', 1200, 0.1); [1047, 1319, 1568, 2093].forEach((f, k) => tone(t + 0.08 + k * 0.07, 'triangle', f, f, 0.16, 0.3)); }   // 計量完了: ドン＋チャラララン
+  else if (kind === 'like') {   // いいね!: ポンッ。連打すると音階が上がっていく（10 回ごとにキラン）
+    const n = Math.max(1, power | 0), PENT = [0, 2, 4, 7, 9], st = PENT[(n - 1) % 5] + 12 * Math.min(2, Math.floor((n - 1) / 5) % 3), f = 660 * 2 ** (st / 12);
+    tone(t, 'sine', f, f * 1.5, 0.2, 0.09); tone(t, 'triangle', f * 2, f * 2.2, 0.05, 0.05); noiseHit(t, 0.08, 'highpass', 4000, 0.02);
+    if (n % 10 === 0) for (let k = 0; k < 3; k++) tone(t + 0.05 + k * 0.06, 'sine', 1760 * 2 ** (PENT[k + 2] / 12), 1760 * 2 ** (PENT[k + 2] / 12), 0.12, 0.18);
+  }
+  else if (kind === 'liked') { for (let k = 0; k < Math.min(3, power | 0); k++) tone(t + k * 0.07, 'sine', 990 + k * 180, 1300 + k * 180, 0.1, 0.08); }   // ほかの人のいいねが届いた: 小さくポポポッ
   else if (kind === 'turnNext') { taiko(t, 1.0, 1.1); tone(t + 0.02, 'sine', 2200, 2400, 0.22, 0.45); }   // 次は右/左: 笛「ピーッ」と太鼓
   else if (kind === 'turnNow') { for (let k = 0; k < 3; k++) tone(t + k * 0.13, 'square', 2600, 2800, 0.12, 0.1); taiko(t, 1.2, 0.9); }   // 右へ!!: 笛「ピピピッ」
   else if (kind === 'siren') { for (let k = 0; k < 4; k++) tone(t + k * 0.3, 'square', k % 2 ? 960 : 720, 0, 0.06, 0.28); }

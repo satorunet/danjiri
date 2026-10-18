@@ -48,16 +48,18 @@ export function withOutline(mesh, thick = 0.03) {
 }
 
 // アトラス: インスタンスごとに タイル位置(xy) と 繰り返し回数(zw) を持つ
-export function atlasify(mat, cols, rows) {
+// sub: 壁の一部分（崩れる家のセル）用。aSub = 貼る範囲の始まり(xy) と 大きさ(zw)（タイル何枚ぶんか）
+export function atlasify(mat, cols, rows, sub = false) {
   mat.onBeforeCompile = sh => {
-    sh.vertexShader = 'attribute vec4 aAtlas;\nvarying vec4 vAtlas;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\nvAtlas = aAtlas;');
+    sh.vertexShader = 'attribute vec4 aAtlas;\nvarying vec4 vAtlas;\n' + (sub ? 'attribute vec4 aSub;\nvarying vec4 vSub;\n' : '') + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\nvAtlas = aAtlas;' + (sub ? ' vSub = aSub;' : ''));
     // キャンバスの行は上から数えるので、UV では上下を反転する
-    const samp = n => `vec2 ${n} = (vec2(vAtlas.x, ${(rows - 1).toFixed(1)} - vAtlas.y) + 0.015 + fract(vMapUv * vAtlas.zw) * 0.97) / vec2(${cols.toFixed(1)}, ${rows.toFixed(1)});`;
-    sh.fragmentShader = 'varying vec4 vAtlas;\n' + sh.fragmentShader
+    const uv = sub ? 'vSub.xy + vMapUv * vSub.zw' : 'vMapUv * vAtlas.zw';
+    const samp = n => `vec2 ${n} = (vec2(vAtlas.x, ${(rows - 1).toFixed(1)} - vAtlas.y) + 0.015 + fract(${uv}) * 0.97) / vec2(${cols.toFixed(1)}, ${rows.toFixed(1)});`;
+    sh.fragmentShader = 'varying vec4 vAtlas;\n' + (sub ? 'varying vec4 vSub;\n' : '') + sh.fragmentShader
       .replace('#include <map_fragment>', `#ifdef USE_MAP\n${samp('auv')}\nvec4 sampledDiffuseColor = texture2D(map, auv);\ndiffuseColor *= sampledDiffuseColor;\n#endif`)
       .replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP\n${samp('auvE')}\ntotalEmissiveRadiance *= texture2D(emissiveMap, auvE).rgb;\n#endif`);
   };
-  mat.customProgramCacheKey = () => `atlas${cols}x${rows}`;
+  mat.customProgramCacheKey = () => `atlas${cols}x${rows}${sub ? 'sub' : ''}`;
   return mat;
 }
 export function atlasAttr(mesh, n) {

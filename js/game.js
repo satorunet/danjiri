@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=136';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=136';
-import { buildWorld } from './world.js?v=136';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=136';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=136';
-import { FX, SpeedShader } from './fx.js?v=136';
-import * as AU from './audio.js?v=136';
+import * as SIM from './sim.js?v=156';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=156';
+import { buildWorld } from './world.js?v=156';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=156';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=156';
+import { FX, SpeedShader } from './fx.js?v=156';
+import * as AU from './audio.js?v=156';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -78,6 +78,22 @@ composer.addPass(bloom);
 const speedPass = new ShaderPass(SpeedShader);
 composer.addPass(speedPass);
 composer.addPass(new OutputPass());
+// 自分のだんじりががれきや土ぼこりに埋もれた時: 透けて見えるシルエットを一番上に重ねる（だんじり本体だけをレイヤー 5 に入れて描く）
+const XRAY_LAYER = 5;
+const xray = { mat: new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false, toneMapped: false, blending: THREE.AdditiveBlending }), a: 0, t: 0, on: false };
+function renderXray() {
+  const now = performance.now(), dt = Math.min(0.1, (now - (xray.t || now)) / 1000); xray.t = now;
+  const want = (state === 'race' || state === 'finish') && (cam.occT || 0) > 0 && camMode !== 2 ? 1 : 0;
+  if (want && !xray.on && player) player.D.tilt.traverse(o => o.layers.enable(XRAY_LAYER));   // 飾りが増えていることもあるので、出し始めに毎回付け直す
+  xray.on = !!want;
+  xray.a += (want - xray.a) * Math.min(1, dt * (want ? 10 : 4));
+  if (xray.a < 0.02 || !player) return;
+  xray.mat.opacity = 0.42 * xray.a;
+  const bg = scene.background, sm = renderer.shadowMap.autoUpdate;
+  scene.background = null; scene.overrideMaterial = xray.mat; renderer.shadowMap.autoUpdate = false; camera.layers.set(XRAY_LAYER); renderer.autoClear = false;
+  renderer.render(scene, camera);
+  scene.background = bg; scene.overrideMaterial = null; renderer.shadowMap.autoUpdate = sm; camera.layers.set(0); renderer.autoClear = true;
+}
 function applyQuality() {
   const pr = quality === 'high' ? Math.min(devicePixelRatio, 1.6) : Math.min(devicePixelRatio, 1);
   renderer.setPixelRatio(pr); composer.setPixelRatio(pr);
@@ -149,6 +165,7 @@ function loadStage(pl, nt = night) {
     }
     worldRoot.g = new THREE.Group(); scene.add(worldRoot.g);
     world = buildWorld(worldRoot.g, course, { theme, night });
+    world.onCrumble = crumbleFx;
     worldKey = key;
     propGrid = new Map();
     for (const p of world.props) { const k = Math.floor(p.x / 10) + ',' + Math.floor(p.z / 10); if (!propGrid.has(k)) propGrid.set(k, []); propGrid.get(k).push(p); }
@@ -712,6 +729,14 @@ function breakFx(r, codes) {
     if (big) { shake = Math.max(shake, 1.0); if (tn - (r.msgT || 0) > 2500) { r.msgT = tn; message(big > 1 ? L('町ごと粉砕!!', 'BLOCK DEMOLISHED!!') : L('家ごと粉砕!!', 'HOUSE DEMOLISHED!!'), 'gold', true); AU.cheer(0.45, 1.6); } }
   }
 }
+// 崩れている家: 支えを失った階が落ちるたびに土ぼこりと音
+let crumbleT = 0;
+function crumbleFx(pc, n, thud) {
+  if (!player || Math.hypot(pc.px - player.vis.x, pc.pz - player.vis.z) > 70) return;
+  fx.burst('dust', pc.px, pc.py + 1 + Math.random() * 3, pc.pz, Math.min(16, 3 + n + thud), { spread: Math.max(pc.w, pc.d) * 0.6, size: 3, color: night ? [0.4, 0.4, 0.48] : [0.86, 0.82, 0.74] });
+  const tn = performance.now();
+  if (tn - crumbleT > 160) { crumbleT = tn; AU.sfx('smash'); if (n > 6) shake = Math.max(shake, Math.min(0.5, n * 0.03)); }
+}
 // 他のプレイヤーのだんじりが道の外へ出ていたら、こちらの町もそこを壊す
 function netBreach(r) {
   const v = r.vis;
@@ -836,13 +861,14 @@ function clampCam(v, extra) {
   const lim = SIM.wallAt(course, PR.s, PR.lat) + extra;
   if (Math.abs(PR.lat) > lim) { const p = (Math.abs(PR.lat) - lim) * Math.sign(PR.lat); v.x += PR.tz * p; v.z -= PR.tx * p; }
 }
-const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), yaw: 0, ready: false, orbit: 0 };
+const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), yaw: 0, ready: false, orbit: 0 }, camTgt = new THREE.Vector3();
 // ゲーム終了後: 各プレイヤーのだんじりを 3D で回して見る
 const SC = { on: false, i: 0, yaw: 0.6, pitch: 0.42, dist: 16, drag: null, auto: true };
 function showcaseOpen(on) {
   SC.on = on; SC.auto = true; SC.focus = null; SC.dist = 16;
   $('showcase').classList.toggle('hidden', !on); $('result').classList.toggle('hidden', on);
   if (on) { SC.i = Math.max(0, racers.indexOf(player)); showcaseName(); }
+  if (!on) weighIn();   // 計量がまだなら、結果画面に戻った時に始める
   for (const id of ['scPrev', 'scNext']) $(id).classList.toggle('hidden', racers.length < 2);   // ◀▶ はほかの町のだんじりへ切り替え（1 台だけの時は出さない）
 }
 function showcaseName() {
@@ -911,6 +937,11 @@ function updateCamera(dt, t) {
       const v = r.vis, dx = v.x - c.x, dz = v.z - c.z, f = dx * fx0 + dz * fz0, l = Math.abs(dx * rx + dz * rz);
       if (f > 2 && f < 16 && l < 3.2) block = Math.max(block, (1 - (f - 2) / 14) * (1 - l / 3.2 * 0.5));
     }
+    // 突っ込んだ家の塊や飛んできたがれきがカメラとの間に入ったら、しばらく上から見下ろして見失わないように
+    camTgt.set(c.x, c.y + 2.6, c.z);
+    if (cam.ready && world.occluded && world.occluded(cam.pos, camTgt, true) > 0) cam.occT = 1.4;   // 間の家は透かし、だんじりのシルエットも重ねる
+    cam.occT = Math.max(0, (cam.occT || 0) - dt);
+    if (cam.occT > 0) block = Math.max(block, 1);
     cam.lift = (cam.lift || 0) + (clamp(block * 1.6, 0, 1) - (cam.lift || 0)) * Math.min(1, dt * (block > (cam.lift || 0) ? 2.5 : 0.8));
     const lf = cam.lift;
     const dist = 10.5 + sp * 0.12 + (c.air ? 3 : 0) + lf * 5, h = 4.3 + sp * 0.04 + (c.air ? 1.5 : 0) + lf * 7;
@@ -1298,7 +1329,7 @@ function thumbOf(pc) {
   const px8 = new Uint8Array(S * S * 4);
   renderer.readRenderTargetPixels(thumbRT, 0, 0, S, S, px8);
   renderer.setRenderTarget(prev); renderer.setClearColor(cc, ca);
-  thumbScene.remove(grp); grp.children.forEach(o => o.dispose());
+  thumbScene.remove(grp); grp.children.forEach(o => o.dispose && o.dispose());   // 雷門などの普通の 3D の物（Group）は dispose を持たない
   const cv = document.createElement('canvas'); cv.width = cv.height = S;
   const g = cv.getContext('2d'), img = g.createImageData(S, S);
   for (let y = 0; y < S; y++) img.data.set(px8.subarray((S - 1 - y) * S * 4, (S - y) * S * 4), y * S * 4);
@@ -1308,7 +1339,7 @@ function thumbOf(pc) {
   return url;
 }
 const fmtKg = kg => kg >= 1000 ? `${(kg / 1000).toFixed(kg >= 100000 ? 0 : 1)}${L('トン', ' t')}` : `${Math.round(kg)}kg`;
-function collectedHTML(r) {
+function collectedHTML(r, weigh = false) {
   const log = r && r.stick.log;
   if (!log || !log.size) return `<div class="collHead">${L('ひっつけたもの', 'Stuck to your danjiri')}</div><div class="collNone">${L('なし（町に突っ込むと、いろいろくっつく）', 'Nothing yet (crash into the town and things stick!)')}</div>`;
   const groups = new Map(); let n = 0, kg = 0;
@@ -1317,22 +1348,83 @@ function collectedHTML(r) {
     if (!groups.has(k)) groups.set(k, { pc, n: 0, kg: 0 });
     const g = groups.get(k); g.n++; g.kg += pc.kg || 10; n++; kg += pc.kg || 10;
   }
-  const list = [...groups.entries()].sort((a, b) => b[1].kg - a[1].kg);
+  const list = [...groups.entries()].sort((a, b) => weigh ? a[1].kg - b[1].kg : b[1].kg - a[1].kg);   // 計量は軽いものから順に台へ
   let cards = '';
   collGroups = list.map(([name, g]) => ({ name, ...g }));
-  for (const [name, g] of list) { let src = ''; try { src = thumbOf(g.pc); } catch (e) { } cards += `<div class="ci" title="${esc(L('押すと、だんじりにくっついている様子を3Dで見られます', 'Tap to see it stuck on the danjiri in 3D'))}">${src ? `<img src="${src}" alt="">` : ''}${esc(tn(name))}<b>×${g.n}</b></div>`; }
-  return `<div class="collHead">${L('ひっつけたもの', 'Stuck to your danjiri')}<br>${L('総量', 'Total')} <b>${n}</b>${L('個', ' items')}・<b>${fmtKg(kg)}</b></div><div class="collGrid">${cards}</div>`;
+  for (const [name, g] of list) { let src = ''; try { src = thumbOf(g.pc); } catch (e) { } cards += `<div class="ci${weigh ? ' wz' : ''}" title=""${esc(L('押すと、だんじりにくっついている様子を3Dで見られます', 'Tap to see it stuck on the danjiri in 3D'))}">${src ? `<img src="${src}" alt="">` : ''}${esc(tn(name))}<b>×${g.n}</b></div>`; }
+  return `<div class="collHead">${L('ひっつけたもの', 'Stuck to your danjiri')}<br>${L('総量', 'Total')} <b id="collN">${weigh ? 0 : n}</b>${L('個', ' items')}・<b id="collKg">${weigh ? fmtKg(0) : fmtKg(kg)}</b><span class="wDone hidden" id="collDone">${L('計量完了!', 'WEIGHED!')}</span></div><div class="collGrid">${cards}</div>`;
+}
+// 結果画面の「ひっつけたもの」を計量: 1 種類ずつ台に載せ、数と重さを勢いよくカウントアップ（押すと最後まで飛ばす）
+let weighRAF = 0;
+function weighIn() {
+  const box = $('resColl'), cards = [...box.querySelectorAll('.ci.wz')];
+  if (!cards.length || $('result').classList.contains('hidden') || weighRAF) return;
+  const G = collGroups.slice(0, cards.length), t0 = performance.now() + 300;
+  // 1 種類ごとの時間: 数が多いほど長く（1 個ずつチキチキ数える）。全部で 4 秒まで
+  const dur = G.map(g => 160 + Math.min(g.n, 40) * 55), sc = Math.min(1, 4000 / dur.reduce((a, b) => a + b, 0)), at = [0];
+  dur.forEach((d, j) => at.push(at[j] + d * sc));
+  const uAt = ms => { let j = 0; while (j < G.length && ms >= at[j + 1]) j++; return j >= G.length ? G.length : j + (ms - at[j]) / (at[j + 1] - at[j]); };
+  const nEl = box.querySelector('#collN'), kgEl = box.querySelector('#collKg'), bump = el => { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); };
+  let shownN = -1, tickT = 0, inK = -1, doneK = -1;
+  const done = G.map(() => 0);   // 種類ごとに、もう数えた個数（増えた分だけ上から飛んでくる）
+  const show = (u, fly = true) => { // u: 何枚目まで載ったか（小数は途中）
+    let n = 0, kg = 0;
+    G.forEach((g, j) => {
+      const f = clamp((u - j) * 1.15, 0, 1), m = Math.round(g.n * f);
+      if (f > 0) cards[j].querySelector('b').textContent = `×${m}`;
+      const img = cards[j].querySelector('img'); if (img) img.style.opacity = f > 0 ? 0.2 + 0.8 * m / g.n : 0.2;   // 数えるほど絵が濃くなる
+      if (fly) for (let k = done[j]; k < m && k < done[j] + 3; k++) weighFly(cards[j]);
+      done[j] = m;
+      n += m; kg += g.n ? g.kg * m / g.n : 0;
+    });
+    setT(nEl, n); setT(kgEl, fmtKg(kg));
+    return n;
+  };
+  const fin = () => {
+    cancelAnimationFrame(weighRAF); weighRAF = 0; box.onpointerdown = null;
+    cards.forEach(c => { c.classList.remove('wz', 'on'); c.classList.add('in'); });
+    show(G.length, false); bump(nEl); bump(kgEl);
+    box.querySelector('#collDone').classList.remove('hidden'); AU.sfx('weighDone');
+  };
+  box.onpointerdown = fin;
+  cards.forEach(c => c.querySelector('b').textContent = '×0');
+  const step = now => {
+    const u = uAt(Math.max(0, now - t0));
+    if (u >= G.length) { fin(); return; }
+    // 量っている札は薄く出し、量り終わった札から順にポンと入る
+    for (let j = inK + 1; j <= Math.floor(u) && j < cards.length; j++) { cards[j].classList.remove('wz'); cards[j].classList.add('on'); inK = j; AU.sfx('weighPut', G[j].kg); }
+    for (let j = doneK + 1; j < cards.length && clamp((u - j) * 1.15, 0, 1) >= 1; j++) { cards[j].classList.remove('on', 'hit'); cards[j].classList.add('in'); doneK = j; }
+    const n = show(u);
+    if (n !== shownN && now - tickT > 38) { shownN = n; tickT = now; bump(nEl); AU.sfx('weighTick', u / G.length); }
+    weighRAF = requestAnimationFrame(step);
+  };
+  weighRAF = requestAnimationFrame(step);
+}
+// 数えた 1 個: 画面の上から、その種類の札へ落ちてくる
+function weighFly(card) {
+  const img = card.querySelector('img'), layer = $('likeLayer');
+  if (!img || !layer || layer.childElementCount > 40) return;
+  const r = card.getBoundingClientRect(), el = document.createElement('img');
+  el.src = img.src; el.className = 'wfly';
+  const x0 = innerWidth * (0.2 + Math.random() * 0.6), y0 = -50, x1 = r.left + r.width / 2, y1 = r.top + r.height * 0.35, rot = (Math.random() - 0.5) * 360;
+  layer.appendChild(el);
+  const a = el.animate([
+    { transform: `translate(${x0 - 22}px, ${y0}px) scale(1.5) rotate(${rot}deg)`, opacity: 0 },
+    { transform: `translate(${x0 - 22}px, ${y0 + 60}px) scale(1.5) rotate(${rot * 0.6}deg)`, opacity: 1, offset: 0.2 },
+    { transform: `translate(${x1 - 22}px, ${y1 - 22}px) scale(0.7) rotate(0deg)`, opacity: 1 },
+  ], { duration: 420 + Math.random() * 160, easing: 'cubic-bezier(.45,0,.9,.6)' });
+  a.onfinish = () => { el.remove(); card.classList.remove('hit'); void card.offsetWidth; card.classList.add('hit'); };
 }
 const swatch = team => `<span class="sw" style="background:${team.css}"></span>`;
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-// ================= いいね!: 表彰の間、何回でも押せる。押すとハートがふわふわ飛ぶ（オンラインは部屋のみんなにも飛ぶ） =================
-const LIKE = { to: null, counts: new Map(), q: 0, qTo: null, t: 0, live: 0 };
-const LIKE_ICONS = ['❤️', '💖', '💗', '💕', '👍', '✨', '🎉', '🏮'];
-function likeFloat(n, fromBtn = true) {
-  const b = $('pdLike').getBoundingClientRect(), layer = $('likeLayer');
+// ================= いいね!: 表彰の間、TikTok のように超連打できる（押しっぱなしでも連射）。押すと 👍 がふわふわ飛ぶ（オンラインは部屋のみんなにも飛ぶ） =================
+const LIKE = { to: null, counts: new Map(), q: 0, qTo: null, t: 0, live: 0, combo: 0, comboT: 0, hold: 0 };
+const LIKE_ICONS = ['👍', '👍', '👍', '✨', '🎉', '🏮', '💯', '🔥'];
+function likeFloat(n, from = $('pdLike')) {   // from: 飛ばし始めるボタン（null なら画面の右下あたりから）
+  const fromBtn = !!from, b = from && from.getBoundingClientRect(), layer = $('likeLayer');
   for (let i = 0; i < n && LIKE.live < 90; i++) {
     const el = document.createElement('span'); el.className = 'lk';
-    el.textContent = LIKE_ICONS[Math.random() < 0.55 ? 0 : Math.floor(Math.random() * LIKE_ICONS.length)];
+    el.textContent = LIKE_ICONS[Math.floor(Math.random() * LIKE_ICONS.length)];
     const x = fromBtn ? b.left + b.width / 2 - 15 + (Math.random() - 0.5) * 24 : innerWidth * (0.55 + Math.random() * 0.4), y = fromBtn ? b.top - 10 : innerHeight * 0.8;
     el.style.left = x + 'px'; el.style.top = y + 'px';
     el.style.setProperty('--dx', `${Math.round((Math.random() - 0.65) * 160)}px`); el.style.setProperty('--s', (0.8 + Math.random() * 0.8).toFixed(2));
@@ -1343,21 +1435,53 @@ function likeFloat(n, fromBtn = true) {
   }
 }
 const likeKey = r => (r ? String(r.id ?? racers.indexOf(r)) : '');
-function likeShow() { setT($('pdLikeN'), LIKE.counts.get(LIKE.to) || 0); }
-function likeTap(e) {
-  e.stopPropagation(); e.preventDefault();
-  if (!LIKE.to) return;
-  LIKE.counts.set(LIKE.to, (LIKE.counts.get(LIKE.to) || 0) + 1); likeShow();
-  const b = $('pdLike'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
-  likeFloat(1 + (Math.random() < 0.3 ? 1 : 0));
-  if (mode === 'online') { if (LIKE.qTo !== LIKE.to) { likeFlush(); LIKE.qTo = LIKE.to; } LIKE.q++; if (!LIKE.t) LIKE.t = setTimeout(likeFlush, 350); }
+// 結果の表: 1 行ずつ、その順位の人へのいいねボタン
+const likeCell = key => `<td class="lkc"><button class="rlk" data-lk="${esc(key)}" aria-label="${L('いいね', 'Like')}">👍<b>${LIKE.counts.get(key) || 0}</b></button></td>`;
+function likeShow() {
+  setT($('pdLikeN'), LIKE.counts.get(LIKE.to) || 0);
+  for (const b of document.querySelectorAll('#resTable .rlk')) setT(b.querySelector('b'), LIKE.counts.get(b.dataset.lk) || 0);
 }
-function likeFlush() { clearTimeout(LIKE.t); LIKE.t = 0; if (LIKE.q && LIKE.qTo) netSend({ t: 'like', to: LIKE.qTo, n: LIKE.q }); LIKE.q = 0; }
+function likeOnce(to, b) {
+  if (!to) return;
+  LIKE.counts.set(to, (LIKE.counts.get(to) || 0) + 1); likeShow();
+  b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  // 続けて押すと ×N が増える（少し手を止めるか、相手が変わると 0 から）
+  if (LIKE.cTo !== to) { LIKE.combo = 0; LIKE.cTo = to; }
+  LIKE.combo++; clearTimeout(LIKE.comboT);
+  const cb = $('pdCombo'), onPd = b.id === 'pdLike';
+  if (onPd) { setT(cb, `×${LIKE.combo}`); cb.classList.add('on'); cb.classList.remove('pop'); void cb.offsetWidth; cb.classList.add('pop'); }
+  LIKE.comboT = setTimeout(() => { LIKE.combo = 0; cb.classList.remove('on'); }, 900);
+  likeFloat(1 + (LIKE.combo % 10 === 0 ? 4 : 0), b); AU.sfx('like', LIKE.combo);
+  if (mode === 'online') { if (LIKE.qTo !== to) { likeFlush(); LIKE.qTo = to; } LIKE.q++; if (LIKE.q >= 30) likeFlush(); else if (!LIKE.t) LIKE.t = setTimeout(likeFlush, 350); }
+}
+// 押した瞬間に数える（click を待たない）。押しっぱなしなら、だんだん速く連射
+function likeDown(e, b = e.currentTarget) {
+  e.stopPropagation(); e.preventDefault();
+  const to = b.dataset.lk || LIKE.to;
+  likeUp(); likeOnce(to, b);
+  b.classList.add('hold'); LIKE.holdEl = b;
+  let gap = 110;
+  const rep = () => { likeOnce(to, b); gap = Math.max(45, gap * 0.9); LIKE.hold = setTimeout(rep, gap); };
+  LIKE.hold = setTimeout(rep, 260);
+}
+function likeUp() { clearTimeout(LIKE.hold); LIKE.hold = 0; if (LIKE.holdEl) LIKE.holdEl.classList.remove('hold'); LIKE.holdEl = null; }
+{ // 結果の表のいいね（行は作り直されるので、表でまとめて受ける）
+  const t = $('resTable'), btn = e => e.target.closest && e.target.closest('.rlk');
+  t.addEventListener('pointerdown', e => { const b = btn(e); if (b) likeDown(e, b); });
+  for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, () => { if (LIKE.holdEl && LIKE.holdEl.classList.contains('rlk')) likeUp(); });
+  t.addEventListener('contextmenu', e => { if (btn(e)) e.preventDefault(); });
+}
+function likeFlush() { clearTimeout(LIKE.t); LIKE.t = 0; if (LIKE.q && LIKE.qTo) netSend({ t: 'like', to: LIKE.qTo, n: Math.min(30, LIKE.q) }); LIKE.q = 0; }
 // ほかの人のいいね
 function onLike(m) {
   const to = String(m.to || ''), n = Math.max(1, Math.min(30, m.n | 0));
   LIKE.counts.set(to, (LIKE.counts.get(to) || 0) + n);
-  if (!$('podium').classList.contains('hidden') && to === LIKE.to) { likeShow(); likeFloat(Math.min(n, 8), false); }
+  likeShow();
+  const pd = !$('podium').classList.contains('hidden'), row = !pd && !$('result').classList.contains('hidden') && [...document.querySelectorAll('#resTable .rlk')].find(b => b.dataset.lk === to);
+  if (!pd && $('result').classList.contains('hidden')) return;
+  AU.sfx('liked', n);   // 表彰中・結果画面なら、誰へのいいねでも音で知らせる
+  if (pd && to === LIKE.to) likeFloat(Math.min(n, 8), null);
+  else if (row) likeFloat(Math.min(n, 6), row);
 }
 // ================= 表彰: 1 位のだんじりを 3D でくるくる（紙吹雪・歓声）→ 結果 =================
 let podiumT = 0;
@@ -1366,11 +1490,11 @@ function podium(order) {
   const list = (Array.isArray(order) ? order : [order]).filter(r => r && racers.includes(r)).slice(0, 3);
   let w = list[0];
   const done = () => {
-    clearTimeout(podiumT); podiumT = 0;
+    clearTimeout(podiumT); podiumT = 0; likeUp();
     $('podium').classList.add('hidden'); document.querySelector('#showcase .sc-bar').classList.remove('hidden'); document.querySelector('#showcase .sc-hint').classList.remove('hidden');
     if (SC.podium) { SC.podium = false; if (SC.on) showcaseOpen(false); }
     if (state !== 'result') { $('result').classList.add('hidden'); return; }   // 表彰中に次のレースが始まった
-    $('result').classList.remove('hidden'); $('result').scrollTop = 0;
+    $('result').classList.remove('hidden'); $('result').scrollTop = 0; weighIn();
   };
   if (!w) { done(); return; }
   $('result').classList.add('hidden');
@@ -1378,7 +1502,8 @@ function podium(order) {
   document.querySelector('#showcase .sc-bar').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.add('hidden');
   $('podium').classList.remove('hidden');
   $('podium').onclick = done;
-  $('pdLike').onclick = likeTap; LIKE.counts.clear();
+  { const b = $('pdLike'); b.onpointerdown = likeDown; b.onpointerup = b.onpointercancel = b.onpointerleave = likeUp; b.onclick = e => e.stopPropagation(); b.oncontextmenu = e => e.preventDefault(); }
+  LIKE.counts.clear(); LIKE.combo = 0;
   // 3 位 → 2 位 → 1 位
   const seq = [...list].reverse();
   const show = k => {
@@ -1386,7 +1511,7 @@ function podium(order) {
     const r = seq[k], rank = list.indexOf(r) + 1, last = k === seq.length - 1;
     SC.i = racers.indexOf(r); SC.yaw = Math.PI * (0.8 + k * 0.4); SC.pitch = 0.24; SC.dist = 19; SC.auto = true; SC.focus = null;
     $('pdCup').textContent = ['🏆', '🥈', '🥉'][rank - 1];
-    likeFlush(); LIKE.to = likeKey(r); likeShow();
+    likeFlush(); LIKE.to = likeKey(r); LIKE.combo = 0; $('pdCombo').classList.remove('on'); likeShow();
     setT($('pdTitle'), rank === 1 ? L('優 勝', 'WINNER!') : L(`${rank} 位`, `#${rank}`));
     $('pdName').innerHTML = `${swatch(r.team)}${esc(r === player && mode === 'online' ? myName : r.name)}`;
     const box = document.querySelector('#podium .pd-box'); box.classList.remove('pd-go'); void box.offsetWidth; box.classList.add('pd-go');
@@ -1403,14 +1528,14 @@ function showSoloResult() {
   const order = rankOrder(), gs = goalS();
   $('resTable').innerHTML = order.map((r, i) => {
     const time = r.finished ? r.finishTime : raceT + (gs - r.car.prog) / 18;
-    return `<tr class="${r === player ? 'me' : ''}"><td>${L(`${i + 1}位`, `#${i + 1}`)}</td><td>${swatch(r.team)}${esc(r.name)}</td><td>${r.finished ? '' : L('約 ', '~')}${fmt(time)}</td></tr>`;
+    return `<tr class="${r === player ? 'me' : ''}"><td>${L(`${i + 1}位`, `#${i + 1}`)}</td><td>${swatch(r.team)}${esc(r.name)}</td><td>${fmt(time)}</td>${likeCell(likeKey(r))}</tr>`;
   }).join('');
   const rank = order.indexOf(player) + 1; resInfo = { rank, n: order.length }; shareReset(true);
   $('resTitle').textContent = rank === 1 ? L('優勝! 町の誇りや!', 'VICTORY! Pride of the town!') : L(`${rank}位 ゴール`, `Finished #${rank}`);
   const best = +store.get(bestKey(), 0);
   if (player.finished && (!best || player.finishTime < best)) { store.set(bestKey(), player.finishTime); $('resNew').textContent = best ? L('ベストタイム更新!', 'New best time!') : L('ベストタイム記録!', 'Best time set!'); }
   else $('resNew').textContent = L(`ベスト ${fmt(best)}`, `Best ${fmt(best)}`);
-  $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
+  $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player, true); bindCollected(); cancelAnimationFrame(weighRAF); weighRAF = 0; showRankForm(); updateMyBest();
   $('retryBtn').classList.remove('hidden'); setNext($('nextInfo'), '', ''); showChat(false);
   podium(order);   // 3 位 → 2 位 → 1 位を表彰してから結果
 }
@@ -1630,7 +1755,7 @@ function replayStop() {
   RP.on = false; $('replayBar').classList.add('hidden'); AU.stopMusic();
   if (RP.match) {   // 試合リプレイは結果画面へ戻る
     RP.match = false; $('rpPrev').classList.add('hidden'); $('rpNext').classList.add('hidden');
-    state = 'result'; $('result').classList.remove('hidden'); $('result').scrollTop = 0;
+    state = 'result'; $('result').classList.remove('hidden'); $('result').scrollTop = 0; weighIn();
     return;
   }
   if (shareView) { const v = shareView; openShare(v.id); return; }
@@ -1986,17 +2111,45 @@ function netJoin(how, room) {
   renderLobby();
 }
 // 待合室のかんたんカスタム: 型・仕上げ・引き手の配置・幟の文字。変えたらすぐ部屋のみんなへ送る（次のレースから反映）
+const LC_TYPE_IC = ['🏯', '🥁', '🏮', '🐦', '🐉'], LC_FORM_IC = ['⚖️', '🏃', '↩️', '💪', '🌀'];
+const finCss = i => '#' + (FINISHES[i].wood ? FINISHES[i].wood[0] : 0x9a5a2a).toString(16).padStart(6, '0');
 function lobbyCustom() {
-  const row = (id, list, cur, pick) => {
-    $(id).innerHTML = list.map((t, i) => `<button data-i="${i}" class="${i === cur ? 'sel' : ''}">${esc(t)}</button>`).join('');
-    $(id).querySelectorAll('button').forEach(b => b.onclick = () => { pick(+b.dataset.i); $(id).querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); sendCustom(); });
+  const row = (id, list, cur, pick, look) => {
+    $(id).innerHTML = list.map((t, i) => `<button data-i="${i}" class="${i === cur ? 'sel' : ''}">${look(i)}${esc(t)}</button>`).join('');
+    $(id).querySelectorAll('button').forEach(b => b.onclick = () => { pick(+b.dataset.i); $(id).querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); sendCustom(); lobbyLook(); });
   };
-  row('lcType', DJ_TYPES.map(t => L(t.ja, t.en)), myType, i => { myType = i; store.set('danjiri-type', i); });
-  row('lcFin', FINISHES.map(f => L(f.ja, f.en)), myFinish, i => { myFinish = i; store.set('danjiri-finish', i); });
-  row('lcForm', SIM.FORMS.map(f => L(f.ja, f.en)), myForm, i => { myForm = i; store.set('danjiri-form', i); });
+  row('lcType', DJ_TYPES.map(t => L(t.ja, t.en)), myType, i => { myType = i; store.set('danjiri-type', i); }, i => `<span class="ic">${LC_TYPE_IC[i] || ''}</span>`);
+  row('lcFin', FINISHES.map(f => L(f.ja, f.en)), myFinish, i => { myFinish = i; store.set('danjiri-finish', i); }, i => `<span class="swc" style="background:${finCss(i)}"></span>`);
+  row('lcForm', SIM.FORMS.map(f => L(f.ja, f.en)), myForm, i => { myForm = i; store.set('danjiri-form', i); }, i => `<span class="ic">${LC_FORM_IC[i] || ''}</span>`);
   $('lcText').value = myText;
-  $('lcTextForm').onsubmit = e => { e.preventDefault(); myText = cleanBanner($('lcText').value); $('lcText').value = myText; store.set('danjiri-text', myText); sendCustom(); };
-  setT($('lcMsg'), '');
+  $('lcTextForm').onsubmit = e => { e.preventDefault(); myText = cleanBanner($('lcText').value); $('lcText').value = myText; store.set('danjiri-text', myText); sendCustom(); lobbyLook(); };
+  $('lobbyCu').ontoggle = () => { if ($('lobbyCu').open) lobbyLook(false); };
+  setT($('lcMsg'), ''); lobbyCur();
+}
+// 今の選択（閉じていても分かるように見出しの下に）
+function lobbyCur() { setT($('lcCur'), `${LC_TYPE_IC[myType] || ''}${L(DJ_TYPES[myType].ja, DJ_TYPES[myType].en)}・${L(FINISHES[myFinish].ja, FINISHES[myFinish].en)}・${L(SIM.FORMS[myForm].ja, SIM.FORMS[myForm].en)}${myText ? `・「${myText}」` : ''}`); }
+// 選んだらすぐ、待合室のだんじりを作り直し、パネルの中にも斜め前からの姿を映す
+let lcRT = null; const lcCam = new THREE.PerspectiveCamera(30, 9 / 5, 0.5, 600);
+function lobbyLook(rebuild = true) {
+  lobbyCur();
+  if (state !== 'lobby') return;
+  if (rebuild) { clearRacers(); buildSolo(); }
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const cv = $('lcPrev'); if (!cv || !player || state !== 'lobby') return;
+    const W = cv.width, H = cv.height;
+    if (!lcRT) { lcRT = new THREE.WebGLRenderTarget(W, H, { samples: 4 }); lcRT.texture.colorSpace = THREE.SRGBColorSpace; }
+    const v = player.vis, a = (v.yaw || 0) + 0.75;
+    lcCam.position.set(v.x + Math.sin(a) * 14, v.y + 5.4, v.z + Math.cos(a) * 14); lcCam.lookAt(v.x, v.y + 3.1, v.z);
+    // 自分のだんじりだけを写す（町・ほかのだんじり・空は描いている間だけ隠し、背景は透明に）
+    const hid = []; for (const o of scene.children) if (o !== player.D.group && !o.isLight && o.visible) { o.visible = false; hid.push(o); }
+    const cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha(), bg = scene.background, fog = scene.fog; scene.background = null; scene.fog = null;
+    const prev = renderer.getRenderTarget(); renderer.setRenderTarget(lcRT); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, lcCam);
+    for (const o of hid) o.visible = true; scene.background = bg; scene.fog = fog; renderer.setClearColor(cc, ca);
+    const px = new Uint8Array(W * H * 4); renderer.readRenderTargetPixels(lcRT, 0, 0, W, H, px); renderer.setRenderTarget(prev);
+    const g = cv.getContext('2d'), img = g.createImageData(W, H);
+    for (let y = 0; y < H; y++) img.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+    g.clearRect(0, 0, W, H); g.putImageData(img, 0, 0);
+  }));
 }
 function sendCustom() {
   netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew, ty: myType, fl: myFlag });
@@ -2160,11 +2313,11 @@ function showGhostResult() {
   ['hud', 'touch', 'count'].forEach(id => $(id).classList.add('hidden'));
   const rows = racers.filter(r => r === player || !r.ghostVisitor).map(r => ({ r, t: r === player ? player.finishTime : r.finished ? r.finishTime : null }))
     .sort((a, b) => (a.t == null) - (b.t == null) || a.t - b.t);
-  $('resTable').innerHTML = rows.map((e, i) => `<tr class="${e.r === player ? 'me' : ''}"><td>${e.t == null ? '—' : L(`${i + 1}位`, `#${i + 1}`)}</td><td>${swatch(e.r.team)}${e.r === player ? '👻 ' + esc(myName) + L('（あなた）', ' (you)') : esc(e.r.name)}</td><td>${e.t == null ? L('記録なし', 'DNF') : fmt(e.t)}</td></tr>`).join('');
+  $('resTable').innerHTML = rows.map((e, i) => `<tr class="${e.r === player ? 'me' : ''}"><td>${e.t == null ? '—' : L(`${i + 1}位`, `#${i + 1}`)}</td><td>${swatch(e.r.team)}${e.r === player ? '👻 ' + esc(myName) + L('（あなた）', ' (you)') : esc(e.r.name)}</td><td>${e.t == null ? L('記録なし', 'DNF') : fmt(e.t)}</td>${likeCell(likeKey(e.r))}</tr>`).join('');
   const rank = rows.findIndex(e => e.r === player) + 1; resInfo = { rank: 0, n: 0 }; shareReset(true);
   $('resTitle').textContent = L(`👻 ゴースト ${rank}位相当`, `👻 Ghost: would be #${rank}`);
   $('resNew').textContent = L('本戦の記録とくらべた順位です（ゴーストは順位外）', 'Compared with the race times (ghost runs are unranked)');
-  $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
+  $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player, true); bindCollected(); cancelAnimationFrame(weighRAF); weighRAF = 0; showRankForm(); updateMyBest();
   $('retryBtn').classList.add('hidden');
   updateNextInfo();
   podium(rows.filter(e => e.t != null).map(e => e.r));
@@ -2268,13 +2421,13 @@ function showOnlineResult(m) {
   const watching = state === 'watch'; watchEnd();
   state = 'result'; AU.stopMusic();
   ['hud', 'touch', 'count'].forEach(id => $(id).classList.add('hidden'));
-  $('resTable').innerHTML = m.list.map(e => `<tr class="${e.id === NET.id ? 'me' : ''}"><td>${L(`${e.rank}位`, `#${e.rank}`)}</td><td>${swatch(TEAMS[e.team])}${esc(e.cpu ? 'CPU ' + teamName(TEAMS[e.team]) : e.name)}${e.id === NET.id ? L('（あなた）', ' (you)') : ''}</td><td>${e.est ? '約 ' : ''}${fmt(e.time)}</td></tr>`).join('');
+  $('resTable').innerHTML = m.list.map(e => `<tr class="${e.id === NET.id ? 'me' : ''}"><td>${L(`${e.rank}位`, `#${e.rank}`)}</td><td>${swatch(TEAMS[e.team])}${esc(e.cpu ? 'CPU ' + teamName(TEAMS[e.team]) : e.name)}${e.id === NET.id ? L('（あなた）', ' (you)') : ''}</td><td>${fmt(e.time)}</td>${likeCell(String(e.id))}</tr>`).join('');
   const mine = m.list.find(e => e.id === NET.id); resInfo = { rank: mine ? mine.rank : 0, n: m.list.length }; shareReset(!watching);
   $('resTitle').textContent = !mine ? L('結果', 'Results') : mine.rank === 1 ? L('優勝! 町の誇りや!', 'VICTORY! Pride of the town!') : L(`${mine.rank}位`, `#${mine.rank}`);
   const bi = mine && !mine.est ? NET.best.findIndex(b => b.name === myName && b.time === mine.time) : -1;
   $('resNew').textContent = bi >= 0 ? L(`オンライン番付 ${bi + 1}位 に入りました!`, `Online ranking #${bi + 1}!`) : '';
   if (watching) { $('resNew').textContent = L('観戦したレースの結果。次のレースから参加します', 'Results of the race you watched. You join the next one'); $('resStats').innerHTML = ''; $('resColl').innerHTML = ''; $('rankForm').classList.add('hidden'); $('resBadge').classList.add('hidden'); }
-  else { $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest(); }
+  else { $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player, true); bindCollected(); cancelAnimationFrame(weighRAF); weighRAF = 0; showRankForm(); updateMyBest(); }
   $('retryBtn').classList.add('hidden');
   updateNextInfo();
   podium(m.list.map(e => racers.find(r => r.id === e.id)));
@@ -2528,6 +2681,7 @@ function frame(nowMs) {
   speedPass.uniforms.uAmt.value = racing ? clamp((sp - 17) / 12, 0, 1) + (player.car.boosting ? 0.35 : 0) : 0;
   speedPass.uniforms.uTime.value = t; speedPass.uniforms.uAspect.value = innerWidth / innerHeight;
   if (quality === 'high') composer.render(); else { renderer.render(scene, camera); }
+  renderXray();
   if (wantPreview) { wantPreview = false; grabPreview(); }
 }
 

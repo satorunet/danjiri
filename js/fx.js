@@ -1,14 +1,15 @@
 // エフェクト: 火花・砂ぼこり・破片・紙吹雪・タイヤ痕・金の軌跡・集中線
 import * as THREE from 'three';
-import { toon } from './gfx.js?v=136';
+import { toon } from './gfx.js?v=156';
 
 const VS = `
 attribute float size; attribute float alpha; attribute vec3 pcolor;
 uniform float uScale;
 varying float vA; varying vec3 vC;
 void main() {
-  vA = alpha; vC = pcolor;
+  vC = pcolor;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vA = alpha * smoothstep(2.0, 9.0, -mv.z);   // カメラのすぐ前の粒は薄く（土ぼこりで前が見えなくならないように）
   gl_PointSize = size * uScale / max(0.5, -mv.z);
   gl_Position = projectionMatrix * mv;
 }`;
