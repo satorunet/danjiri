@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=114';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=114';
-import { buildWorld } from './world.js?v=114';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=114';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=114';
-import { FX, SpeedShader } from './fx.js?v=114';
-import * as AU from './audio.js?v=114';
+import * as SIM from './sim.js?v=115';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=115';
+import { buildWorld } from './world.js?v=115';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=115';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=115';
+import { FX, SpeedShader } from './fx.js?v=115';
+import * as AU from './audio.js?v=115';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -273,9 +273,9 @@ function setFlagIcon(r, url) {
       const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.16, 8).translate(0, 0.02, 0), knobMat);
       knob.add(blade, guard, ferrule);
       // 大きめの旗。竿側を固定して、外へ行くほどはためく（frame のはためき）
-      const W = 1.35, H = 1.1, geo = new THREE.PlaneGeometry(W, H, 10, 4);
+      const W = 2.0, H = 1.65, geo = new THREE.PlaneGeometry(W, H, 12, 5);   // 前の 1.5 倍
       const cloth = new THREE.Mesh(geo, clothMat);
-      cloth.position.set(sx * W / 2, 2.8, 0); cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）
+      cloth.position.set(sx * W / 2, 3.4 - H / 2, 0);   // 旗の上端を竿の先（剣先の根元）にそろえる cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）
       cloth.userData.base = geo.attributes.position.array.slice(); cloth.userData.sx = sx; cloth.userData.W = W;
       arm.add(pole, knob, cloth); flag.add(arm); flags.push(cloth);
     }
