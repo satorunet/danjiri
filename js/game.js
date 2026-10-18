@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=86';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=86';
-import { buildWorld } from './world.js?v=86';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=86';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=86';
-import { FX, SpeedShader } from './fx.js?v=86';
-import * as AU from './audio.js?v=86';
+import * as SIM from './sim.js?v=87';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=87';
+import { buildWorld } from './world.js?v=87';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=87';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=87';
+import { FX, SpeedShader } from './fx.js?v=87';
+import * as AU from './audio.js?v=87';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -290,9 +290,11 @@ function cropDraw() {
 function cropDone(use) {
   $('crop').classList.add('hidden');
   if (!use) { CR.ng && CR.ng(); return; }
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const k = 128 / 260; c.getContext('2d').drawImage(CR.img, CR.x * k, CR.y * k, CR.img.width * CR.z * k, CR.img.height * CR.z * k);
-  let q = 0.85, d = c.toDataURL('image/jpeg', q); while (d.length > 20000 && q > 0.3) { q -= 0.15; d = c.toDataURL('image/jpeg', q); }
+  // できるだけ軽く: 96px・画質 0.55 の JPEG（だいたい 2〜3 KB）。それでも大きければさらに落とす
+  const c = document.createElement('canvas'); c.width = c.height = 96;
+  const k = 96 / 260, g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 96, 96);
+  g.drawImage(CR.img, CR.x * k, CR.y * k, CR.img.width * CR.z * k, CR.img.height * CR.z * k);
+  let q = 0.55, d = c.toDataURL('image/jpeg', q); while (d.length > 5000 && q > 0.25) { q -= 0.1; d = c.toDataURL('image/jpeg', q); }
   CR.ok && CR.ok(d);
 }
 {
