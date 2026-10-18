@@ -1,0 +1,7 @@
+{
+  "name": "danjiri-race-server",
+  "private": true,
+  "description": "WebSocket server for the danjiri online race",
+  "main": "race.mjs",
+  "dependencies": { "ws": "^8.18.0" }
+}

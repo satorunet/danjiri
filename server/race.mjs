@@ -1,0 +1,328 @@
+// だんじり疾走 オンラインレース（danjiri-race.service, 127.0.0.1:3340）
+// nginx: /danjiri/ws -> ws://127.0.0.1:3340
+// Rooms of up to 4 danjiri. Each client drives its own danjiri with js/sim.js and sends its pose ~15x/s;
+// the server relays poses, runs the empty slots as CPU danjiri with the very same sim.js, and times the finish.
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { WebSocketServer } from 'ws';
+import * as SIM from '../js/sim.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env.PORT) || 3340;
+const ROOM_MAX = 4;
+const LAPS = 2;
+const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 40000, T_RACE = 420000, T_RESULT = 10000;
+const VMAX = 48;                     // m/s: どのだんじりもこれより速くは進めない
+const NAME_MAX = 12;
+const BEST_FILE = process.env.BEST_FILE || path.join(__dirname, 'data', 'best2.json');
+
+const course = SIM.buildCourse();
+const GOAL = SIM.START_S + LAPS * course.L;
+
+let best = [];
+try { best = JSON.parse(fs.readFileSync(BEST_FILE, 'utf8')); } catch { best = []; }
+function saveBest() {
+  try { fs.mkdirSync(path.dirname(BEST_FILE), { recursive: true }); fs.writeFileSync(BEST_FILE + '.tmp', JSON.stringify(best)); fs.renameSync(BEST_FILE + '.tmp', BEST_FILE); } catch (e) { console.error(e); }
+}
+function addBest(p, time) {
+  const i = best.findIndex(b => b.name === p.name);
+  if (i >= 0) { if (best[i].time <= time) return; best.splice(i, 1); }
+  best.push({ name: p.name, team: p.team, time: Math.round(time * 100) / 100, ts: Math.floor(Date.now() / 1000) });
+  best.sort((a, b) => a.time - b.time || a.ts - b.ts);
+  best = best.slice(0, 50);
+  saveBest();
+}
+const topBest = () => best.slice(0, 10);
+
+// ================= 町ごとのランキング（いろいろな部門） =================
+// 部門: lap=1 周あたりのタイム(秒, 小さいほど上), speed=最高速度(km/h), drift=最長やりまわし(秒), stuck=ひっつけた総量(kg), smash=壊した数, air=最長ジャンプ(秒)
+const RANK_FILE = process.env.RANK_FILE || path.join(path.dirname(BEST_FILE), 'rank3.json');
+const IMG_DIR = path.join(path.dirname(RANK_FILE), 'img');
+const REP_DIR = path.join(path.dirname(RANK_FILE), 'rep');
+const DJ_DIR = path.join(path.dirname(RANK_FILE), 'dj');
+const PLACES = ['jp', 'paris', 'ny', 'giza', 'venice'];
+const CATS = { lap: { asc: true, lo: 22, hi: 600 }, speed: { lo: 1, hi: 160 }, drift: { lo: 0.3, hi: 15 }, stuck: { lo: 1, hi: 2e7 }, smash: { lo: 1, hi: 3000 }, air: { lo: 0.2, hi: 5 } };
+const RANK_MAX = 30;
+let ranks = {};
+try { ranks = JSON.parse(fs.readFileSync(RANK_FILE, 'utf8')); } catch { ranks = {}; }
+for (const pl of PLACES) { ranks[pl] ||= {}; for (const c of Object.keys(CATS)) ranks[pl][c] ||= []; }
+let rankSaveT = 0;
+function saveRanks() {
+  clearTimeout(rankSaveT);
+  rankSaveT = setTimeout(() => { try { fs.writeFileSync(RANK_FILE + '.tmp', JSON.stringify(ranks)); fs.renameSync(RANK_FILE + '.tmp', RANK_FILE); } catch (e) { console.error(e); } }, 500);
+}
+const cleanText = (s, n) => [...String(s || '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim()].slice(0, n).join('');
+const cleanLink = s => { s = String(s || '').trim(); if (!s) return ''; if (s.length > 200 || /\s/.test(s) || !/^https?:\/\/[^/\s]+\.[^\s]+/i.test(s)) return ''; try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : ''; } catch { return ''; } };
+const lastSubmit = new Map();   // IP → 最後に登録した時刻
+let nextRankId = Date.now() % 1e9;
+function submitRank(p, m) {
+  const now = Date.now(), ip = p.ip || '?';
+  if (now - (lastSubmit.get(ip) || 0) < 20000) return { ok: false, err: 'wait' };
+  const place = PLACES.includes(m.place) ? m.place : null;
+  if (!place) return { ok: false, err: 'place' };
+  const laps = num(m.laps, 1, 3, 2) | 0, time = num(m.time, 0, 9999, 0);
+  const vals = {
+    lap: time > 0 ? time / laps : 0, speed: num(m.speed, 0, 999), drift: num(m.drift, 0, 99), stuck: num(m.stuck, 0, 1e9), smash: num(m.smash, 0, 1e5), air: num(m.air, 0, 99),
+  };
+  const id = (nextRankId++).toString(36);
+  const e = { id, name: cleanName(m.name), comment: cleanText(m.comment, 60), country: /^[A-Z]{2}$/.test(m.country) ? m.country : 'ZZ', link: '' /* リンクは受け付けない（コメントのみ） */, tod: m.tod === 'night' ? 'night' : 'day', laps, at: Math.floor(now / 1000), img: false };
+  // ゴールの瞬間の写真（JPEG、80 KB まで）
+  if (typeof m.img === 'string' && m.img.startsWith('data:image/jpeg;base64,')) {
+    const buf = Buffer.from(m.img.slice(23), 'base64');
+    if (buf.length > 1000 && buf.length < 82000 && buf[0] === 0xff && buf[1] === 0xd8) { try { fs.mkdirSync(IMG_DIR, { recursive: true }); fs.writeFileSync(path.join(IMG_DIR, id + '.jpg'), buf); e.img = true; } catch (err) { console.error(err); } }
+  }
+  // 走りの記録（データで再生するプレビュー）: 0.1 秒ごとに 7 個の整数
+  const rec = m.rec;
+  if (rec && Array.isArray(rec.f) && rec.f.length >= 70 && rec.f.length <= 7 * 4000 && rec.f.length % 7 === 0 && rec.f.every(v => Number.isInteger(v) && Math.abs(v) < 1e6)) {
+    try { fs.mkdirSync(REP_DIR, { recursive: true }); fs.writeFileSync(path.join(REP_DIR, id + '.json'), JSON.stringify({ v: 1, team: num(rec.team, 0, 3, 0) | 0, f: rec.f })); e.rep = true; } catch (err) { console.error(err); }
+  }
+  // 積んだもの（だんじり表示用）: どの物を、だんじりのどこに付けていたか
+  const dj = m.dj;
+  if (dj && Array.isArray(dj.stuck) && dj.stuck.length <= 80 && Array.isArray(dj.items) && dj.items.length <= 60) {
+    const okS = dj.stuck.every(e => e && ['p', 's', 'r', 'g'].includes(e.k) && Number.isInteger(e.i) && e.i >= 0 && e.i < 100000 && Array.isArray(e.L) && e.L.length === 16 && e.L.every(v => Number.isFinite(v) && Math.abs(v) < 1e4));
+    const okI = dj.items.every(it => Array.isArray(it) && typeof it[0] === 'string' && it[0].length <= 24 && Number.isInteger(it[1]) && it[1] > 0 && it[1] < 1000);
+    if (okS && okI) {
+      try { fs.mkdirSync(DJ_DIR, { recursive: true }); fs.writeFileSync(path.join(DJ_DIR, id + '.json'), JSON.stringify({ team: num(dj.team, 0, 3, 0) | 0, stuck: dj.stuck.map(e => ({ k: e.k, i: e.i, L: e.L })), items: dj.items.map(it => [cleanText(it[0], 24), it[1]]) })); e.dj = true; } catch (err) { console.error(err); }
+    }
+  }
+  const got = {};
+  for (const [c, def] of Object.entries(CATS)) {
+    const v = vals[c];
+    if (!(v >= def.lo && v <= def.hi)) continue;   // ありえない値・記録なしは載せない
+    const list = ranks[place][c];
+    list.push({ ...e, val: Math.round(v * 100) / 100 });
+    list.sort((a, b) => (def.asc ? a.val - b.val : b.val - a.val) || a.at - b.at);
+    if (list.length > RANK_MAX) list.length = RANK_MAX;
+    const r = list.findIndex(x => x.id === id);
+    if (r >= 0) got[c] = r + 1;
+  }
+  lastSubmit.set(ip, now);
+  saveRanks();
+  return { ok: true, id, got };
+}
+function readRep(id) {
+  if (!/^[0-9a-z]{1,12}$/.test(String(id))) return null;
+  try { return JSON.parse(fs.readFileSync(path.join(REP_DIR, id + '.json'), 'utf8')); } catch { return null; }
+}
+function readDj(id) {
+  if (!/^[0-9a-z]{1,12}$/.test(String(id))) return null;
+  try { return JSON.parse(fs.readFileSync(path.join(DJ_DIR, id + '.json'), 'utf8')); } catch { return null; }
+}
+function readImg(id) {
+  if (!/^[0-9a-z]{1,12}$/.test(String(id))) return null;
+  try { return 'data:image/jpeg;base64,' + fs.readFileSync(path.join(IMG_DIR, id + '.jpg')).toString('base64'); } catch { return null; }
+}
+const cleanName = s => [...String(s || '').replace(/[\u0000-\u001f\u007f<>&"']/g, '').trim()].slice(0, NAME_MAX).join('') || '名無し';
+const send = (p, msg) => { if (p.ws.readyState === 1) p.ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
+const r2 = v => Math.round(v * 100) / 100;
+const num = (v, lo, hi, d = 0) => { v = Number(v); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
+const flagsOf = c => (c.air ? 1 : 0) | (c.crashT > 0 ? 2 : 0) | (c.boosting ? 4 : 0) | (c.drift ? 8 : 0) | (c.tipped ? 16 : 0);
+
+const rooms = new Set();
+let nextId = 1, nextRoom = 1;
+
+class Room {
+  constructor() { this.id = freeRoomId(); this.players = new Map(); this.cpus = []; this.phase = 'wait'; this.phaseEnd = 0; this.startAt = 0; this.firstFin = 0; rooms.add(this); }
+  broadcast(msg) { const d = JSON.stringify(msg); for (const p of this.players.values()) send(p, d); }
+  info() {
+    return {
+      t: 'room', room: this.id, phase: this.phase, phaseEnd: this.phaseEnd, startAt: this.startAt, now: Date.now(), laps: LAPS, stage: this.stage, hold: !!this.hold,
+      players: [...this.players.values()].map(p => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, racing: p.racing, fin: p.fin })),
+      cpus: this.cpus.map(c => ({ id: c.id, name: 'CPU', team: c.team, slot: c.slot, fin: c.fin, cpu: true })),
+    };
+  }
+  sync() { this.broadcast(this.info()); }
+  add(p, wantTeam) {
+    p.room = this; p.racing = false; p.slot = -1; p.fin = null;
+    const used = new Set([...this.players.values()].map(q => q.team));
+    p.team = !used.has(wantTeam) && wantTeam >= 0 && wantTeam < 4 ? wantTeam : [0, 1, 2, 3].find(t => !used.has(t));
+    this.players.set(p.id, p);
+    this.updateHold(false);
+    if (this.phase === 'wait') {
+      const now = Date.now();
+      this.phaseEnd = Math.max(this.phaseEnd || 0, now + (this.players.size === 1 ? T_WAIT : T_JOIN));
+      if (this.players.size >= ROOM_MAX) this.phaseEnd = Math.min(this.phaseEnd, now + T_FULL);
+    }
+    this.sync();
+  }
+  // 1 人で「だれか来るまで待つ」にしている間はカウントダウンを止める。解けたら 6 秒後に出発
+  updateHold(sync = true) {
+    if (this.phase !== 'wait') return;
+    const ps = [...this.players.values()], hold = ps.length < 2 && ps.some(p => p.hold);
+    if (hold === !!this.hold) return;
+    this.hold = hold;
+    if (!hold) this.phaseEnd = Date.now() + T_JOIN;
+    if (sync) this.sync();
+  }
+  remove(p) {
+    this.players.delete(p.id); p.room = null;
+    if (!this.players.size) { rooms.delete(this); this.cpus = []; return; }
+    this.updateHold(false);
+    this.sync();
+  }
+  start(now) {
+    const humans = [...this.players.values()];
+    // 人がいなければ（全員やめた）CPU だけで始めずに部屋を閉じる
+    if (!humans.length) { rooms.delete(this); return; }
+    const slots = [1, 2, 0, 3];
+    humans.forEach((p, i) => {
+      p.racing = true; p.slot = slots[i]; p.fin = null; p.lastSt = 0;
+      const c = SIM.newCar(course, SIM.START_S, SIM.LANES[p.slot]);
+      p.car = { x: c.x, z: c.z, y: c.y, yaw: c.yaw, roll: 0, pitch: 0, vx: 0, vz: 0, f: 0, prog: SIM.START_S };
+    });
+    const freeTeams = [0, 1, 2, 3].filter(t => !humans.some(p => p.team === t));
+    const freeSlots = slots.filter(s => !humans.some(p => p.slot === s));
+    this.cpus = freeSlots.map((slot, k) => {
+      const car = SIM.newCar(course, SIM.START_S, SIM.LANES[slot]);
+      return { id: `c${this.id}_${slot}`, team: freeTeams[k], slot, car, ai: SIM.makeAI(k), fin: null };
+    });
+    // ステージ（昼 / 夜）は部屋ごとにくじ引き。みんな同じ町を走る
+    this.stage = ['jp', 'paris', 'ny', 'giza', 'venice'][Math.floor(Math.random() * 5)] + (Math.random() < 0.5 ? '-day' : '-night');
+    // 町の壊れ具合は部屋ごと
+    this.course = { ...course, ext: [new Float32Array(course.nb), new Float32Array(course.nb)] };
+    this.phase = 'race'; this.startAt = now + T_COUNT; this.phaseEnd = this.startAt + T_RACE; this.firstFin = 0;
+    this.sync();
+  }
+  finish(now) {
+    const raceT = (now - this.startAt) / 1000;
+    const all = [
+      ...[...this.players.values()].filter(p => p.racing).map(p => ({ id: p.id, name: p.name, team: p.team, cpu: false, time: p.fin, prog: p.car.prog })),
+      ...this.cpus.map(c => ({ id: c.id, name: 'CPU', team: c.team, cpu: true, time: c.fin, prog: c.car.prog })),
+    ];
+    all.forEach(e => { e.est = e.time == null; if (e.est) e.time = raceT + Math.max(0, GOAL - e.prog) / 18; });
+    all.sort((a, b) => (a.est - b.est) || a.time - b.time);
+    const list = all.map((e, i) => ({ rank: i + 1, id: e.id, name: e.name, team: e.team, cpu: e.cpu, time: r2(e.time), est: e.est }));
+    for (const p of this.players.values()) { p.racing = false; p.slot = -1; }
+    this.cpus = [];
+    this.phase = 'result'; this.phaseEnd = now + T_RESULT;
+    this.broadcast({ t: 'result', room: this.id, list, best: topBest() });
+    this.sync();
+  }
+  simulate(now, steps, dt) {
+    const raceT = (now - this.startAt) / 1000;
+    const humans = [...this.players.values()].filter(p => p.racing);
+    let changed = false;
+    for (let k = 0; k < steps; k++) {
+      for (const c of this.cpus) {
+        const inp = SIM.aiInput(c.car, this.course, c.ai, dt);
+        if (c.fin != null) { inp.throttle *= 0.4; inp.boost = false; }
+        // 人間の先頭から離れすぎないように少しだけ手加減・追い上げ
+        const lead = humans.length ? Math.max(...humans.map(p => p.car.prog)) : c.car.prog;
+        if (c.fin == null && c.car.prog - lead > 90) inp.throttle *= 0.7;
+        if (c.fin == null && lead - c.car.prog > 90) inp.boost = c.car.boost > 0.2;
+        SIM.stepCar(c.car, inp, dt, this.course);
+        if (c.fin == null && c.car.prog >= GOAL) { c.fin = r2(raceT); changed = true; }
+      }
+      for (let i = 0; i < this.cpus.length; i++) {
+        for (let j = i + 1; j < this.cpus.length; j++) SIM.collideCars(this.cpus[i].car, this.cpus[j].car, true);
+        for (const p of humans) SIM.collideCars(this.cpus[i].car, p.car, false);
+      }
+    }
+    if (changed) this.sync();
+  }
+  tick(now, steps, dt) {
+    if (this.phase === 'wait') {
+      if (!this.hold && now >= this.phaseEnd) this.start(now);
+    } else if (this.phase === 'race') {
+      const racing = [...this.players.values()].filter(p => p.racing);
+      if (!racing.length) { this.phase = 'wait'; this.cpus = []; this.phaseEnd = now + T_JOIN; this.hold = false; this.updateHold(false); this.sync(); return; }
+      if (now >= this.startAt) this.simulate(now, steps, dt);
+      const done = racing.every(p => p.fin != null);
+      if (done || now >= this.phaseEnd || (this.firstFin && now >= this.firstFin + T_AFTER)) this.finish(now);
+    } else if (this.phase === 'result') {
+      if (now >= this.phaseEnd) { this.phase = 'wait'; this.phaseEnd = now + T_JOIN + 2000; this.hold = false; this.updateHold(false); this.sync(); }
+    }
+  }
+  sendPositions() {
+    if (this.phase !== 'race') return;
+    const p = [];
+    for (const q of this.players.values()) if (q.racing) { const c = q.car; p.push([q.id, c.x, c.z, c.y, c.yaw, c.roll, c.pitch, c.vx, c.vz, c.f, c.prog]); }
+    for (const k of this.cpus) { const c = k.car; p.push([k.id, r2(c.x), r2(c.z), r2(c.y), r2(c.yaw * 100) / 100, r2(c.roll), r2(c.pitch), r2(c.vx), r2(c.vz), flagsOf(c), r2(c.prog)]); }
+    this.broadcast({ t: 'pos', p });
+  }
+}
+
+// 部屋えらび: 待っている（結果発表中を含む）部屋のうち人の多い所へ。レース中の部屋には入れず、なければ新しい部屋
+// 部屋番号は使い回す（空いている一番小さい番号）
+function freeRoomId() { const used = new Set([...rooms].map(r => r.id)); let i = 1; while (used.has(i)) i++; return i; }
+function findRoom() {
+  const open = [...rooms].filter(r => r.players.size < ROOM_MAX && (r.phase === 'wait' || r.phase === 'result'));
+  return open.sort((a, b) => b.players.size - a.players.size)[0] || new Room();
+}
+
+const wss = new WebSocketServer({ host: '127.0.0.1', port: PORT, maxPayload: 120000 });
+wss.on('connection', (ws, req) => {
+  if (wss.clients.size > 400) { ws.close(1013, 'busy'); return; }
+  const p = { id: nextId++, ws, name: '名無し', room: null, msgs: 0, msgT: Date.now(), ip: String(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim() };   // Cloudflare 越しでも本当の送り元
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+  send(p, { t: 'hello', id: p.id, now: Date.now(), best: topBest(), v: 2 });
+  ws.on('message', raw => {
+    const now = Date.now();
+    if (now - p.msgT > 1000) { p.msgT = now; p.msgs = 0; }
+    if (++p.msgs > 60) return;
+    let m; try { m = JSON.parse(raw); } catch { return; }
+    if (!m || typeof m !== 'object') return;
+    const room = p.room;
+    switch (m.t) {
+      case 'ping': send(p, { t: 'pong', c: Number(m.c) || 0, s: now }); break;
+      case 'join':
+        if (m.v !== 2) { send(p, { t: 'old' }); break; }
+        if (room) room.remove(p);
+        p.name = cleanName(m.name);
+        findRoom().add(p, Number(m.team));
+        break;
+      case 'leave': if (room) room.remove(p); break;
+      case 'rank': { const res = submitRank(p, m); send(p, { t: 'rankres', ...res }); break; }
+      case 'ranks': { const pl = PLACES.includes(m.place) ? m.place : 'jp'; send(p, { t: 'ranks', place: pl, cats: ranks[pl] }); break; }
+      case 'rankimg': send(p, { t: 'rankimg', id: String(m.id || ''), data: readImg(m.id) }); break;
+      case 'rankdj': send(p, { t: 'rankdj', id: String(m.id || ''), dj: readDj(m.id) }); break;
+      case 'rankrep': send(p, { t: 'rankrep', id: String(m.id || ''), rec: readRep(m.id) }); break;
+      case 'hold': p.hold = !!m.on; if (room) room.updateHold(); break;
+      case 'stats': { // トップ画面の人数表示: 待っている人・レース中の人
+        let wait = 0, play = 0;
+        for (const r of rooms) for (const q of r.players.values()) { if (r.phase === 'race' && q.racing) play++; else wait++; }
+        send(p, { t: 'stats', wait, play });
+        break;
+      }
+      case 'st': {
+        if (!room || room.phase !== 'race' || !p.racing || p.fin != null || now < room.startAt) break;
+        const dtS = p.lastSt ? (now - p.lastSt) / 1000 : (now - room.startAt) / 1000;
+        p.lastSt = now;
+        const c = p.car;
+        const prog = num(m.p, -1e6, 1e6, c.prog);
+        c.prog = Math.min(prog, c.prog + VMAX * dtS + 5);
+        c.x = num(m.x, -500, 700, c.x); c.z = num(m.z, -500, 800, c.z); c.y = num(m.y, -20, 60, c.y);
+        c.yaw = num(m.yaw, -4, 4); c.roll = num(m.roll, -2, 2); c.pitch = num(m.pitch, -2, 2);
+        c.vx = num(m.vx, -VMAX, VMAX); c.vz = num(m.vz, -VMAX, VMAX); c.f = m.f & 31;
+        break;
+      }
+      case 'fin': {
+        if (!room || room.phase !== 'race' || !p.racing || p.fin != null) break;
+        if (p.car.prog < GOAL - 15) break;
+        const t = (now - room.startAt) / 1000;
+        if (t < (GOAL - SIM.START_S) / VMAX) break;
+        p.fin = r2(t);
+        if (!room.firstFin) room.firstFin = now;
+        addBest(p, p.fin);
+        room.sync();
+        break;
+      }
+    }
+  });
+  ws.on('close', () => { if (p.room) p.room.remove(p); });
+  ws.on('error', () => {});
+});
+
+// 物理は 60Hz（30Hz の刻みで 2 歩ずつ）、位置の配信は 15Hz
+let last = Date.now(), n = 0, accum = 0;
+setInterval(() => {
+  const now = Date.now();
+  accum += Math.min(0.2, (now - last) / 1000); last = now; n++;
+  let steps = 0; while (accum >= 1 / 60 && steps < 8) { accum -= 1 / 60; steps++; }
+  for (const r of [...rooms]) { r.tick(now, steps, 1 / 60); if (n % 2 === 0) r.sendPositions(); }
+}, 1000 / 30);
+setInterval(() => { for (const ws of wss.clients) { if (!ws.isAlive) { ws.terminate(); continue; } ws.isAlive = false; ws.ping(); } }, 30000);
+
+console.log(`danjiri race server v2 on 127.0.0.1:${PORT} (L=${course.L.toFixed(1)}m, goal=${GOAL.toFixed(1)}m)`);

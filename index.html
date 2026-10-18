@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>だんじり疾走 ― やりまわしレース</title>
+<meta name="description" content="3Dのだんじりレース。勢いのまま角でやりまわし、曲がりきれなければ家ごと粉砕、提灯も鳥居も観客もくっつく。日本の町・パリ・NY・ギザ・ベネチアを、みんなでオンライン対戦。">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="だんじり疾走">
+<meta property="og:title" content="だんじり疾走 ― やりまわしレース">
+<meta property="og:description" content="勢いのまま角でやりまわし、曲がりきれなければ家ごと粉砕。提灯も鳥居も観客もくっつく3Dだんじりレース。パリ・NY・ギザ・ベネチアにも出没、みんなでオンライン対戦。">
+<meta property="og:url" content="https://danjiri.satoru.net/">
+<meta property="og:image" content="https://danjiri.satoru.net/og.jpg?v=1">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="だんじり疾走 ― やりまわしレース">
+<meta name="twitter:description" content="勢いのまま角でやりまわし、家ごと粉砕、何でもくっつく3Dだんじりレース。みんなでオンライン対戦。">
+<meta name="twitter:image" content="https://danjiri.satoru.net/og.jpg?v=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&family=Zen+Old+Mincho:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel: rgba(16, 12, 32, 0.66);
+    --gold: #f2c14e;
+    --gold-deep: #b8862b;
+    --red: #e2402f;
+    --paper: #fff6e4;
+    --muted: #cdbfd9;
+    --perfect: #ffd23f;
+    --good: #6fc3ff;
+    --bad: #ff6b6b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0f0b1e; }
+  body { font-family: 'Zen Kaku Gothic New', system-ui, sans-serif; color: var(--paper); touch-action: none; user-select: none; -webkit-user-select: none; position: fixed; inset: 0; }
+  canvas.gl { display: block; position: fixed; inset: 0; }
+  .hidden { display: none !important; }
+  .panel { background: var(--panel); border: 1px solid rgba(242, 193, 78, 0.45); border-radius: 12px; backdrop-filter: blur(4px); }
+  .dela { font-family: 'Dela Gothic One', sans-serif; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #tl { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 12px; padding: 8px 14px 10px; min-width: 150px; }
+  #tl .rank { font-family: 'Dela Gothic One', sans-serif; font-size: 46px; line-height: 1; color: var(--gold); text-shadow: 0 3px 0 #6b3d10; }
+  #tl .rank small { font-size: 16px; color: var(--paper); margin-left: 4px; text-shadow: none; }
+  #tl .row { display: flex; justify-content: space-between; gap: 14px; font-size: 14px; margin-top: 4px; color: var(--muted); }
+  #tl .row b { color: var(--paper); font-variant-numeric: tabular-nums; }
+  #mini { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; width: 170px; height: 170px; border-radius: 14px; }
+  #meter { position: absolute; right: 16px; bottom: 16px; width: 220px; padding: 10px 14px 12px; }
+  #spd { text-align: right; line-height: 1; }
+  #spd b { font-family: 'Dela Gothic One', sans-serif; font-size: 52px; font-weight: 400; font-variant-numeric: tabular-nums; text-shadow: 0 3px 0 rgba(0,0,0,0.5); }
+  #spd small { color: var(--muted); margin-left: 4px; }
+  .bar { position: relative; height: 14px; border-radius: 7px; background: rgba(255,255,255,0.14); overflow: hidden; margin-top: 8px; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 7px; }
+  #boostBar { background: linear-gradient(90deg, #e2402f, #ffb02e, #fff2a8); }
+  #boostBar.full { box-shadow: 0 0 12px #ffd23f; animation: glow .5s ease-in-out infinite alternate; }
+  @keyframes glow { from { filter: brightness(1); } to { filter: brightness(1.5); } }
+  .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .lbl b { color: var(--gold); font-family: 'Dela Gothic One', sans-serif; font-weight: 400; }
+  #tiltBar { background: linear-gradient(90deg, #6fc3ff, #ffd23f 60%, #ff4d4d); }
+  #msgs { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); text-align: center; }
+  .msg { font-family: 'Dela Gothic One', sans-serif; font-size: 36px; white-space: nowrap; color: var(--paper); text-shadow: 0 3px 0 #2b0e05, 0 0 22px rgba(0,0,0,0.5); animation: msg 1.4s ease-out forwards; -webkit-text-stroke: 1px rgba(0,0,0,0.4); }
+  .msg.big { font-size: 64px; color: var(--gold); }
+  .msg.bad { color: var(--bad); } .msg.good { color: var(--good); } .msg.gold { color: var(--perfect); }
+  .msg small { display: block; font-size: 0.45em; color: var(--paper); }
+  @keyframes msg { 0% { opacity: 0; transform: scale(1.9) rotate(-4deg); } 12% { opacity: 1; transform: scale(1) rotate(0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-30px); } }
+  #count { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); font-family: 'Dela Gothic One', sans-serif; font-size: 140px; color: var(--gold); text-shadow: 0 7px 0 #6b3d10, 0 0 30px rgba(0,0,0,0.6); pointer-events: none; }
+  .world-badge { position: absolute; right: -16px; top: -18px; transform: rotate(14deg); background: linear-gradient(135deg, #ff4d3a, #d81f6a); color: #fff; font-family: 'Dela Gothic One', sans-serif; font-size: 17px; padding: 7px 13px 8px; border-radius: 30px; border: 3px solid #fff3c8; box-shadow: 0 4px 0 #6b1020, 0 0 18px rgba(255,90,60,0.6); white-space: nowrap; animation: badgePop 1.6s ease-in-out infinite; z-index: 2; }
+  .world-badge span { margin-right: 4px; }
+  @keyframes badgePop { 0%, 100% { transform: rotate(14deg) scale(1); } 50% { transform: rotate(10deg) scale(1.08); } }
+  @media (max-width: 640px) { .world-badge { right: -8px; top: -16px; font-size: 13px; padding: 5px 10px; } }
+  .mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 420px; margin: 14px auto 6px; }
+  .mode-row .go { margin: 0; width: 100%; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 10px; }
+  .choices.dd { display: inline-flex; flex-direction: column; align-items: stretch; min-width: min(300px, 90%); gap: 2px; }
+  .choices.dd button { display: none; justify-content: flex-start; align-items: center; text-align: left; margin: 0; }
+  .choices.dd button.sel, .choices.dd.open button { display: flex; }
+  .choices.dd button.sel::after { content: '▼'; margin-left: auto; padding-left: 12px; font-size: 11px; opacity: .8; }
+  .choices.dd.open { background: rgba(10,6,24,0.95); border: 1px solid var(--gold-deep); border-radius: 10px; padding: 4px; }
+  .choices.dd.open button.sel::after { content: '✓'; }
+  .lang-btn { position: absolute; right: 12px; top: 10px; min-width: 44px; letter-spacing: 1px; background: rgba(255,255,255,0.1); color: var(--paper); border: 1px solid rgba(242,193,78,0.6); border-radius: 14px; padding: 4px 10px; font-weight: 700; font-size: 12px; cursor: pointer; z-index: 2; }
+  .rank-form { margin: 10px auto 6px; padding: 10px; border: 1px solid rgba(242,193,78,0.45); border-radius: 12px; background: rgba(255,246,228,0.05); display: grid; grid-template-columns: 128px 1fr; gap: 6px 10px; text-align: left; font-size: 13px; }
+  .rank-form .rf-title { grid-column: 1 / -1; font-family: 'Dela Gothic One', sans-serif; color: var(--gold); font-size: 16px; }
+  .rank-form img { width: 128px; height: 72px; object-fit: cover; border-radius: 6px; grid-row: span 3; background: #000; }
+  .rank-form input, .rank-form select { width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.35); color: var(--paper); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 5px 7px; font: inherit; user-select: text; -webkit-user-select: text; }
+  .rank-form .rf-row { display: flex; gap: 6px; }
+  .rank-form button { grid-column: 1 / -1; justify-self: center; }
+  .rank-form .rf-msg { grid-column: 1 / -1; text-align: center; color: var(--gold); min-height: 1.2em; font-weight: 700; }
+  .ci { cursor: pointer; } .ci:hover { border-color: var(--gold); }
+  #replayBar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px; background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 30px; padding: 6px 8px 6px 18px; font-family: 'Dela Gothic One', sans-serif; font-size: 17px; }
+  #replayBar .go { font-size: 14px; padding: 6px 14px; margin: 0; }
+  #showcase { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
+  #showcase .sc-hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,6,24,0.7); padding: 6px 14px; border-radius: 16px; font-size: 13px; font-weight: 700; }
+  #showcase .sc-bar { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 30px; padding: 6px 12px; pointer-events: auto; max-width: 96vw; }
+  #showcase .sc-arrow { background: none; border: 0; color: var(--gold); font-size: 22px; cursor: pointer; padding: 4px 8px; }
+  #showcase .sc-name { min-width: 160px; text-align: center; font-family: 'Dela Gothic One', sans-serif; font-size: 18px; white-space: nowrap; }
+  #showcase .sc-name small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-size: 12px; color: var(--muted); }
+  #showcase .go { font-size: 14px; padding: 6px 14px; }
+  .mb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
+  .mb-cell { background: rgba(255,246,228,0.06); border: 1px solid rgba(242,193,78,0.3); border-radius: 10px; padding: 8px 4px; }
+  .mb-cell small { display: block; color: var(--muted); font-size: 11px; }
+  .mb-cell b { display: block; font-family: 'Dela Gothic One', sans-serif; font-size: 18px; color: var(--paper); margin: 2px 0; }
+  .mb-cell { cursor: pointer; position: relative; overflow: hidden; }
+  .mb-cell.sel { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+  .mb-cell .mb-th { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; margin-bottom: 4px; display: block; }
+  .mb-dj { margin-top: 8px; padding: 10px; border: 1px solid rgba(242,193,78,0.45); border-radius: 12px; }
+  .mb-dj img { width: 100%; max-width: 420px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; background: #000; }
+  .mb-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 6px; font-size: 12px; }
+  .mb-chips span { background: rgba(255,255,255,0.08); border-radius: 10px; padding: 2px 8px; }
+  @media (max-width: 640px) { .mb-grid { grid-template-columns: repeat(2, 1fr); } }
+  .rk-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 8px 0 2px; } .rk-actions .go { margin: 0; font-size: 15px; padding: 8px 14px; }
+  .res-badge { margin: 4px auto 8px; font-family: 'Dela Gothic One', sans-serif; font-size: 30px; color: var(--gold); text-shadow: 0 3px 0 #2b0e05, 0 0 18px rgba(242,193,78,0.5); line-height: 1.2; }
+  .res-badge .rb-title { display: inline-block; }
+  .foot { margin-top: 14px; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+  .foot a { color: var(--muted); text-decoration: underline; }
+  .res-badge .mb-lines { margin: 8px auto 0; padding: 6px 10px; max-width: 460px; border: 1px solid rgba(242,193,78,0.4); border-radius: 10px; background: rgba(255,246,228,0.05); text-shadow: none; }
+  .res-badge .mb-head { font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 12px; color: var(--muted); }
+  .res-badge .mb-line { font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 14px; color: var(--paper); line-height: 1.6; text-align: left; }
+  .res-badge .mb-line b { color: var(--gold); }
+  .res-badge .mb-up { color: #5fe38a; font-weight: 900; }
+  .res-badge small { display: inline-block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 13px; color: var(--paper); text-shadow: none; }
+  .rk-share { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 4px 0; }
+  .share-btn { background: rgba(255,255,255,0.1); color: var(--paper); border: 1px solid rgba(242,193,78,0.6); border-radius: 16px; padding: 5px 12px; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .share-btn.x { background: #111; border-color: #555; }
+  .share-msg { font-size: 12px; color: var(--gold); min-height: 1.2em; }
+  .rk-card { width: min(720px, 100%); max-height: 92vh; overflow-y: auto; background: #150f2a; }
+  #ranking, #mybest { background: rgba(6,4,14,0.82); z-index: 40; }
+  .overlay, .card, .rk-list, .collGrid, .rk-detail { touch-action: pan-y; }
+  #rkCat.rk-cats { display: flex; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; gap: 6px; padding: 4px 2px 8px; margin: 6px 0; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: thin; touch-action: pan-x; }
+  .rk-cats::-webkit-scrollbar { height: 4px; } .rk-cats::-webkit-scrollbar-thumb { background: rgba(242,193,78,0.4); border-radius: 2px; }
+  #rkCat.rk-cats button { flex: 0 0 auto; font-size: 13px; padding: 6px 12px; scroll-snap-align: start; white-space: nowrap; border-radius: 18px; }
+  .rk-list { text-align: left; margin: 8px 0; min-height: 120px; }
+  .rk-row { display: grid; grid-template-columns: 30px 24px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer; font-size: 14px; }
+  .rk-row:hover { background: rgba(242,193,78,0.1); }
+  .rk-row .rk-n { font-family: 'Dela Gothic One', sans-serif; color: var(--gold); }
+  .rk-row .rk-v { font-weight: 700; color: var(--paper); }
+  .rk-row small { display: block; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px; }
+  .rk-row img, .rk-detail .cf { width: 20px; height: 15px; border-radius: 2px; }
+  .rk-detail { position: absolute; inset: 10px; background: rgba(18,12,36,0.97); border: 2px solid var(--gold-deep); border-radius: 14px; padding: 16px; text-align: center; overflow-y: auto; }
+  .rk-detail img.pv { width: 100%; max-width: 480px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: #000; }
+  .rk-detail .rk-dn { font-family: 'Dela Gothic One', sans-serif; font-size: 22px; margin: 8px 0 2px; }
+  .rk-detail .rk-dc { font-size: 15px; margin: 6px 0; white-space: pre-wrap; word-break: break-word; }
+  .rk-detail a { color: #8fd0ff; word-break: break-all; }
+  .flag { width: 22px; height: 15px; vertical-align: -2px; margin-right: 6px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
+  .online-now { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-size: 11px; font-weight: 700; line-height: 1.2; margin-top: 2px; opacity: .92; }
+  .online-now:empty { display: none; }
+  .online-now .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4be07a; margin-right: 4px; box-shadow: 0 0 6px #4be07a; vertical-align: 0; }
+  #backBtn { position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%); pointer-events: auto; touch-action: none; cursor: pointer; z-index: 5;
+    font-family: 'Dela Gothic One', sans-serif; font-size: 26px; color: #fff; padding: 12px 26px; border-radius: 40px; border: 3px solid var(--gold);
+    background: linear-gradient(#e0452c, #9c1f12); box-shadow: 0 5px 0 #4a0e06, 0 0 24px rgba(255,120,60,0.6); animation: backPulse .7s ease-in-out infinite alternate; white-space: nowrap; }
+  #backBtn small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 12px; text-align: center; opacity: .85; }
+  body.touch #backBtn small { display: none; }
+  @keyframes backPulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
+  #turn { position: absolute; top: 17%; transform: translateX(-50%); text-align: center; font-family: 'Dela Gothic One', sans-serif; color: #1b1020; pointer-events: none; transition: left .25s; background: linear-gradient(#ffe14a, #f2a81c); border: 4px solid #1b1020; border-radius: 22px; padding: 6px 26px 10px; box-shadow: 0 6px 0 #1b1020, 0 0 30px rgba(255,200,40,0.7); }
+  #turn.L { left: 30%; } #turn.R { left: 70%; }
+  #turn .arr { font-size: 74px; line-height: 0.95; letter-spacing: -10px; animation: turnArr .4s ease-in-out infinite alternate; }
+  #turn.L .arr { --dx: -18px; } #turn.R .arr { --dx: 18px; }
+  #turn .tx { font-size: 50px; line-height: 1.1; white-space: nowrap; }
+  #turn small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 18px; color: #1b1020; }
+  #turn.now { background: linear-gradient(#ff5a3c, #c8180c); color: #fff; animation: turnPulse .32s ease-in-out infinite alternate; }
+  #turn.now small { color: #fff; } #turn.now .tx { font-size: 66px; }
+  @keyframes turnPulse { from { transform: translateX(-50%) scale(1); box-shadow: 0 6px 0 #1b1020, 0 0 20px rgba(255,60,40,0.6); } to { transform: translateX(-50%) scale(1.1); box-shadow: 0 6px 0 #1b1020, 0 0 60px rgba(255,60,40,1); } }
+  #turnEdge { position: absolute; top: 0; bottom: 0; width: 22%; pointer-events: none; opacity: 0; transition: opacity .2s; }
+  #turnEdge.L { left: 0; background: linear-gradient(90deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
+  #turnEdge.R { right: 0; background: linear-gradient(270deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
+  @keyframes turnArr { from { transform: translateX(0); } to { transform: translateX(var(--dx)); } }
+  #warn { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font-family: 'Dela Gothic One', sans-serif; font-size: 34px; color: #ff4d4d; text-shadow: 0 3px 0 #300; animation: blink .4s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.2; } }
+  #help { position: absolute; left: 12px; bottom: 12px; font-size: 12px; color: var(--muted); padding: 6px 10px; line-height: 1.7; }
+  #help kbd { font-family: inherit; font-size: 11px; padding: 0 5px; border: 1px solid rgba(255,255,255,0.35); border-radius: 4px; background: rgba(255,255,255,0.08); }
+
+  /* ---------- Touch ---------- */
+  #touch { position: fixed; inset: 0; pointer-events: none; }
+  #stickZone { position: absolute; left: 0; bottom: 0; width: 50%; height: 60%; pointer-events: auto; touch-action: none; }
+  #stick { position: absolute; width: 130px; height: 130px; margin: -65px 0 0 -65px; border-radius: 50%; border: 3px solid rgba(255,246,228,0.5); background: rgba(16,12,32,0.35); pointer-events: none; }
+  #knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff6e4, #c9b48a); box-shadow: 0 3px 8px rgba(0,0,0,0.5); }
+  .tbtn { position: absolute; pointer-events: auto; border-radius: 50%; border: 3px solid var(--gold); color: var(--paper); font-family: 'Dela Gothic One', sans-serif; touch-action: none; display: grid; place-items: center; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+  #tBoost { right: 20px; bottom: 120px; width: 104px; height: 104px; font-size: 19px; background: radial-gradient(circle, rgba(226,64,47,0.9), rgba(120,20,10,0.9)); }
+  #tDrift { right: 134px; bottom: 34px; width: 96px; height: 96px; font-size: 15px; background: radial-gradient(circle, rgba(59,111,216,0.9), rgba(20,40,110,0.9)); }
+  #tBrake { right: 26px; bottom: 26px; width: 78px; height: 78px; font-size: 15px; background: rgba(16,12,32,0.6); border-color: rgba(255,246,228,0.6); }
+  .tbtn.on { filter: brightness(1.45); transform: scale(0.95); }
+  body.touch #meter { bottom: auto; top: 194px; right: 12px; width: 170px; padding: 6px 10px 8px; }
+  @media (max-height: 520px) {
+    body.touch #meter { top: 10px; left: 50%; right: auto; transform: translateX(-50%); width: 210px; padding: 4px 10px 6px; }
+    body.touch #spd b { font-size: 26px; }
+    body.touch #meter .lbl { margin-top: 2px; } body.touch #meter .bar { height: 9px; margin-top: 3px; }
+    body.touch #tBoost { bottom: 104px; width: 92px; height: 92px; } body.touch #tDrift { right: 122px; bottom: 22px; width: 86px; height: 86px; } body.touch #tBrake { width: 68px; height: 68px; bottom: 18px; }
+    #tl { padding: 4px 10px; } #tl .rank { font-size: 30px; }
+  }
+  body.touch #spd b { font-size: 34px; }
+  body.touch #help { display: none; }
+
+  /* ---------- Overlays ---------- */
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(15,11,30,0.25), rgba(15,11,30,0.78)); overflow-y: auto; }
+  .card { position: relative; width: min(600px, 100%); padding: 24px 24px 20px; text-align: center; background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 0 0 4px rgba(242,193,78,0.12); }
+  .card h1 { font-family: 'Dela Gothic One', sans-serif; font-weight: 400; font-size: clamp(44px, 11vw, 74px); line-height: 1.05; color: var(--gold); text-shadow: 0 5px 0 #6b3d10, 0 0 30px rgba(226,64,47,0.5); letter-spacing: .04em; }
+  .card .sub { font-family: 'Dela Gothic One', sans-serif; color: var(--red); background: var(--paper); display: inline-block; padding: 2px 14px; border-radius: 4px; margin: 8px 0 10px; font-size: 18px; }
+  .card h2 { font-family: 'Dela Gothic One', sans-serif; font-weight: 400; font-size: 34px; color: var(--gold); margin-bottom: 10px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+  .label { font-size: 12px; color: var(--muted); margin: 10px 0 5px; letter-spacing: .12em; }
+  .choices { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .choices button { font: inherit; font-weight: 700; color: var(--paper); background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.2); padding: 7px 12px; border-radius: 8px; cursor: pointer; min-width: 64px; }
+  .choices button.sel { border-color: var(--gold); background: rgba(242,193,78,0.18); }
+  .choices button .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .how { text-align: left; font-size: 13.5px; line-height: 1.75; margin: 12px 0 4px; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 8px; }
+  .how b { color: var(--gold); }
+  .how kbd { font-family: inherit; font-size: 12px; padding: 0 6px; border: 1px solid rgba(255,255,255,0.35); border-radius: 4px; background: rgba(255,255,255,0.08); }
+  .go { margin-top: 14px; font-family: 'Dela Gothic One', sans-serif; font-size: 24px; color: var(--paper); background: linear-gradient(180deg, #f0553e, #a8200f); border: 3px solid var(--gold); padding: 10px 34px; border-radius: 40px; cursor: pointer; box-shadow: 0 6px 0 #5a1208; }
+  .go:active { transform: translateY(4px); box-shadow: 0 2px 0 #5a1208; }
+  .go.online { background: linear-gradient(180deg, #3b6fd8, #1d3c8f); box-shadow: 0 6px 0 #0e1f4d; margin-left: 8px; }
+  #lobbyHold.on { border-color: #4be07a; color: #b8ffcc; box-shadow: 0 0 12px rgba(75,224,122,0.4); }
+  .go.ghost { background: rgba(255,255,255,0.08); box-shadow: none; font-size: 18px; padding: 8px 24px; margin-left: 8px; }
+  .name { font: inherit; font-size: 16px; font-weight: 700; color: var(--paper); background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); border-radius: 8px; padding: 7px 12px; width: 100%; text-align: center; }
+  .name:focus { outline: none; border-color: var(--gold); }
+  .best { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #0f0b1e; font-family: 'Dela Gothic One', sans-serif; color: var(--gold); font-size: 28px; z-index: 50; }
+  #loading small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; color: var(--muted); font-size: 14px; margin-top: 8px; text-align: center; }
+  table.res { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 17px; }
+  table.res td { padding: 7px 6px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; }
+  table.res td:first-child { font-family: 'Dela Gothic One', sans-serif; color: var(--gold); width: 52px; }
+  table.res td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  table.res tr.me { background: rgba(242,193,78,0.16); }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 14px; color: var(--muted); }
+  .stats b { color: var(--paper); }
+  #resColl { margin: 10px 0 4px; }
+  .collHead { font-family: 'Dela Gothic One', sans-serif; font-size: 17px; color: var(--gold); margin-bottom: 6px; }
+  .collHead b { font-size: 24px; color: var(--paper); margin: 0 2px; }
+  .collGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 4px; max-height: 240px; overflow-y: auto; }
+  .ci { background: rgba(255,246,228,0.08); border: 1px solid rgba(242,193,78,0.35); border-radius: 8px; padding: 2px 1px 3px; text-align: center; font-size: 9px; color: var(--muted); line-height: 1.2; white-space: nowrap; overflow: hidden; }
+  .ci img { display: block; width: 40px; height: 40px; margin: 0 auto 1px; }
+  .ci b { display: block; color: var(--paper); font-size: 11px; }
+  .collNone { font-size: 13px; color: var(--muted); }
+  .newrec { color: var(--perfect); font-family: 'Dela Gothic One', sans-serif; margin-bottom: 6px; }
+  .lobbyList { list-style: none; margin: 10px 0; text-align: left; }
+  .lobbyList li { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 16px; }
+  .lobbyList li.cpu { color: var(--muted); }
+  .lobbyList li.me { background: rgba(242,193,78,0.16); }
+  .lobbyCount { font-family: 'Dela Gothic One', sans-serif; font-size: 22px; color: var(--gold); margin: 6px 0; }
+  .ranking { font-size: 13px; color: var(--muted); text-align: left; margin-top: 10px; max-height: 160px; overflow-y: auto; }
+  .ranking ol { padding-left: 22px; } .ranking b { color: var(--paper); }
+  #nextInfo { font-size: 14px; color: var(--muted); margin-top: 8px; min-height: 1.2em; }
+  #err { position: fixed; left: 12px; bottom: 12px; color: #ffb4b4; font-size: 13px; z-index: 60; }
+  @media (max-width: 640px) {
+    #mini { width: 112px; height: 112px; }
+    #tl { min-width: 118px; padding: 6px 10px; } #tl .rank { font-size: 34px; }
+    .msg { font-size: 26px; } .msg.big { font-size: 44px; } #backBtn { font-size: 19px; padding: 9px 18px; bottom: 30%; }
+    #turn .arr { font-size: 46px; } #turn .tx { font-size: 30px; } #turn.now .tx { font-size: 40px; } #turn small { font-size: 13px; } #turn { padding: 4px 16px 8px; }
+    #count { font-size: 96px; }
+    body.touch #meter { top: 136px; width: 112px; }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="loading" data-en="Building the danjiri…<small>making the town</small>">だんじり組み立て中…<small>町をつくっています</small></div>
+
+<div id="hud" class="hidden">
+  <div id="tl" class="panel">
+    <div class="rank"><span id="rankN">1</span><small id="rankOf">位 / 4</small></div>
+    <div class="row"><span data-en="Lap">周回</span><b id="lapT">1/2</b></div>
+    <div class="row"><span data-en="Time">タイム</span><b id="timeT">0:00.00</b></div>
+  </div>
+  <canvas id="mini" width="220" height="220"></canvas>
+  <div id="meter" class="panel">
+    <div id="spd"><b id="spdN">0</b><small>km/h</small></div>
+    <div class="lbl"><span data-en="Spirit (SORYA!)">気合（ソーリャ）</span><b id="boostT"></b></div>
+    <div class="bar"><i id="boostBar"></i></div>
+    <div class="lbl"><span data-en="Tilt">傾き</span><span id="tiltT"></span></div>
+    <div class="bar"><i id="tiltBar"></i></div>
+  </div>
+  <div id="msgs"></div>
+  <div id="warn" class="hidden"></div>
+  <div id="backBtn" class="hidden" data-en="↩ Back to course<small>or press R</small>">↩ コースに戻る<small>R キーでも戻れる</small></div>
+  <div id="turnEdge"></div>
+  <div id="turn" class="hidden"><div class="arr"></div><div class="tx"></div><small></small></div>
+  <div id="help" class="panel" data-en="<kbd>↑</kbd><kbd>↓</kbd> Pull / Stop　<kbd>←</kbd><kbd>→</kbd> Steer<br><kbd>Shift</kbd> SORYA! (boost)<br><kbd>C</kbd> Camera　<kbd>R</kbd> Reset　<kbd>M</kbd> Sound　<kbd>Esc</kbd> Pause"><kbd>↑</kbd><kbd>↓</kbd> 引く / 止める　<kbd>←</kbd><kbd>→</kbd> 向き<br><kbd>Shift</kbd> ソーリャ!（加速）<br><kbd>C</kbd> 視点　<kbd>R</kbd> 立て直す　<kbd>M</kbd> 音　<kbd>Esc</kbd> 一時停止</div>
+</div>
+<div id="count" class="hidden"></div>
+
+<div id="touch" class="hidden">
+  <div id="stickZone"><div id="stick" class="hidden"><div id="knob"></div></div></div>
+  <div class="tbtn" id="tBoost" data-en="SORYA">ソーリャ</div>
+  <div class="tbtn" id="tBrake" data-en="STOP">止</div>
+</div>
+
+<div id="title" class="overlay hidden">
+  <div class="card">
+    <button class="lang-btn" id="langBtn">EN / JP</button><h1>だんじり疾走</h1>
+    <div class="sub" data-en="Danjiri Festival Race">やりまわし レース</div>
+    <div id="step1">
+      <div class="label" data-en="NAME">名 前</div>
+      <input class="name" id="nameIn" maxlength="12" placeholder="名前を入れてや" data-en-ph="Your name" autocomplete="off">
+      <div class="label" data-en="GRAPHICS">画 質</div><div class="choices" id="qSel"><button data-q="high" data-en="High">高画質</button><button data-q="low" data-en="Light">軽量</button></div>
+      <div class="mode-row">
+        <button class="go" id="soloBtn" data-en="Solo">ひとりで</button><button class="go online" id="onlineBtn"><span data-en="Online">みんなで</span><small class="online-now" id="onlineNow"></small></button>
+      </div>
+      <div><button class="go ghost" id="rankBtn" data-en="🏆 Rankings">🏆 ランキング</button><button class="go ghost" id="mbBtn" data-en="⭐ My Best">⭐ マイベスト</button></div>
+    </div>
+    <div id="step2" class="hidden">
+      <div class="grid2">
+        <div style="grid-column: 1 / -1"><div class="label" data-en="CHOOSE A TOWN">町 を え ら ぶ</div><div class="choices" id="placeSel"><button data-p="jp" class="sel"><svg class="flag" viewBox="0 0 30 20"><rect width="30" height="20" fill="#fff"/><circle cx="15" cy="10" r="6" fill="#bc002d"/></svg><span data-en="Japan: Kishiwada">日本：岸和田</span></button><button data-p="paris"><svg class="flag" viewBox="0 0 30 20"><rect width="10" height="20" fill="#0055a4"/><rect x="10" width="10" height="20" fill="#fff"/><rect x="20" width="10" height="20" fill="#ef4135"/></svg><span data-en="Paris: Arc de Triomphe">パリ：凱旋門</span></button><button data-p="ny"><svg class="flag" viewBox="0 0 30 20"><rect width="30" height="20" fill="#fff"/><rect y="0.00" width="30" height="1.54" fill="#b22234"/><rect y="3.08" width="30" height="1.54" fill="#b22234"/><rect y="6.15" width="30" height="1.54" fill="#b22234"/><rect y="9.23" width="30" height="1.54" fill="#b22234"/><rect y="12.31" width="30" height="1.54" fill="#b22234"/><rect y="15.38" width="30" height="1.54" fill="#b22234"/><rect y="18.46" width="30" height="1.54" fill="#b22234"/><rect width="13" height="10.8" fill="#3c3b6e"/><circle cx="1.6" cy="1.4" r="0.45" fill="#fff"/><circle cx="4.0" cy="1.4" r="0.45" fill="#fff"/><circle cx="6.4" cy="1.4" r="0.45" fill="#fff"/><circle cx="8.8" cy="1.4" r="0.45" fill="#fff"/><circle cx="11.2" cy="1.4" r="0.45" fill="#fff"/><circle cx="2.2" cy="3.5" r="0.45" fill="#fff"/><circle cx="4.6" cy="3.5" r="0.45" fill="#fff"/><circle cx="7.0" cy="3.5" r="0.45" fill="#fff"/><circle cx="9.4" cy="3.5" r="0.45" fill="#fff"/><circle cx="11.8" cy="3.5" r="0.45" fill="#fff"/><circle cx="1.6" cy="5.6" r="0.45" fill="#fff"/><circle cx="4.0" cy="5.6" r="0.45" fill="#fff"/><circle cx="6.4" cy="5.6" r="0.45" fill="#fff"/><circle cx="8.8" cy="5.6" r="0.45" fill="#fff"/><circle cx="11.2" cy="5.6" r="0.45" fill="#fff"/><circle cx="2.2" cy="7.7" r="0.45" fill="#fff"/><circle cx="4.6" cy="7.7" r="0.45" fill="#fff"/><circle cx="7.0" cy="7.7" r="0.45" fill="#fff"/><circle cx="9.4" cy="7.7" r="0.45" fill="#fff"/><circle cx="11.8" cy="7.7" r="0.45" fill="#fff"/><circle cx="1.6" cy="9.8" r="0.45" fill="#fff"/><circle cx="4.0" cy="9.8" r="0.45" fill="#fff"/><circle cx="6.4" cy="9.8" r="0.45" fill="#fff"/><circle cx="8.8" cy="9.8" r="0.45" fill="#fff"/><circle cx="11.2" cy="9.8" r="0.45" fill="#fff"/></svg><span data-en="NY: Times Square">NY：タイムズスクエア</span></button><button data-p="giza"><svg class="flag" viewBox="0 0 30 20"><rect width="30" height="6.7" fill="#ce1126"/><rect y="6.7" width="30" height="6.6" fill="#fff"/><rect y="13.3" width="30" height="6.7" fill="#000"/><path d="M15 7.6 l1.6 1.2 -0.6 2.6 -1 0.6 -1 -0.6 -0.6 -2.6z" fill="#c09300"/></svg><span data-en="Giza: Pyramids">ギザ：ピラミッド</span></button><button data-p="venice"><svg class="flag" viewBox="0 0 30 20"><rect width="10" height="20" fill="#009246"/><rect x="10" width="10" height="20" fill="#fff"/><rect x="20" width="10" height="20" fill="#ce2b37"/></svg><span data-en="Venice: Grand Canal">ベネチア：大運河</span></button></div></div>
+        <div><div class="label" data-en="LAPS">周 回 数</div><div class="choices" id="lapSel"><button data-l="1" data-en="1 lap">1周</button><button data-l="2" class="sel" data-en="2 laps">2周</button><button data-l="3" data-en="3 laps">3周</button></div></div>
+        <div><div class="label" data-en="TIME OF DAY">時 間</div><div class="choices" id="todSel"><button data-t="day" class="sel" data-en="Day">昼</button><button data-t="night" data-en="Night">夜</button></div></div>
+      </div>
+      <div>
+        <button class="go" id="startBtn" data-en="Go!">出発!</button><button class="go ghost" id="stepBack" data-en="Back">もどる</button>
+      </div>
+      <div class="best" id="bestT"></div>
+    </div>
+    <div class="foot">© 2026 <a href="https://satoru.net/" target="_blank" rel="noopener">satoru.net</a> · <a href="https://github.com/satorunet/danjiri" target="_blank" rel="noopener">GitHub</a></div>
+  </div>
+</div>
+
+<div id="lobby" class="overlay hidden">
+  <div class="card">
+    <h2 data-en="Online Race">オンライン対戦</h2>
+    <div id="lobbyStatus" class="best">接続中…</div>
+    <div class="lobbyCount" id="lobbyCount"></div>
+    <ul class="lobbyList" id="lobbyList"></ul>
+    <div class="best" data-en="Up to 4 danjiri. CPU fills empty slots. 2 laps. Town and time of day are drawn by lot.">最大4台。人が足りない分はCPUの町が参加。2周勝負。町と時間はくじ引き。</div>
+    <div class="ranking" id="lobbyRank"></div>
+    <button class="go ghost" id="lobbyHold">だれか来るまで待つ：OFF</button><button class="go ghost" id="lobbyQuit" data-en="Leave">やめる</button>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card">
+    <h2 data-en="Paused">一時停止</h2>
+    <button class="go" id="resumeBtn" data-en="Resume">再 開</button><button class="go ghost" id="quitBtn" data-en="Title">タイトルへ</button>
+  </div>
+</div>
+
+<div id="result" class="overlay hidden">
+  <div class="card">
+    <h2 id="resTitle">結果</h2>
+    <div id="resNew" class="newrec"></div>
+    <div id="resBadge" class="res-badge hidden"></div>
+    <table class="res" id="resTable"></table>
+    <div class="stats" id="resStats"></div>
+    <div id="resColl"></div>
+    <div id="rankForm" class="rank-form hidden"></div>
+    <div id="nextInfo"></div>
+    <button class="go" id="retryBtn" data-en="Again">もう一回</button><button class="go ghost" id="titleBtn" data-en="Title">タイトルへ</button><button class="go ghost" id="resRankBtn" data-en="🏆 Rankings">🏆 ランキング</button>
+    <div><button class="go ghost" id="resMbBtn" data-en="⭐ My Best">⭐ マイベスト</button><button class="go online" id="showBtn" data-en="🔍 View danjiri in 3D">🔍 だんじりを3Dで見る</button></div>
+  </div>
+</div>
+<div id="ranking" class="overlay hidden">
+  <div class="card rk-card">
+    <h2 data-en="🏆 Rankings">🏆 ランキング</h2>
+    <div class="choices" id="rkPlace"></div>
+    <div class="choices rk-cats" id="rkCat"></div>
+    <div class="rk-share" id="rkShareBar"></div>
+    <div id="rkList" class="rk-list"></div>
+    <button class="go ghost" id="rkClose" data-en="Close">とじる</button>
+    <div id="rkDetail" class="rk-detail hidden"></div>
+  </div>
+</div>
+<div id="mybest" class="overlay hidden">
+  <div class="card rk-card">
+    <h2 data-en="⭐ My Best">⭐ マイベスト</h2>
+    <div class="choices" id="mbPlace"></div>
+    <div id="mbBody"></div>
+    <button class="go ghost" id="mbClose" data-en="Close">とじる</button>
+  </div>
+</div>
+<div id="replayBar" class="hidden"><span id="rpName"></span><button class="go ghost" id="rpStop" data-en="Stop">やめる</button></div>
+<div id="showcase" class="hidden">
+  <div class="sc-hint" data-en="Drag to rotate · scroll / pinch to zoom">ドラッグで回す・ホイール / 2本指でズーム</div>
+  <div class="sc-bar">
+    <button class="sc-arrow" id="scPrev">◀</button>
+    <div class="sc-name" id="scName"></div>
+    <button class="sc-arrow" id="scNext">▶</button>
+    <button class="go ghost" id="scBack" data-en="Back to results">結果に戻る</button>
+  </div>
+</div>
+<div id="err"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script>
+  window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
+  window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
+</script>
+<script type="module" src="js/game.js?v=69"></script>
+</body>
+</html>
