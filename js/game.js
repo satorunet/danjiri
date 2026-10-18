@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=117';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=117';
-import { buildWorld } from './world.js?v=117';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=117';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=117';
-import { FX, SpeedShader } from './fx.js?v=117';
-import * as AU from './audio.js?v=117';
+import * as SIM from './sim.js?v=118';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=118';
+import { buildWorld } from './world.js?v=118';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=118';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=118';
+import { FX, SpeedShader } from './fx.js?v=118';
+import * as AU from './audio.js?v=118';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -206,6 +206,7 @@ function makeRacer(teamIdx, slot, kind, extra = {}) {
   r.ropes = [-1, 1].map(sd => ({ sd, nodes: Array.from({ length: 7 }, () => ({ x: 0, y: 0, z: 0, i: -1 })), init: false }));
   if (r.name && kind !== 'me') D.group.add(r.tag = nameTag(r.name, team.css));
   const ic = kind === 'me' ? myIcon : extra.id != null ? NET.icons?.[extra.id] : null;
+  r.flagMode = kind === 'me' ? myFlag : extra.id != null ? NET.flagModes?.[extra.id] || 'both' : 'both';
   if (ic) setFlagIcon(r, ic);
   const tx = kind === 'me' ? myText : extra.id != null ? NET.texts?.[extra.id] : '';
   if (tx) setBannerText(r, tx);
@@ -218,6 +219,9 @@ function makeRacer(teamIdx, slot, kind, extra = {}) {
 }
 // ================= アイコン旗（タイトルで設定した画像を、だんじり後ろの大きな旗に） =================
 let myIcon = store.get('danjiri-icon', '') || '';
+// 旗の付け方: 前後に交差旗・前だけ・後ろだけ・後ろに 1 本旗
+const FLAG_MODES = [['both', '交差旗（前後）', 'Crossed, front & back'], ['back', '交差旗（後ろ）', 'Crossed, back'], ['front', '交差旗（前）', 'Crossed, front'], ['single', '1本旗', 'Single flag']];
+let myFlag = store.get('danjiri-flag', 'both'); if (!FLAG_MODES.some(f => f[0] === myFlag)) myFlag = 'both';
 let myText = store.get('danjiri-text', '') || '';
 let myFinish = +store.get('danjiri-finish', 0) || 0;
 let myForm = +store.get('danjiri-form', 0) || 0;
@@ -246,7 +250,8 @@ function setFlagIcon(r, url) {
   const D = r.D;
   r.iconUrl = url || null;
   if (D.iconFlag) { D.body.remove(D.iconFlag); D.iconFlag = null; }
-  if (D.rearLan) D.rearLan.visible = !url;   // 交差旗を付ける時は、旗とかぶる後ろの提灯 2 つを外す
+  const mode = FLAG_MODES.some(f => f[0] === r.flagMode) ? r.flagMode : 'both';
+  if (D.rearLan) D.rearLan.visible = !url || mode === 'front';   // 後ろに交差旗・1 本旗を付ける時は、旗とかぶる後ろの提灯 2 つを外す
   if (!url) return;
   const apply = img => {
     if (D.iconFlag) D.body.remove(D.iconFlag);
@@ -259,11 +264,12 @@ function setFlagIcon(r, url) {
     const clothMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true }), flags = [];
     const poleMat = new THREE.MeshBasicMaterial({ color: 0x2a1a0e }), knobMat = new THREE.MeshBasicMaterial({ color: 0xf0bc3c }), bladeMat = new THREE.MeshBasicMaterial({ color: 0xe4e9ef });
     const flag = new THREE.Group();
-    for (const fz of [-1, 1]) {   // -1 = 後ろ（追いかける側から見える）、1 = 前
+    const single = mode === 'single';
+    for (const fz of mode === 'front' ? [1] : mode === 'both' ? [-1, 1] : [-1]) {   // -1 = 後ろ（追いかける側から見える）、1 = 前
       const set = new THREE.Group(); set.position.set(0, 2.3, fz * 1.72); set.rotation.x = fz * 0.3; set.scale.setScalar(0.72);   // 外へ少し倒す
-      for (const sx of [-1, 1]) {
-        const lean = 0.78;   // 竿ごと外へ倒す（旗も一緒に外向き）
-        const arm = new THREE.Group(); arm.position.set(-sx * 0.8, 0, sx * 0.06); arm.rotation.z = -sx * lean;   // 根元を広げて × に交差
+      for (const sx of single ? [1] : [-1, 1]) {
+        const lean = single ? 0.12 : 0.78;   // 竿ごと外へ倒す（旗も一緒に外向き）。1 本旗はほぼまっすぐ
+        const arm = new THREE.Group(); arm.position.set(single ? -0.3 : -sx * 0.8, 0, sx * 0.06); arm.rotation.z = -sx * lean;   // 根元を広げて × に交差
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 4.7, 6).translate(0, 2.35, 0), poleMat);   // 大きい旗が手すり・提灯に当たらない長さ
         // 竿の先は剣先: 平たい両刃の刃（銀）＋鍔＋根元の金具（金）
         const knob = new THREE.Group(); knob.position.y = 4.7;
@@ -365,7 +371,7 @@ function cuSummary() {
   $('cuValTeam').innerHTML = `<span class="sw" style="background:${TEAMS[selTeam].css}"></span>${esc(teamName(TEAMS[selTeam]))}`;
   setT($('cuValText'), myText || L('御祭禮（標準）', 'Default'));
   setT($('cuValCrew'), `${myCrew.face ? L('顔写真・', 'Face photo · ') : ''}${L(HAIRS[myCrew.hair].ja, HAIRS[myCrew.hair].en)}・${L(OUTFITS[myCrew.outfit].ja, OUTFITS[myCrew.outfit].en)}・${myCrew.mark === 'img' ? L('写真', 'Photo') : myCrew.mark === 'txt' ? (myCrew.mtext || '祭') : '祭'}`);
-  $('cuValIcon').innerHTML = myIcon ? `<img src="${myIcon}" alt="">` : esc(L('なし', 'None'));
+  $('cuValIcon').innerHTML = myIcon ? `<img src="${myIcon}" alt="">${esc(L(FLAG_MODES.find(f => f[0] === myFlag)[1], FLAG_MODES.find(f => f[0] === myFlag)[2]))}` : esc(L('なし', 'None'));
 }
 // 引き手を変えた時は、後ろの押し手の背中が見える向きに
 function crewView() { SC.auto = false; SC.yaw = Math.PI; SC.pitch = 0.32; SC.dist = 11; }
@@ -1808,7 +1814,7 @@ function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (tex
 function netJoin(how, room) {
   NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   netSend({ t: 'join', name: myName, team: selTeam, v: 3, how, room }); netSend({ t: 'hold', on: holdWait });
-  netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew, ty: myType });
+  netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew, ty: myType, fl: myFlag });
   renderLobby();
 }
 // 部屋えらび: 部屋番号・状況・人数を見て入る
@@ -1857,7 +1863,8 @@ function onNet(m) {
   else if (m.t === 'rooms') renderRooms(m);
   else if (m.t === 'icon') {
     (NET.icons ||= {})[m.id] = m.data; if (NET.chat?.some(c => c.id === m.id)) renderChat(); if (state === 'lobby') renderLobby(); (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null; (NET.types ||= {})[m.id] = clamp(m.ty | 0, 0, DJ_TYPES.length - 1);
-    const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; r.crew = NET.crews[m.id]; crewTex(r); }
+    (NET.flagModes ||= {})[m.id] = FLAG_MODES.some(f => f[0] === m.fl) ? m.fl : 'both';
+    const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { r.flagMode = NET.flagModes[m.id]; if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; r.crew = NET.crews[m.id]; crewTex(r); }
   }
   else if (m.t === 'chat') onChat(m);
   else if (m.t === 'pos') onPos(m);
@@ -2132,6 +2139,12 @@ function setupTitle() {
     try { myIcon = await iconFromFile(f); store.set('danjiri-icon', myIcon); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); SC.yaw = Math.PI * 0.85; SC.auto = true; }
     catch (e) { if (e.message !== 'cancel') alert(L('画像を読み込めませんでした', 'Could not read that image')); }
   };
+  $('cuFlag').innerHTML = FLAG_MODES.map(([v, ja, en]) => `<button data-v="${v}" class="${v === myFlag ? 'sel' : ''}">${esc(L(ja, en))}</button>`).join('');
+  $('cuFlag').querySelectorAll('button').forEach(b => b.onclick = () => {
+    myFlag = b.dataset.v; store.set('danjiri-flag', myFlag); $('cuFlag').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b));
+    if (player) { player.flagMode = myFlag; if (myIcon) setFlagIcon(player, myIcon); }
+    cuSummary(); SC.auto = true; SC.dist = Math.max(SC.dist, 18);
+  });
   $('iconDel').onclick = () => { myIcon = ''; store.set('danjiri-icon', ''); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); };
   $('cuText').value = myText;
   const setText = () => { myText = cleanBanner($('cuText').value); $('cuText').value = myText; store.set('danjiri-text', myText); if (player) setBannerText(player, myText); cuSummary(); SC.yaw = Math.PI * 0.6; };
