@@ -366,11 +366,12 @@ export function stepCar(c, inp, dt, course) {
   const geo = Math.max(0.55, 1 + kap * c.u);           // 外側ほど回り道（道のりの進みが遅い）
   // soft: ハンドルを切っていない時は、ほぼまっすぐ進もうとして角で外へふくらむ（道に沿う力は少しだけ残す）
   const noSteer = inp.soft ? clamp(1 - Math.abs(st) / 0.3, 0, 1) : 0;
-  const fling = c.air ? 0 : kap * v * Math.abs(v) / geo * CAR.FLING * (drifting ? 0.42 : 1) * (c.crashT > 0 ? 0.3 : 1) * (1 + noSteer * 0.5);
+  const fling = c.air ? 0 : kap * v * Math.abs(v) / geo * CAR.FLING * (drifting ? 0.42 : 1) * (c.crashT > 0 ? 0.3 : 1) * (1 + noSteer * 0.35);
   const steerA = (c.air ? 0.25 : 1) * (CAR.STEER_A + Math.min(Math.abs(v), 30) * CAR.STEER_V) * Math.min(1, Math.abs(v) / 4 + 0.15) * M.steer;
   const aU = -st * steerA * (v < -0.5 ? -1 : 1) + fling;
   c.vu += aU * dt;
-  c.vu *= Math.exp(-dt * (c.air ? 0.3 : drifting ? 1.6 : CAR.U_DAMP));
+  // soft でハンドルを切っていない時は横の勢いをあまり打ち消さない（道なりに引き戻しすぎない）
+  c.vu *= Math.exp(-dt * (c.air ? 0.3 : drifting ? 1.6 : CAR.U_DAMP * (1 - noSteer * 0.5)));
   // やりまわし中は車輪が浮いてポンポン跳ねる
   if (drifting && v > 15 && Math.floor((c.driftT + dt) / 0.6) > Math.floor(c.driftT / 0.6)) hop(c, 2.2 + v * 0.07, ev);
   if (drifting) { c.driftT += dt; c.boost = Math.min(1, c.boost + (0.05 + Math.min(0.35, Math.abs(kap) * v * 0.25)) * M.drift * dt); }
