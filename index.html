@@ -127,6 +127,8 @@
   #custom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; justify-content: center; padding: 0 10px 12px; pointer-events: none; }
   #custom .cu-card { pointer-events: auto; width: min(460px, 100%); max-height: 58vh; overflow-y: auto; background: rgba(18,12,36,0.92); border: 2px solid var(--gold-deep); border-radius: 16px; padding: 8px 12px; text-align: center; }
   #custom .cu-card { position: relative; }
+  #custom .cu-head { display: flex; align-items: center; gap: 8px; padding: 2px 2px 6px; border-bottom: 2px solid rgba(242,193,78,0.35); }
+  #custom .cu-title { font-family: 'Dela Gothic One', sans-serif; font-size: 17px; color: var(--gold); }
   #custom .cu-min { display: block; margin: 0 0 0 auto; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(18,12,36,0.95); color: var(--paper); cursor: pointer; z-index: 1; }
   #custom .cu-fab { pointer-events: auto; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); background: rgba(18,12,36,0.92); color: var(--paper); font-size: 26px; line-height: 1; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
   #custom .cu-fab small { font-size: 11px; font-weight: 900; margin-top: 2px; }
@@ -447,7 +449,7 @@
 <div id="custom" class="hidden">
   <button class="cu-fab hidden" id="cuShow" aria-label="設定を開く">🏮<small data-en="Edit">設定</small></button>
   <div class="cu-card" id="cuCard">
-    <button class="cu-min" id="cuHide" aria-label="たたむ" data-en="▼ Hide">▼ たたむ</button>
+    <div class="cu-head"><span class="cu-title" data-en="🏮 Customize">🏮 だんじりカスタム</span><button class="cu-min" id="cuHide" aria-label="たたむ" data-en="▼ Hide">▼ たたむ</button></div>
     <details class="cu-sec" name="cu"><summary><span data-en="Danjiri">だんじり</span><span class="cu-val" id="cuValFin"></span></summary>
       <div class="cu-fin" id="cuFin"></div>
     </details>
@@ -490,6 +492,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=84"></script>
+<script type="module" src="js/game.js?v=85"></script>
 </body>
 </html>
