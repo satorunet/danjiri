@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=95';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=95';
-import { buildWorld } from './world.js?v=95';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=95';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=95';
-import { FX, SpeedShader } from './fx.js?v=95';
-import * as AU from './audio.js?v=95';
+import * as SIM from './sim.js?v=96';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=96';
+import { buildWorld } from './world.js?v=96';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=96';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=96';
+import { FX, SpeedShader } from './fx.js?v=96';
+import * as AU from './audio.js?v=96';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1777,7 +1777,7 @@ function onNet(m) {
   else if (m.t === 'peek') onPeek(m);
   else if (m.t === 'rooms') renderRooms(m);
   else if (m.t === 'icon') {
-    (NET.icons ||= {})[m.id] = m.data; if (NET.chat?.some(c => c.id === m.id)) renderChat(); (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null; (NET.types ||= {})[m.id] = clamp(m.ty | 0, 0, DJ_TYPES.length - 1);
+    (NET.icons ||= {})[m.id] = m.data; if (NET.chat?.some(c => c.id === m.id)) renderChat(); if (state === 'lobby') renderLobby(); (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null; (NET.types ||= {})[m.id] = clamp(m.ty | 0, 0, DJ_TYPES.length - 1);
     const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; r.crew = NET.crews[m.id]; crewTex(r); }
   }
   else if (m.t === 'chat') onChat(m);
@@ -1962,7 +1962,9 @@ function renderLobby() {
   if (!m && NET.choice) return;
   if (!m) { setT($('lobbyStatus'), NET.failed ? L('接続できませんでした。時間をおいてもう一度どうぞ。', 'Could not connect. Please try again later.') : L('サーバーに接続中…', 'Connecting…')); $('lobbyList').innerHTML = ''; setT($('lobbyCount'), ''); return; }
   setT($('lobbyStatus'), m.phase === 'wait' ? L(`部屋 ${m.room}：ほかの人を待っています`, `Room ${m.room}: waiting for players`) : m.phase === 'race' ? L(`部屋 ${m.room}：レース中。次のレースから参加します`, `Room ${m.room}: race in progress, you join the next one`) : L(`部屋 ${m.room}：結果発表中…`, `Room ${m.room}: results…`));
-  let html = m.players.map(p => `<li class="${p.id === NET.id ? 'me' : ''}">${swatch(TEAMS[p.team])}${esc(p.name)}${p.id === NET.id ? L('（あなた）', ' (you)') : ''}<span style="margin-left:auto;color:var(--muted)">${teamName(TEAMS[p.team])}</span></li>`).join('');
+  // 入った時点から各プレイヤーのアイコン（カスタムの画像）を名前の前に
+  const pic = id => { const u = id === NET.id ? myIcon : NET.icons?.[id]; return u && u.startsWith('data:image/') ? `<img class="lb-ic" src="${u}" alt="">` : ''; };
+  let html = m.players.map(p => `<li class="${p.id === NET.id ? 'me' : ''}">${swatch(TEAMS[p.team])}${pic(p.id)}${esc(p.name)}${p.id === NET.id ? L('（あなた）', ' (you)') : ''}<span style="margin-left:auto;color:var(--muted)">${teamName(TEAMS[p.team])}</span></li>`).join('');
   const used = new Set(m.players.map(p => p.team));
   [0, 1, 2, 3, 4, 5, 6, 7].filter(t => !used.has(t)).slice(0, Math.max(0, 4 - m.players.length)).forEach(t => { html += `<li class="cpu">${swatch(TEAMS[t])}${L('CPU（空き枠）', 'CPU (open slot)')}<span style="margin-left:auto">${teamName(TEAMS[t])}</span></li>`; });
   $('lobbyList').innerHTML = html;

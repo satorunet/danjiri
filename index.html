@@ -324,6 +324,7 @@
   .lobbyList { list-style: none; margin: 10px 0; text-align: left; }
   .lobbyList li { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 16px; }
   .lobbyList li.cpu { color: var(--muted); }
+  .lobbyList .lb-ic { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; margin-right: 6px; border: 1px solid rgba(255,255,255,0.35); flex: none; }
   .lobbyList li.me { background: rgba(242,193,78,0.16); }
   .lobbyCount { font-family: 'Dela Gothic One', sans-serif; font-size: 22px; color: var(--gold); margin: 6px 0; }
   .ranking { font-size: 13px; color: var(--muted); text-align: left; margin-top: 10px; max-height: 160px; overflow-y: auto; }
@@ -528,6 +529,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=95"></script>
+<script type="module" src="js/game.js?v=96"></script>
 </body>
 </html>
