@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=134';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=134';
-import { buildWorld } from './world.js?v=134';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=134';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=134';
-import { FX, SpeedShader } from './fx.js?v=134';
-import * as AU from './audio.js?v=134';
+import * as SIM from './sim.js?v=135';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=135';
+import { buildWorld } from './world.js?v=135';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=135';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=135';
+import { FX, SpeedShader } from './fx.js?v=135';
+import * as AU from './audio.js?v=135';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -2341,11 +2341,8 @@ function setupTitle() {
 let acc = 0, last = performance.now(), gameTime = 0, lastCount = 99, debugAuto = false, debugInp = null;
 // ゴール後: 線の先（スタートラインより先）まで走り抜けてから、100 m あたりで止まる
 function afterGoal(r, inp) {
-  const past = r.car.prog - goalS();
-  inp.boost = false;
-  if (past < 60) inp.throttle = Math.min(inp.throttle, 0.8);
-  else if (past < 100) inp.throttle *= 0.3;
-  else { inp.throttle = 0; inp.brake = 1; }
+  const k = racers.filter(o => o !== r && !o.ghost && o.finished && (o.finishTime < r.finishTime || (o.finishTime === r.finishTime && racers.indexOf(o) < racers.indexOf(r)))).length;   // 自分より先にゴールした数
+  SIM.afterGoal(r.car, r.kind === 'cpu' ? r.ai : r.autoAI, inp, r.car.prog - goalS(), k);
 }
 const END_AFTER = 15;   // 1 位のゴールから決着までの秒数
 function step(dt) {

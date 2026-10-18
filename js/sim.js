@@ -510,6 +510,17 @@ export function makeAI(k) {
   ];
   return { ...presets[k % 3], laneBias: (k % 2 ? 1 : -1) * 3, seed: Math.random() * 100, t: 0 };
 }
+// ゴール後: 着順ごとに止まる場所をずらし、左右の筋も交互にして、ほどよく間をあけて並ぶ
+// k: 着順（0 = 1 位）、past: ゴール線を越えてからの距離
+export function afterGoal(c, ai, inp, past, k) {
+  k = Math.max(0, Math.min(7, k | 0));
+  const stopAt = 125 - k * 13, rem = stopAt - past;
+  inp.boost = false;
+  if (ai) ai.laneBias = (k % 2 ? 1 : -1) * 5.5;
+  if (rem > 45) inp.throttle = Math.min(inp.throttle, 0.8);
+  else if (rem > 0) { const want = 3 + rem * 0.35; if (c.speed > want) { inp.throttle = 0; inp.brake = Math.min(1, (c.speed - want) * 0.3); } else inp.throttle = Math.min(inp.throttle, 0.4); }
+  else { inp.throttle = 0; inp.brake = 1; }
+}
 const AS = {};
 export function aiInput(c, course, ai, dt = 1 / 60) {
   ai.t += dt;

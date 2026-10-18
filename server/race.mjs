@@ -224,7 +224,7 @@ class Room {
     for (let k = 0; k < steps; k++) {
       for (const c of this.cpus) {
         const inp = SIM.aiInput(c.car, this.course, c.ai, dt);
-        if (c.fin != null) { const past = c.car.prog - GOAL; inp.boost = false; if (past < 60) inp.throttle = Math.min(inp.throttle, 0.8); else if (past < 100) inp.throttle *= 0.3; else { inp.throttle = 0; inp.brake = 1; } }   // ゴール後は線の先まで走り抜けて止まる
+        if (c.fin != null) SIM.afterGoal(c.car, c.ai, inp, c.car.prog - GOAL, ((all, i) => all.filter((o, j) => o !== c && o.fin != null && (o.fin < c.fin || (o.fin === c.fin && j < i))).length)([...humans, ...this.cpus], humans.length + this.cpus.indexOf(c)));   // ゴール後は着順ごとに間をあけて止まる
         // 人間の先頭から離れすぎないように少しだけ手加減・追い上げ
         const lead = humans.length ? Math.max(...humans.map(p => p.car.prog)) : c.car.prog;
         if (c.fin == null && c.car.prog - lead > 90) inp.throttle *= 0.7;
