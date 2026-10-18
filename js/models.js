@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=113';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=114';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -410,6 +410,7 @@ export function makeDanjiri(team, type = 0) {
     put(S.rope, tail);
   }
   const extraLan = [];   // 型ごとに足す提灯 [x, y, z, 大きさ]
+  let rearLanRef = null;
   let daikuAt = null;   // 型ごとの大工方の立ち位置
   if (type === 0 || type === 4) {
   // 小屋根（前）
@@ -563,14 +564,21 @@ export function makeDanjiri(team, type = 0) {
   }
   // 提灯
   {
-    const lan = [], caps = [];
+    let lan = [], caps = [];
     const L = (x, y, z, s = 1) => {
       const g = cyl(0.17 * s, 0.17 * s, 0.36 * s, 16, x, y, z); g.scale(1, 1, 1);
       const bulge = g.attributes.position; for (let i = 0; i < bulge.count; i++) { const yy = (bulge.getY(i) - y) / (0.18 * s); const k = 1 + 0.18 * (1 - yy * yy); bulge.setX(i, x + (bulge.getX(i) - x) * k); bulge.setZ(i, z + (bulge.getZ(i) - z) * k); }
       g.computeVertexNormals(); lan.push(g);
       caps.push(cyl(0.1 * s, 0.11 * s, 0.05 * s, 10, x, y + 0.2 * s, z), cyl(0.11 * s, 0.1 * s, 0.05 * s, 10, x, y - 0.2 * s, z), cyl(0.008, 0.008, 0.25, 4, x, y + 0.35 * s, z));
     };
-    for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) L(sx * 1.5, 3.62, -1.7 + i * 0.52);
+    // 左右の列の一番後ろの 2 つは別にしておく（写真の交差旗を付けた時は旗とかぶるので外す）
+    const keepLan = lan, keepCaps = caps; lan = []; caps = [];
+    for (const sx of [-1, 1]) L(sx * 1.5, 3.62, -1.7);
+    const rearLan = new THREE.Group();
+    { const m1 = new THREE.Mesh(merge(lan), S.lantern), m2 = new THREE.Mesh(merge(caps), S.black); m1.castShadow = m2.castShadow = true; rearLan.add(m1, m2); withOutline(m2, 0.028); }
+    body.add(rearLan); rearLanRef = rearLan;
+    lan = keepLan; caps = keepCaps;
+    for (const sx of [-1, 1]) for (let i = 1; i < 6; i++) L(sx * 1.5, 3.62, -1.7 + i * 0.52);
     for (let i = 0; i < 4; i++) L(-0.84 + i * 0.56, 3.45, 2.14, 0.95);
     for (let i = 0; i < 3; i++) L(-0.6 + i * 0.6, 3.6, -2.1);
     for (const [x, y, z, sc] of extraLan) L(x, y, z, sc);
@@ -613,7 +621,7 @@ export function makeDanjiri(team, type = 0) {
   }
   // 大工方は CrowdRig でまとめて描く。ここでは立ち位置だけ持つ
   const daiku = daikuAt || [{ x: 0, y: 5.18, z: 0.5, s: 1, base: 5.18 }, { x: 0, y: 4.5, z: 1.45, s: 0.92, base: 4.5 }];
-  return { group, tilt, body, wheels, banners, daiku, daikuPose: [newPose(), newPose()] };
+  return { group, tilt, body, wheels, banners, daiku, daikuPose: [newPose(), newPose()], rearLan: rearLanRef };
 }
 
 // だんじりの見た目を物理の状態に合わせる

@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=113';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=113';
-import { buildWorld } from './world.js?v=113';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=113';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=113';
-import { FX, SpeedShader } from './fx.js?v=113';
-import * as AU from './audio.js?v=113';
+import * as SIM from './sim.js?v=114';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=114';
+import { buildWorld } from './world.js?v=114';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=114';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=114';
+import { FX, SpeedShader } from './fx.js?v=114';
+import * as AU from './audio.js?v=114';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -246,6 +246,7 @@ function setFlagIcon(r, url) {
   const D = r.D;
   r.iconUrl = url || null;
   if (D.iconFlag) { D.body.remove(D.iconFlag); D.iconFlag = null; }
+  if (D.rearLan) D.rearLan.visible = !url;   // 交差旗を付ける時は、旗とかぶる後ろの提灯 2 つを外す
   if (!url) return;
   const apply = img => {
     if (D.iconFlag) D.body.remove(D.iconFlag);
