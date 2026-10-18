@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=120';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=120';
-import { buildWorld } from './world.js?v=120';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=120';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=120';
-import { FX, SpeedShader } from './fx.js?v=120';
-import * as AU from './audio.js?v=120';
+import * as SIM from './sim.js?v=121';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=121';
+import { buildWorld } from './world.js?v=121';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=121';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=121';
+import { FX, SpeedShader } from './fx.js?v=121';
+import * as AU from './audio.js?v=121';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1121,7 +1121,6 @@ function updateTurnCall(c) {
       el.className = (Lt ? 'L' : 'R') + (now ? ' now' : '');
       $('turnEdge').className = now ? (Lt ? 'L' : 'R') : '';
       if (now && turnUI.key && turnUI.key[1] === '0') AU.sfx('turnNow');
-      el.querySelector('.arr').textContent = Lt ? '《《《' : '》》》';
       setT(el.querySelector('.tx'), now ? (Lt ? L('左へ!!', 'LEFT!!') : L('右へ!!', 'RIGHT!!')) : (Lt ? L('次は左!', 'Left ahead!') : L('次は右!', 'Right ahead!')));
     }
     setT(el.querySelector('small'), now && fast ? L('勢いのまま突っ込め!', 'Charge in!') : `${Math.max(0, Math.round(nc.dist))} m`);
@@ -2182,6 +2181,7 @@ function afterGoal(r, inp) {
   else if (past < 100) inp.throttle *= 0.3;
   else { inp.throttle = 0; inp.brake = 1; }
 }
+const END_AFTER = 30;   // 1 位のゴールから決着までの秒数
 function step(dt) {
   const racing = state === 'race' || state === 'finish' || state === 'result';
   if (!racing) return;
@@ -2248,6 +2248,17 @@ function frame(nowMs) {
       if (n <= 3) { cnt.classList.remove('hidden'); setT(cnt, n); if (n !== lastCount) { lastCount = n; AU.sfx('count'); } }
     } else { cnt.classList.add('hidden'); state = 'race'; message(L('ソーリャ!!', 'SORYA!!'), 'gold', true); AU.sfx('go'); }
   }
+  // 1 位がゴールしてから 30 秒で決着（ひとりで: ここで決める / みんなで: サーバーが決める。残り時間を出す）
+  if (state === 'race' || state === 'finish') {
+    let left = null;
+    if (mode === 'solo') {
+      const first = racers.filter(r => r.finished).sort((a, b) => a.finishTime - b.finishTime)[0];
+      if (first && !player.finished) { left = first.finishTime + END_AFTER - raceT; if (left <= 0) { showSoloResult(); left = null; } }
+    } else if (NET.room?.endAt && !player.finished && !NET.ghost) left = (NET.room.endAt - serverNow()) / 1000;
+    const ec = $('endCount');
+    if (left != null && left > 0 && left < END_AFTER) { ec.classList.remove('hidden'); setT(ec, L(`決着まであと ${Math.ceil(left)} 秒!`, `${Math.ceil(left)}s left!`)); }
+    else ec.classList.add('hidden');
+  } else $('endCount').classList.add('hidden');
   if (state === 'race' || state === 'finish' || state === 'result') {
     if (state !== 'result') raceT = AU.now() - raceStart;
     acc += sdt;

@@ -243,11 +243,16 @@
   #backBtn small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 12px; text-align: center; opacity: .85; }
   body.touch #backBtn small { display: none; }
   @keyframes backPulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
-  #turn { position: absolute; top: 17%; transform: translateX(-50%); text-align: center; font-family: 'Dela Gothic One', sans-serif; color: #1b1020; pointer-events: none; transition: left .25s; background: linear-gradient(#ffe14a, #f2a81c); border: 4px solid #1b1020; border-radius: 22px; padding: 6px 26px 10px; box-shadow: 0 6px 0 #1b1020, 0 0 30px rgba(255,200,40,0.7); }
-  #turn.L { left: 30%; } #turn.R { left: 70%; }
-  #turn .arr { font-size: 74px; line-height: 0.95; letter-spacing: -10px; animation: turnArr .4s ease-in-out infinite alternate; }
-  #turn.L .arr { --dx: -18px; } #turn.R .arr { --dx: 18px; }
-  #turn .tx { font-size: 50px; line-height: 1.1; white-space: nowrap; }
+  /* 曲がり角の案内: 道路標識のような曲がる矢印を、曲がる側に大きく */
+  #turn { position: absolute; top: 15%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; text-align: center; font-family: 'Dela Gothic One', sans-serif; color: #1b1020; pointer-events: none; transition: left .25s; background: linear-gradient(#ffe14a, #f2a81c); border: 4px solid #1b1020; border-radius: 22px; padding: 8px 22px 8px 14px; box-shadow: 0 6px 0 #1b1020, 0 0 30px rgba(255,200,40,0.7); }
+  #turn.L { left: 32%; } #turn.R { left: 68%; flex-direction: row-reverse; padding: 8px 14px 8px 22px; }
+  @media (max-width: 700px) { #turn.L, #turn.R { left: 50%; } }
+  #turn .arr { width: 92px; height: 92px; flex: none; animation: turnArr .38s ease-in-out infinite alternate; }
+  #turn .arr svg { width: 100%; height: 100%; display: block; }
+  #turn.L .arr svg { transform: scaleX(-1); }
+  #turn.L .arr { --dx: -12px; } #turn.R .arr { --dx: 12px; }
+  #turn .tx { font-size: 50px; line-height: 1.05; white-space: nowrap; }
+  @media (max-width: 480px) { #turn .arr { width: 70px; height: 70px; } #turn .tx { font-size: 38px; } #turn.now .tx { font-size: 46px !important; } }
   #turn small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 18px; color: #1b1020; }
   #turn.now { background: linear-gradient(#ff5a3c, #c8180c); color: #fff; animation: turnPulse .32s ease-in-out infinite alternate; }
   #turn.now small { color: #fff; } #turn.now .tx { font-size: 66px; }
@@ -258,6 +263,7 @@
   @keyframes turnArr { from { transform: translateX(0); } to { transform: translateX(var(--dx)); } }
   #warn { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font-family: 'Dela Gothic One', sans-serif; font-size: 34px; color: #ff4d4d; text-shadow: 0 3px 0 #300; animation: blink .4s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0.2; } }
+  #endCount { position: absolute; left: 50%; top: 9%; transform: translateX(-50%); font-family: 'Dela Gothic One', sans-serif; font-size: 22px; color: #fff; background: rgba(200,24,12,0.85); border: 2px solid #fff; border-radius: 999px; padding: 4px 18px; white-space: nowrap; pointer-events: none; }
   #help { position: absolute; left: 12px; bottom: 12px; font-size: 12px; color: var(--muted); padding: 6px 10px; line-height: 1.7; }
   #help kbd { font-family: inherit; font-size: 11px; padding: 0 5px; border: 1px solid rgba(255,255,255,0.35); border-radius: 4px; background: rgba(255,255,255,0.08); }
 
@@ -364,9 +370,10 @@
   </div>
   <div id="msgs"></div>
   <div id="warn" class="hidden"></div>
+  <div id="endCount" class="hidden"></div>
   <div id="backBtn" class="hidden" data-en="↩ Back to course<small>or press R</small>">↩ コースに戻る<small>R キーでも戻れる</small></div>
   <div id="turnEdge"></div>
-  <div id="turn" class="hidden"><div class="arr"></div><div class="tx"></div><small></small></div>
+  <div id="turn" class="hidden"><div class="arr"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M34 96 V58 Q34 34 58 34 H66" fill="none" stroke="currentColor" stroke-width="19" stroke-linecap="round"/><path d="M60 8 L96 34 L60 60 Z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/></svg></div><div class="tb"><div class="tx"></div><small></small></div></div>
   <div id="help" class="panel" data-en="<kbd>↑</kbd><kbd>↓</kbd> Pull / Stop　<kbd>←</kbd><kbd>→</kbd> Steer<br><kbd>Shift</kbd> SORYA! (boost)<br><kbd>C</kbd> Camera　<kbd>R</kbd> Reset　<kbd>M</kbd> Sound　<kbd>Esc</kbd> Pause"><kbd>↑</kbd><kbd>↓</kbd> 引く / 止める　<kbd>←</kbd><kbd>→</kbd> 向き<br><kbd>Shift</kbd> ソーリャ!（加速）<br><kbd>C</kbd> 視点　<kbd>R</kbd> 立て直す　<kbd>M</kbd> 音　<kbd>Esc</kbd> 一時停止</div>
 </div>
 <div id="count" class="hidden"></div>
@@ -533,6 +540,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=120"></script>
+<script type="module" src="js/game.js?v=121"></script>
 </body>
 </html>

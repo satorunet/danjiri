@@ -14,7 +14,7 @@ const ROOM_MAX = 8;
 const SLOTS = [1, 2, 0, 3, 5, 6, 4, 7];   // 人が入る順のスタート位置（0〜3 前列・4〜7 後列）
 const MIN_CARS = 4;                       // 4 台に満たない分は CPU
 const LAPS = 2;
-const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 40000, T_RACE = 420000, T_RESULT = 20000;
+const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 30000,   /* 1 位のゴールから 30 秒で決着 */ T_RACE = 420000, T_RESULT = 20000;
 const VMAX = 48;                     // m/s: どのだんじりもこれより速くは進めない
 const NAME_MAX = 12;
 const BEST_FILE = process.env.BEST_FILE || path.join(__dirname, 'data', 'best2.json');
@@ -131,7 +131,7 @@ class Room {
   broadcast(msg) { const d = JSON.stringify(msg); for (const p of this.players.values()) send(p, d); }
   info() {
     return {
-      t: 'room', room: this.id, phase: this.phase, phaseEnd: this.phaseEnd, startAt: this.startAt, now: Date.now(), laps: LAPS, stage: this.stage, hold: !!this.hold,
+      t: 'room', room: this.id, phase: this.phase, phaseEnd: this.phaseEnd, startAt: this.startAt, endAt: this.firstFin ? this.firstFin + T_AFTER : 0, now: Date.now(), laps: LAPS, stage: this.stage, hold: !!this.hold,
       players: [...this.players.values()].map(p => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, racing: p.racing, fin: p.fin, ghost: p.ghost ? { start: p.ghost.start, fin: p.ghost.fin } : null })),
       cpus: this.cpus.map(c => ({ id: c.id, name: 'CPU', team: c.team, slot: c.slot, fin: c.fin, cpu: true })),
     };
