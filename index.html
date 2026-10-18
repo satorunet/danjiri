@@ -135,6 +135,13 @@
   #custom .cu-min { display: block; margin: 0 0 0 auto; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(18,12,36,0.95); color: var(--paper); cursor: pointer; z-index: 1; }
   #custom .cu-fab { pointer-events: auto; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); background: rgba(18,12,36,0.92); color: var(--paper); font-size: 26px; line-height: 1; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
   #custom .cu-fab small { font-size: 11px; font-weight: 900; margin-top: 2px; }
+  #podium { position: fixed; inset: 0; z-index: 40; display: flex; justify-content: center; align-items: flex-start; padding-top: 4vh; cursor: pointer; }
+  #podium .pd-box { text-align: center; animation: pdIn .6s cubic-bezier(.2,1.6,.4,1); }
+  #podium .pd-cup { font-size: 54px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); }
+  #podium .pd-title { font-family: 'Dela Gothic One', sans-serif; font-size: clamp(40px, 11vw, 72px); color: var(--gold); text-shadow: 0 5px 0 #6b3d10, 0 0 30px rgba(226,64,47,0.6); letter-spacing: .15em; }
+  #podium .pd-name { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-family: 'Dela Gothic One', sans-serif; font-size: clamp(20px, 5vw, 30px); color: #fff; background: rgba(18,12,36,0.8); border: 2px solid var(--gold); border-radius: 30px; padding: 4px 18px; }
+  #podium .pd-skip { margin-top: 10px; font-size: 12px; color: #fff; opacity: .75; text-shadow: 0 1px 3px #000; }
+  @keyframes pdIn { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   #crop { z-index: 60; }
   .cr-card { width: min(340px, 100%); }
   .cr-frame { width: 260px; height: 260px; margin: 10px auto; border: 3px solid var(--gold); border-radius: 6px; overflow: hidden; touch-action: none; }
@@ -498,6 +505,7 @@
     <div><button class="go" id="crOk" data-en="Use this">これにする</button><button class="go ghost" id="crCancel" data-en="Cancel">やめる</button></div>
   </div>
 </div>
+<div id="podium" class="hidden"><div class="pd-box"><div class="pd-cup">🏆</div><div class="pd-title" data-en="WINNER!">優 勝</div><div class="pd-name" id="pdName"></div><div class="pd-skip" data-en="Tap to continue">タップで結果へ</div></div></div>
 <div id="showcase" class="hidden">
   <div class="sc-hint" data-en="Drag to rotate · scroll / pinch to zoom">ドラッグで回す・ホイール / 2本指でズーム</div>
   <div class="sc-bar">
@@ -519,6 +527,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=92"></script>
+<script type="module" src="js/game.js?v=93"></script>
 </body>
 </html>

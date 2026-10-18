@@ -219,7 +219,7 @@ class Room {
     for (let k = 0; k < steps; k++) {
       for (const c of this.cpus) {
         const inp = SIM.aiInput(c.car, this.course, c.ai, dt);
-        if (c.fin != null) { inp.throttle *= c.car.prog - GOAL < 60 ? 0.85 : 0.35; inp.boost = false; }   // ゴール後は線の先まで進んでから
+        if (c.fin != null) { const past = c.car.prog - GOAL; inp.boost = false; if (past < 60) inp.throttle = Math.min(inp.throttle, 0.8); else if (past < 100) inp.throttle *= 0.3; else { inp.throttle = 0; inp.brake = 1; } }   // ゴール後は線の先まで走り抜けて止まる
         // 人間の先頭から離れすぎないように少しだけ手加減・追い上げ
         const lead = humans.length ? Math.max(...humans.map(p => p.car.prog)) : c.car.prog;
         if (c.fin == null && c.car.prog - lead > 90) inp.throttle *= 0.7;
@@ -353,7 +353,7 @@ wss.on('connection', (ws, req) => {
       }
       case 'st': {
         const g = p.ghost;
-        if (!room || (g ? g.fin != null || now < g.start : room.phase !== 'race' || !p.racing || p.fin != null || now < room.startAt)) break;
+        if (!room || (g ? g.fin != null || now < g.start : room.phase !== 'race' || !p.racing || now < room.startAt)) break;   // ゴール後も位置は受け取る
         const dtS = p.lastSt ? (now - p.lastSt) / 1000 : (now - (g ? g.start : room.startAt)) / 1000;
         p.lastSt = now;
         const c = p.car;

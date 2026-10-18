@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=92';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=92';
-import { buildWorld } from './world.js?v=92';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=92';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=92';
-import { FX, SpeedShader } from './fx.js?v=92';
-import * as AU from './audio.js?v=92';
+import * as SIM from './sim.js?v=93';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=93';
+import { buildWorld } from './world.js?v=93';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=93';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=93';
+import { FX, SpeedShader } from './fx.js?v=93';
+import * as AU from './audio.js?v=93';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1292,6 +1292,29 @@ function collectedHTML(r) {
 }
 const swatch = team => `<span class="sw" style="background:${team.css}"></span>`;
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// ================= 表彰: 1 位のだんじりを 3D でくるくる（紙吹雪・歓声）→ 結果 =================
+let podiumT = 0;
+function podium(w) {
+  const done = () => {
+    clearTimeout(podiumT); podiumT = 0;
+    $('podium').classList.add('hidden'); document.querySelector('#showcase .sc-bar').classList.remove('hidden'); document.querySelector('#showcase .sc-hint').classList.remove('hidden');
+    if (SC.podium) { SC.podium = false; if (SC.on) showcaseOpen(false); }
+    if (state !== 'result') { $('result').classList.add('hidden'); return; }   // 表彰中に次のレースが始まった
+    $('result').classList.remove('hidden'); $('result').scrollTop = 0;
+  };
+  if (!w || !racers.includes(w)) { done(); return; }
+  $('result').classList.add('hidden');
+  SC.podium = true; showcaseOpen(true); $('result').classList.add('hidden');
+  SC.i = racers.indexOf(w); SC.yaw = Math.PI * 0.8; SC.pitch = 0.24; SC.dist = 19; SC.auto = true;
+  document.querySelector('#showcase .sc-bar').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.add('hidden');
+  $('pdName').innerHTML = `${swatch(w.team)}${esc(w === player && mode === 'online' ? myName : w.name)}`;
+  $('podium').classList.remove('hidden');
+  const v = w.vis;
+  for (let k = 0; k < 4; k++) setTimeout(() => { if (SC.podium) fx.burst('confetti', v.x + (Math.random() - 0.5) * 6, v.y + 8, v.z + (Math.random() - 0.5) * 6, 90, { speed: 7, up: 7, life: 3.5 }); }, k * 900);
+  AU.cheer(0.9, 4);
+  podiumT = setTimeout(done, 5200);
+  $('podium').onclick = done;
+}
 function showSoloResult() {
   state = 'result'; AU.stopMusic();
   $('hud').classList.add('hidden'); $('touch').classList.add('hidden');
@@ -1307,7 +1330,7 @@ function showSoloResult() {
   else $('resNew').textContent = L(`ベスト ${fmt(best)}`, `Best ${fmt(best)}`);
   $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
   $('retryBtn').classList.remove('hidden'); setT($('nextInfo'), ''); showChat(false);
-  $('result').classList.remove('hidden'); $('result').scrollTop = 0;
+  podium(order[0]);   // 1 位のだんじりを表彰してから結果
 }
 
 // プルダウン: 選んでいる項目だけ 1 行で見せ、押すと一覧が開く（各ボタンの onclick を包む）
@@ -1859,7 +1882,7 @@ function showGhostResult() {
   $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
   $('retryBtn').classList.add('hidden');
   updateNextInfo();
-  $('result').classList.remove('hidden'); $('result').scrollTop = 0;
+  podium(rows[0] && rows[0].t != null ? rows[0].r : null);
 }
 function netVis() { return { x: 0, y: 0, z: 0, yaw: 0, roll: 0, pitch: 0, vx: 0, vz: 0, speed: 0, vF: 0, air: false, crashT: 0, tipped: false, boosting: false, drift: false, slip: 0, steerIn: 0, w: 0, prog: SIM.START_S, si: -1 }; }
 function chatClear() { NET.chat = []; renderChat(); roomsOpen(false); }   // 試合ごとにチャットはまっさら
@@ -1958,7 +1981,7 @@ function showOnlineResult(m) {
   else { $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest(); }
   $('retryBtn').classList.add('hidden');
   updateNextInfo();
-  $('result').classList.remove('hidden'); $('result').scrollTop = 0;
+  podium(racers.find(r => r.id === m.list[0]?.id));
 }
 function startOnline() {
   document.activeElement?.blur?.();
@@ -2042,6 +2065,14 @@ function setupTitle() {
 
 // ================= メインループ =================
 let acc = 0, last = performance.now(), gameTime = 0, lastCount = 99, debugAuto = false, debugInp = null;
+// ゴール後: 線の先（スタートラインより先）まで走り抜けてから、100 m あたりで止まる
+function afterGoal(r, inp) {
+  const past = r.car.prog - goalS();
+  inp.boost = false;
+  if (past < 60) inp.throttle = Math.min(inp.throttle, 0.8);
+  else if (past < 100) inp.throttle *= 0.3;
+  else { inp.throttle = 0; inp.brake = 1; }
+}
 function step(dt) {
   const racing = state === 'race' || state === 'finish' || state === 'result';
   if (!racing) return;
@@ -2050,10 +2081,10 @@ function step(dt) {
     let inp;
     if (r.kind === 'me' && debugInp) inp = { ...debugInp };
     else if (r.kind === 'me' && state === 'race' && !r.finished && !debugAuto) { inp = readInput(dt); if (r.rushT > 0) inp.boost = true; }   // お神酒: しばらく自動でソーリャ
-    else if (r.kind === 'me') inp = SIM.aiInput(r.car, course, r.autoAI || (r.autoAI = SIM.makeAI(2)), dt);
+    else if (r.kind === 'me') { inp = SIM.aiInput(r.car, course, r.autoAI || (r.autoAI = SIM.makeAI(2)), dt); if (r.finished) afterGoal(r, inp); }
     else inp = SIM.aiInput(r.car, course, r.ai, dt);
     // ゴール後の CPU: 線の先（スタートラインより先）まではそのまま進んでから、ゆっくりに
-    if (r.finished && r.kind === 'cpu') { const past = r.car.prog - goalS(); inp.throttle *= past < 60 ? 0.85 : 0.35; inp.boost = false; }
+    if (r.finished && r.kind === 'cpu') afterGoal(r, inp);
     const wasBoost = r.car.boosting;
     const ev = SIM.stepCar(r.car, inp, dt, course);
     handleEvents(r, ev);
@@ -2114,7 +2145,7 @@ function frame(nowMs) {
     let n = 0;
     while (acc >= DT && n < 5) { step(DT); acc -= DT; n++; }
     if (n >= 5) acc = 0;
-    if (mode === 'online' && state === 'race') netTick(false);
+    if (mode === 'online' && (state === 'race' || state === 'finish')) netTick(false);   // ゴール後も位置を送る（走り抜ける様子が見える）
     if (state === 'finish') { resultTimer -= dt; if (resultTimer <= 0 && mode === 'solo') showSoloResult(); else if (resultTimer <= 0 && NET.ghost) showGhostResult(); }
     stats.topSpeed = Math.max(stats.topSpeed || 0, player.car.speed);
   }
