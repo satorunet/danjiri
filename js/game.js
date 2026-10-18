@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=80';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=80';
-import { buildWorld } from './world.js?v=80';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=80';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=80';
-import { FX, SpeedShader } from './fx.js?v=80';
-import * as AU from './audio.js?v=80';
+import * as SIM from './sim.js?v=81';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=81';
+import { buildWorld } from './world.js?v=81';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=81';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=81';
+import { FX, SpeedShader } from './fx.js?v=81';
+import * as AU from './audio.js?v=81';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -204,7 +204,75 @@ function makeRacer(teamIdx, slot, kind, extra = {}) {
   r.stick = { body: D.body, list: [] };
   r.ropes = [-1, 1].map(sd => ({ sd, nodes: Array.from({ length: 7 }, () => ({ x: 0, y: 0, z: 0, i: -1 })), init: false }));
   if (r.name && kind !== 'me') D.group.add(r.tag = nameTag(r.name, team.css));
+  const ic = kind === 'me' ? myIcon : extra.id != null ? NET.icons?.[extra.id] : null;
+  if (ic) setFlagIcon(r, ic);
   return r;
+}
+// ================= アイコン旗（タイトルで設定した画像を、だんじり後ろの大きな旗に） =================
+let myIcon = store.get('danjiri-icon', '') || '';
+const iconImgs = new Map();   // dataURL → 読み込んだ画像
+function setFlagIcon(r, url) {
+  const D = r.D;
+  if (D.iconFlag) { D.body.remove(D.iconFlag); D.iconFlag = null; }
+  if (!url) return;
+  const apply = img => {
+    if (D.iconFlag) D.body.remove(D.iconFlag);
+    const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+    g.fillStyle = r.team.css; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = '#f2c14e'; g.fillRect(14, 14, 228, 228);
+    g.drawImage(img, 20, 20, 216, 216);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const flag = new THREE.Group(); flag.position.set(0, 2.3, -2.25);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 4.9, 6).translate(0, 2.45, 0), new THREE.MeshBasicMaterial({ color: 0x2a1a0e }));
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf0bc3c })); knob.position.y = 4.95;
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    cloth.position.set(0.9, 3.95, 0); cloth.rotation.y = Math.PI;   // 後ろ（追いかける側）から見える向き
+    flag.add(pole, knob, cloth); flag.userData.cloth = cloth;
+    D.body.add(flag); D.iconFlag = flag;
+  };
+  const have = iconImgs.get(url);
+  if (have) apply(have); else { const img = new Image(); img.onload = () => { iconImgs.set(url, img); if (racers.includes(r) || r.D.group.parent) apply(img); }; img.src = url; }
+}
+// 画像を真ん中で正方形に切り抜いて 128px の JPEG に
+function iconFromFile(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(img.width, img.height), c = document.createElement('canvas'); c.width = c.height = 128;
+      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 128, 128);
+      URL.revokeObjectURL(url);
+      let q = 0.85, d = c.toDataURL('image/jpeg', q); while (d.length > 20000 && q > 0.3) { q -= 0.15; d = c.toDataURL('image/jpeg', q); }
+      res(d);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+    img.src = url;
+  });
+}
+function showIconUI() {
+  $('iconImg').classList.toggle('hidden', !myIcon); if (myIcon) $('iconImg').src = myIcon;
+  $('iconDel').classList.toggle('hidden', !myIcon);
+  $('customThumb').classList.toggle('hidden', !myIcon); if (myIcon) $('customThumb').src = myIcon;
+  $('customSw').style.background = TEAMS[selTeam].css;
+}
+// だんじりカスタム: 3D でくるくる回る自分のだんじりを見ながら、町（色）と旗のアイコンを選ぶ
+// カスタム中は自分のだんじりだけ（CPU は隠す）
+function soloOnlyMe() { for (const r of racers) if (r !== player) { r.hidden = true; r.D.group.visible = false; } }
+function customOpen(on) {
+  if (on && state !== 'title') return;
+  SC.preview = on;
+  if (on) {
+    buildSolo(); soloOnlyMe(); $('title').classList.add('hidden');
+    showcaseOpen(true); $('result').classList.add('hidden'); SC.i = 0; SC.yaw = Math.PI * 0.85; SC.pitch = 0.3; SC.dist = 14;
+    document.querySelector('#showcase .sc-bar').classList.add('hidden');
+    $('cuTeams').innerHTML = TEAMS.map((t, i) => `<button data-t="${i}" class="${i === selTeam ? 'sel' : ''}"><span class="sw" style="background:${t.css}"></span>${esc(teamName(t))}</button>`).join('');
+    $('cuTeams').querySelectorAll('button').forEach(b => b.onclick = () => { selTeam = +b.dataset.t; store.set('danjiri-team', selTeam); $('cuTeams').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); buildSolo(); soloOnlyMe(); showIconUI(); });
+    showIconUI();
+  } else {
+    showcaseOpen(false); $('result').classList.add('hidden');
+    document.querySelector('#showcase .sc-bar').classList.remove('hidden');
+    $('title').classList.remove('hidden'); buildSolo();
+  }
+  $('custom').classList.toggle('hidden', !on);
 }
 function clearRacers() {
   for (const r of racers) { scene.remove(r.D.group); r.D.group.traverse(o => { if (o.isMesh && o.geometry && o.geometry !== undefined) o.geometry.dispose?.(); }); }
@@ -218,7 +286,7 @@ function finishRoster() {
 }
 function buildSolo() {
   clearRacers();
-  const order = [selTeam, ...[0, 1, 2, 3].filter(i => i !== selTeam)];
+  const order = [selTeam, ...[0, 1, 2, 3, 4, 5, 6, 7].filter(i => i !== selTeam).slice(0, 3)];
   const slots = [1, 0, 2, 3];
   order.forEach((ti, k) => racers.push(makeRacer(ti, slots[k], k === 0 ? 'me' : 'cpu', { name: k ? `CPU ${teamName(TEAMS[ti])}` : L('あなた', 'You') })));
   player = racers[0];
@@ -1484,6 +1552,7 @@ function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (tex
 function netJoin(how, room) {
   NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   netSend({ t: 'join', name: myName, team: selTeam, v: 3, how, room }); netSend({ t: 'hold', on: holdWait });
+  if (myIcon) netSend({ t: 'icon', data: myIcon });
   renderLobby();
 }
 // 部屋えらび: 部屋番号・状況・人数を見て入る
@@ -1530,6 +1599,7 @@ function onNet(m) {
   else if (m.t === 'room') onRoom(m);
   else if (m.t === 'peek') onPeek(m);
   else if (m.t === 'rooms') renderRooms(m);
+  else if (m.t === 'icon') { (NET.icons ||= {})[m.id] = m.data; const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) setFlagIcon(r, m.data); }
   else if (m.t === 'chat') onChat(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
@@ -1794,6 +1864,15 @@ function setupTitle() {
   showHold(); $('lobbyHold').onclick = () => { holdWait = !holdWait; store.set('danjiri-hold', holdWait ? '1' : '0'); showHold(); netSend({ t: 'hold', on: holdWait }); }; $('retryBtn').onclick = startSolo; $('titleBtn').onclick = toTitle;
   $('resumeBtn').onclick = togglePause; $('quitBtn').onclick = () => { AU.audio.ctx?.resume(); toTitle(); };
   $('nameIn').value = myName;
+  showIconUI();
+  $('iconBtn').onclick = () => $('iconFile').click();
+  $('iconFile').onchange = async () => {
+    const f = $('iconFile').files[0]; $('iconFile').value = ''; if (!f) return;
+    try { myIcon = await iconFromFile(f); store.set('danjiri-icon', myIcon); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); SC.yaw = Math.PI * 0.85; SC.auto = true; }
+    catch { alert(L('画像を読み込めませんでした', 'Could not read that image')); }
+  };
+  $('iconDel').onclick = () => { myIcon = ''; store.set('danjiri-icon', ''); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); };
+  $('customBtn').onclick = () => customOpen(true); $('cuDone').onclick = () => customOpen(false);
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
   $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');
@@ -1888,7 +1967,7 @@ function frame(nowMs) {
   if (state === 'race' || state === 'finish' || state === 'watch') for (const r of racers) if (!r.ghost) snagSpans(r);
   // 見た目
   crowd.begin(); ropeIdx = 0; cordIdx = 0;
-  for (const r of racers) { updateVisual(r, sdt, t); if (r.ghost) continue; updateCrew(r, sdt, t); addDaiku(r); updateTangle(r, sdt); }
+  for (const r of racers) { if (r.hidden) continue; updateVisual(r, sdt, t); if (r.ghost) continue; updateCrew(r, sdt, t); addDaiku(r); updateTangle(r, sdt); }
   crowd.end();
   cordMesh.count = cordIdx; cordMesh.instanceMatrix.needsUpdate = true;
   ropeMesh.count = ropeIdx; ropeMesh.instanceMatrix.needsUpdate = true;

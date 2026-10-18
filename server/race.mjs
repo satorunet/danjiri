@@ -148,6 +148,9 @@ class Room {
     const used = new Set([...this.players.values()].map(q => q.team));
     p.team = !used.has(wantTeam) && wantTeam >= 0 && wantTeam < this.max ? wantTeam : [0, 1, 2, 3, 4, 5, 6, 7].find(t => !used.has(t));
     this.players.set(p.id, p);
+    // アイコン旗: 新しく来た人には部屋のみんなの分を、みんなには新しい人の分を
+    for (const q of this.players.values()) if (q !== p && q.icon) send(p, { t: 'icon', id: q.id, data: q.icon });
+    if (p.icon) for (const q of this.players.values()) if (q !== p) send(q, { t: 'icon', id: p.id, data: p.icon });
     this.updateHold(false);
     if (this.phase === 'wait') {
       const now = Date.now();
@@ -327,6 +330,15 @@ wss.on('connection', (ws, req) => {
         if (!room || !text || now - (p.lastChat || 0) < 1500) break;
         p.lastChat = now;
         room.broadcast({ t: 'chat', id: p.id, name: p.name, team: p.team, text });
+        break;
+      }
+      case 'icon': { // だんじりの旗に出すアイコン（128px の JPEG、20 KB まで）
+        const d = typeof m.data === 'string' ? m.data : '';
+        if (!d.startsWith('data:image/jpeg;base64,') || d.length > 28000) break;
+        const buf = Buffer.from(d.slice(23), 'base64');
+        if (buf.length < 200 || buf[0] !== 0xff || buf[1] !== 0xd8) break;
+        p.icon = d;
+        if (room) for (const q of room.players.values()) if (q !== p) send(q, { t: 'icon', id: p.id, data: d });
         break;
       }
       case 'hold': p.hold = !!m.on; if (room) room.updateHold(); break;

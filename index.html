@@ -120,6 +120,22 @@
   .rp-row .rp-st small { color: var(--muted); }
   .rp-row button { flex: none; font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(255,246,228,0.08); color: var(--paper); cursor: pointer; }
   #roomPick .rp-new { display: block; margin: 8px auto 0; font-size: 14px; padding: 6px 16px; }
+  .icon-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; }
+  .icon-row .go { margin: 0; font-size: 15px; padding: 6px 14px; display: inline-flex; align-items: center; gap: 6px; }
+  .icon-row .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  .icon-row .icon-img { width: 24px; height: 24px; border-width: 1px; border-radius: 5px; }
+  #custom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; justify-content: center; padding: 0 10px 12px; pointer-events: none; }
+  #custom .cu-card { pointer-events: auto; width: min(460px, 100%); background: rgba(18,12,36,0.92); border: 2px solid var(--gold-deep); border-radius: 16px; padding: 10px 12px; text-align: center; }
+  #custom .cu-label { font-size: 12px; font-weight: 900; color: var(--muted); letter-spacing: .1em; margin-top: 4px; }
+  #custom .cu-teams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 4px 0 6px; }
+  #custom .cu-teams button { font: inherit; font-size: 13px; padding: 5px 2px; border-radius: 8px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
+  #custom .cu-teams button.sel { border-color: var(--gold); background: rgba(242,193,78,0.18); }
+  #custom .cu-teams .sw { width: 14px; height: 14px; border-radius: 3px; }
+  #custom .cu-icon { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0; }
+  #custom .cu-icon .go { margin: 0; font-size: 14px; padding: 6px 12px; }
+  #custom .cu-note { font-size: 11px; color: var(--muted); margin: 2px 0 6px; }
+  #custom #cuDone { margin: 2px 0 0; padding: 8px 28px; }
+  .icon-img { width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--gold); object-fit: cover; }
   #lobbyChoice .lc-note { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   #showcase { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
   #showcase .sc-hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,6,24,0.7); padding: 6px 14px; border-radius: 16px; font-size: 13px; font-weight: 700; }
@@ -329,6 +345,7 @@
     <div id="step1">
       <div class="label" data-en="NAME">名 前</div>
       <input class="name" id="nameIn" maxlength="12" placeholder="名前を入れてや" data-en-ph="Your name" autocomplete="off">
+      <div class="icon-row"><button class="go ghost" id="customBtn"><span class="sw" id="customSw"></span><img id="customThumb" class="icon-img hidden" alt=""><span data-en="🏮 Customize">🏮 だんじりカスタム</span></button></div>
       <div class="label" data-en="GRAPHICS">画 質</div><div class="choices" id="qSel"><button data-q="high" data-en="High">高画質</button><button data-q="low" data-en="Light">軽量</button></div>
       <div class="mode-row">
         <button class="go" id="soloBtn" data-en="Solo">ひとりで</button><button class="go online" id="onlineBtn"><span data-en="Online">みんなで</span><small class="online-now" id="onlineNow"></small></button>
@@ -411,6 +428,16 @@
 </div>
 <div id="watchBar" class="hidden"><button class="go ghost" id="wbPrev">◀</button><span id="wbName"></span><button class="go ghost" id="wbNext">▶</button><button class="go ghost" id="wbQuit" data-en="Leave">やめる</button></div>
 <div id="replayBar" class="hidden"><span id="rpName"></span><button class="go ghost" id="rpStop" data-en="Stop">やめる</button></div>
+<div id="custom" class="hidden">
+  <div class="cu-card">
+    <div class="cu-label" data-en="TOWN COLOR">町（色）</div>
+    <div class="cu-teams" id="cuTeams"></div>
+    <div class="cu-label" data-en="FLAG ICON">旗のアイコン</div>
+    <div class="cu-icon"><img id="iconImg" class="icon-img hidden" alt=""><button class="go ghost" id="iconBtn" data-en="🖼 Pick image">🖼 画像をえらぶ</button><button class="go ghost hidden" id="iconDel" data-en="Remove">はずす</button><input type="file" id="iconFile" accept="image/*" hidden></div>
+    <div class="cu-note" data-en="Your icon flies on the flag behind your danjiri, for everyone in online races.">アイコンはだんじり後ろの旗に出て、オンラインでみんなに見えます</div>
+    <button class="go" id="cuDone" data-en="Done!">できた!</button>
+  </div>
+</div>
 <div id="showcase" class="hidden">
   <div class="sc-hint" data-en="Drag to rotate · scroll / pinch to zoom">ドラッグで回す・ホイール / 2本指でズーム</div>
   <div class="sc-bar">
@@ -432,6 +459,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=80"></script>
+<script type="module" src="js/game.js?v=81"></script>
 </body>
 </html>
