@@ -1,8 +1,8 @@
 // ステージ: 日本の町（昼・夜）と、だんじりが絶対に来なさそうな場所（パリ・NY タイムズスクエア・ギザ）
 // ここには見た目の材料（空の色・壁の模様・看板・名所・小物の形）だけを置く。コースの形と物理はどのステージも同じ。
 import * as THREE from 'three';
-import { toon, withOutline, canvasTex, col, FONT, pick } from './gfx.js?v=156';
-import { merge } from './models.js?v=156';
+import { toon, withOutline, canvasTex, col, FONT, pick } from './gfx.js?v=161';
+import { merge } from './models.js?v=161';
 
 // ステージ（場所）と時間（昼・夜）は別々に選ぶ。ステージ ID は「場所-時間」（例: paris-night）
 export const PLACES = { jp: '日本：岸和田', paris: 'パリ：凱旋門', ny: 'NY：タイムズスクエア', giza: 'ギザ：ピラミッド', venice: 'ベネチア：大運河' };
@@ -522,16 +522,38 @@ export const THEME_PROPS = {
   hotdog: { r: 1.0, mass: 0.5, geo: () => merge([col(box(1.6, 0.9, 0.9, 0, 0.75, 0), 0xc8ccd0), col(box(1.62, 0.12, 0.92, 0, 1.25, 0), 0x8a8e94), ...[-0.6, 0.6].map(x => col(T(new THREE.CylinderGeometry(0.25, 0.25, 0.1, 12).rotateX(Math.PI / 2), x, 0.3, 0.5), 0x222222)),
     col(cyl(0.03, 0.03, 1.6, 6, 0, 2.0, 0), 0x666666), col(T(new THREE.ConeGeometry(1.1, 0.45, 8, 1, true), 0, 2.8, 0), 0x2a6ad8), col(T(new THREE.ConeGeometry(1.12, 0.2, 8, 1, true), 0, 2.62, 0), 0xf2c11c), col(box(1.0, 0.25, 0.04, 0, 0.9, 0.46), 0xd8261c)]) },
   hydrant: { r: 0.35, mass: 0.4, geo: () => hydrantGeo() },
-  camel: { r: 1.2, mass: 0.8, geo: () => {
-    const c = 0xc9955a, d = 0xa8763e;
-    const g = [col(T(new THREE.SphereGeometry(0.75, 12, 9).scale(1, 0.75, 1.5), 0, 1.75, 0), c), col(T(new THREE.SphereGeometry(0.45, 10, 8).scale(1, 1.1, 1.2), 0, 2.35, -0.1), d)];
-    for (const [x, z] of [[-0.35, 0.75], [0.35, 0.75], [-0.35, -0.75], [0.35, -0.75]]) g.push(col(cyl(0.11, 0.08, 1.5, 6, x, 0.75, z), c));
-    g.push(col(strut(new THREE.Vector3(0, 1.9, 1.0), new THREE.Vector3(0, 2.8, 1.6), 0.2, 0.14, 8), c), col(T(new THREE.BoxGeometry(0.32, 0.3, 0.7), 0, 2.85, 1.85), c));
-    g.push(col(box(0.9, 0.12, 0.9, 0, 2.05, 0.4), 0xb8282a), col(box(0.92, 0.1, 0.92, 0, 2.0, 0.4), 0xf2c14e));
+  camel: { r: 1.2, mass: 0.8, geo: () => { // ひとこぶらくだ: 長い脚にこぶ、S 字の首、房飾りの鞍掛け
+    const c = 0xc9955a, d = 0xb07d45, l = 0xd8ac72, V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const g = [col(T(new THREE.SphereGeometry(0.7, 14, 10).scale(0.8, 0.7, 1.45), 0, 1.85, 0), c), col(T(new THREE.SphereGeometry(0.55, 14, 10).scale(0.85, 1.0, 1.25), 0, 2.32, -0.05), d)];
+    // 脚: もも → ひざ → ひづめ（細く長く）
+    for (const [x, z] of [[-0.3, 0.72], [0.3, 0.72], [-0.3, -0.72], [0.3, -0.72]]) {
+      const k = V(x, 0.85, z + (z > 0 ? 0.06 : -0.06));
+      g.push(col(strut(V(x, 1.65, z), k, 0.15, 0.09, 8), c), col(strut(k, V(x, 0.08, z), 0.08, 0.065, 8), l), col(sph(0.1, k.x, k.y, k.z, 8, 6), l), col(cyl(0.12, 0.13, 0.08, 10, x, 0.04, z), 0x5a4030));
+    }
+    // 首: 胸から前下へ下りて、上へ持ち上がる
+    const n = [V(0, 2.0, 0.95), V(0, 1.75, 1.55), V(0, 2.3, 1.98), V(0, 2.75, 2.05)];
+    for (let k = 0; k < 3; k++) g.push(col(strut(n[k], n[k + 1], 0.22 - k * 0.04, 0.18 - k * 0.04, 8), c), col(sph(0.18 - k * 0.04, n[k + 1].x, n[k + 1].y, n[k + 1].z, 8, 6), c));
+    // 頭: 細長い鼻づら・耳・目・赤い面繋
+    g.push(col(T(new THREE.SphereGeometry(0.2, 12, 9).scale(0.85, 0.8, 2.0), 0, 2.82, 2.32), c), col(sph(0.1, 0, 2.76, 2.68), l));
+    for (const x of [-0.1, 0.1]) g.push(col(T(new THREE.ConeGeometry(0.05, 0.14, 6), x, 3.0, 2.12), d), col(sph(0.035, x * 1.45, 2.88, 2.3, 6, 5), 0x111111));
+    g.push(col(T(new THREE.TorusGeometry(0.17, 0.025, 4, 12), 0, 2.8, 2.5), 0xd8261c), col(strut(V(0, 2.65, 2.55), V(0, 2.2, 2.3), 0.015, 0.015, 4), 0xd8261c));
+    // しっぽ（先に房）
+    g.push(col(strut(V(0, 1.95, -1.35), V(0, 1.25, -1.48), 0.05, 0.035, 6), d), col(sph(0.07, 0, 1.2, -1.48, 6, 5), 0x5a4030));
+    // 鞍掛け: こぶにかける赤い布（金の縁と房飾り）と鞍
+    for (const x of [-0.6, 0.6]) {
+      g.push(col(T(new THREE.BoxGeometry(0.05, 0.6, 0.95).rotateZ(-Math.sign(x) * 0.22), x, 2.0, 0.05), 0xb8282a), col(T(new THREE.BoxGeometry(0.055, 0.08, 0.97).rotateZ(-Math.sign(x) * 0.22), x * 1.1, 1.72, 0.05), 0xf2c14e));
+      for (let k = 0; k < 4; k++) g.push(col(sph(0.06, x * 1.12, 1.6, -0.35 + k * 0.27, 6, 5), [0x2a6ad8, 0xf2c14e, 0x2ab86a, 0xe86a3a][k]));
+    }
+    g.push(col(T(new THREE.SphereGeometry(0.42, 12, 8).scale(1.1, 0.35, 1.2), 0, 2.86, -0.05), 0x8a2a8a), col(box(0.08, 0.3, 0.08, 0, 3.0, 0.4), 0x6a4a2a), col(box(0.08, 0.26, 0.08, 0, 2.98, -0.5), 0x6a4a2a));
     return merge(g);
   } },
   pot: { r: 0.45, mass: 0.3, geo: () => { const p = [[0.12, 0], [0.32, 0.12], [0.42, 0.45], [0.36, 0.78], [0.18, 0.95], [0.2, 1.08], [0.24, 1.12]].map(([r, y]) => new THREE.Vector2(r, y)); return merge([col(new THREE.LatheGeometry(p, 14), 0xb8603a), col(cyl(0.43, 0.43, 0.08, 14, 0, 0.45, 0), 0x3a2a8a)]); } },
   gondola: { r: 1.7, mass: 0.7, geo: () => gondolaGeo().scale(0.62, 0.62, 0.62) },
+  // 横切る大きなゴンドラ（実物大・縞シャツにカンカン帽の漕ぎ手つき）
+  biggondola: { r: 2.4, mass: 1.2, geo: () => merge([gondolaGeo(),
+    col(box(0.34, 0.75, 0.24, 0, 1.45, -3.9), 0x1a1a22), col(box(0.5, 0.62, 0.32, 0, 2.12, -3.9), 0xffffff), ...[0, 1, 2].map(k => col(box(0.52, 0.09, 0.34, 0, 1.92 + k * 0.2, -3.9), 0x1a3a8a)),
+    col(sph(0.2, 0, 2.62, -3.9), 0xe8b890), col(cyl(0.34, 0.34, 0.04, 14, 0, 2.8, -3.9), 0xe8d08a), col(cyl(0.2, 0.2, 0.16, 12, 0, 2.88, -3.9), 0xe8d08a), col(cyl(0.205, 0.205, 0.05, 12, 0, 2.84, -3.9), 0x1a3a8a),
+    col(T(new THREE.BoxGeometry(0.08, 0.08, 3.6).rotateX(0.75), 0.5, 1.5, -4.6), 0x8a6a42)]) },
   canoe: { r: 1.2, mass: 0.3, geo: () => canoeGeo(pick([0xe8261c, 0xf2c11c, 0x2a8ad8, 0x2ab86a])) },
   stall: { r: 1.1, mass: 0.5, geo: () => { const c = pick([0xb8282a, 0x2a5ab0, 0xe8b42a, 0x2a8a5a]); return merge([col(box(1.8, 0.8, 0.9, 0, 0.4, 0), 0x8a6a42), ...[[-0.85, -0.4], [0.85, -0.4], [-0.85, 0.4], [0.85, 0.4]].map(([x, z]) => col(box(0.06, 2.2, 0.06, x, 1.1, z), 0x6a4a2a)), col(T(new THREE.BoxGeometry(2.1, 0.08, 1.4).rotateX(0.2), 0, 2.25, 0.1), c), ...[-0.5, 0, 0.5].map((x, k) => col(sph(0.18, x, 0.95, 0.1), [0xf2c14e, 0xe86a3a, 0x6a8a2a][k]))]); } },
 };
@@ -544,7 +566,7 @@ export const THEME_PROP_SETS = {
   giza: { side: { mod: ['camel', 'pot', 'stall', 'crate'], old: ['camel', 'pot', 'stall'] }, pile: ['pot', 'crate'], works: false },
 };
 export const THEME_PROP_NAMES = { kids: ['登校中の小学生', 100], dogwalk: ['犬の散歩', 80], takuhai: ['宅配トラック', 3000], velib: ['シェア自転車', 150], van: ['配達のバン', 2200], courier: ['自転車の配達員', 90], microbus: ['乗り合いバス', 2600], cargoboat: ['荷物運びの船', 3000], policeboat: ['警察の船', 2000], sumo: ['お相撲さん', 180], kei: ['軽トラ', 700], yaki: ['焼き芋屋のリヤカー', 120], deer: ['鹿', 60], mime: ['パントマイム芸人', 60], poodle: ['プードルとマダム', 70], scooter: ['スクーター', 130],
-  schoolbus: ['スクールバス', 11000], limo: ['リムジン', 4000], donkey: ['ロバの荷車', 300], mummy: ['ミイラ', 40], tourbus: ['観光バス', 13000], watertaxi: ['水上タクシー', 2500], carnival: ['仮面の踊り手', 65], swan: ['白鳥', 10], mikoshi: ['神輿', 1000], petite: ['フランスの小型車', 600], firetruck: ['消防車', 12000], tuktuk: ['トゥクトゥク', 350], vaporetto: ['水上バス', 30000], jpolice: ['パトカー', 1400], police: ['パトカー', 1500], steam: ['蒸気の煙突', 60], gondola: ['ゴンドラ', 600], canoe: ['カヌー', 30], cafe: ['カフェのテーブル', 25], barrel: ['ワイン樽', 120], taxi: ['イエローキャブ', 1400], hotdog: ['ホットドッグ屋台', 200], hydrant: ['消火栓', 90], camel: ['らくだ', 500], pot: ['つぼ', 15], stall: ['屋台', 80] };
+  schoolbus: ['スクールバス', 11000], limo: ['リムジン', 4000], donkey: ['ロバの荷車', 300], mummy: ['ミイラ', 40], tourbus: ['観光バス', 13000], watertaxi: ['水上タクシー', 2500], carnival: ['仮面の踊り手', 65], swan: ['白鳥', 10], mikoshi: ['神輿', 1000], petite: ['フランスの小型車', 600], firetruck: ['消防車', 12000], tuktuk: ['トゥクトゥク', 350], vaporetto: ['水上バス', 30000], jpolice: ['パトカー', 1400], police: ['パトカー', 1500], steam: ['蒸気の煙突', 60], gondola: ['ゴンドラ', 600], biggondola: ['ゴンドラ', 600], canoe: ['カヌー', 30], cafe: ['カフェのテーブル', 25], barrel: ['ワイン樽', 120], taxi: ['イエローキャブ', 1400], hotdog: ['ホットドッグ屋台', 200], hydrant: ['消火栓', 90], camel: ['らくだ', 500], pot: ['つぼ', 15], stall: ['屋台', 80] };
 
 // ================= 名所 =================
 const stoneMat = (c = '#e8dcbc', c2 = '#cbbd98') => toon({ map: canvasTex(256, 256, (g, w, h) => { g.fillStyle = c; g.fillRect(0, 0, w, h); noise(g, w, h, 5000, 0.18, ['#000', '#fff']); g.fillStyle = c2; for (let y = 0; y < h; y += 32) { g.fillRect(0, y, w, 3); for (let x = (y / 32) % 2 * 32; x < w; x += 64) g.fillRect(x, y, 3, 32); } }, { repeat: true }) });

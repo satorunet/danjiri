@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=156';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=156';
-import { buildWorld } from './world.js?v=156';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=156';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=156';
-import { FX, SpeedShader } from './fx.js?v=156';
-import * as AU from './audio.js?v=156';
+import * as SIM from './sim.js?v=161';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=161';
+import { buildWorld } from './world.js?v=161';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=161';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=161';
+import { FX, SpeedShader } from './fx.js?v=161';
+import * as AU from './audio.js?v=161';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -782,14 +782,22 @@ function updateHappenings(dt) {
   if (state !== 'race' || !player) return;
   const c = player.car, CL = course.L, now = performance.now();
   for (const p of world.movers || []) {
-    const mv = p.mover; if (mv.on || !p.alive || p.pc.st) continue;
-    const ds = ((mv.s - c.s) % CL + CL) % CL;
-    if (ds > 22 && ds < 62) {
-      // 近づくたびに半分の確率で出てくる（毎回は出ない）
+    const mv = p.mover;
+    // 道に入ってきたら知らせる
+    if (mv.on && !mv.said && Math.abs(mv.lat) < SIM.WALL + 1) { mv.said = true; if (now - happenMsgT > 1500) { happenMsgT = now; message(L(`${mv.name}が横切る!`, `${tn(mv.name)} crossing!`), 'bad', true); if (p.type === 'police' || p.type === 'jpolice') AU.sfx('siren'); } }
+    if (mv.on || !p.alive || p.pc.st || mv.g[0] !== p) continue;   // 隊列は先頭が決める
+    const ds = ((mv.s - c.s) % CL + CL) % CL, v = Math.max(c.v, 6);
+    // だんじりが着く頃に道のまん中あたりへ来るよう、遅いもの（らくだ等）ほど早めに歩き出す
+    const far = Math.abs(mv.lat) - 3, reach = Math.min(240, Math.max(60, v * far / mv.speed));
+    if (ds > 24 && ds < reach) {
+      // 近づくたびに 7 割の確率で出てくる（毎回は出ない）
       const pass = Math.floor(c.prog / CL) + ':' + Math.round(mv.s);
       if (mv.pass === pass) continue;
-      mv.pass = pass; if (Math.random() < 0.5) continue;
-      mv.on = true; if (now - happenMsgT > 1500) { happenMsgT = now; message(L(`${mv.name}が横切る!`, `${tn(mv.name)} crossing!`), 'bad', true); if (p.type === 'police' || p.type === 'jpolice') AU.sfx('siren'); } }
+      mv.pass = pass; if (Math.random() < 0.3) continue;
+      // 間に合わない分は、人垣のすぐ外まで寄せてから歩き出す（遠くなので見えない）
+      const start = clamp(3 + mv.speed * ds / v, SIM.WALL + 1, Math.abs(mv.lat)), side = Math.sign(mv.lat);
+      for (const q of mv.g) if (q.alive && !q.pc.st) { q.mover.lat = side * (start + q.mover.gap); q.mover.on = true; q.mover.said = false; }
+    }
   }
   for (const t of world.traps || []) {
     t.cool -= dt;
@@ -1351,7 +1359,7 @@ function collectedHTML(r, weigh = false) {
   const list = [...groups.entries()].sort((a, b) => weigh ? a[1].kg - b[1].kg : b[1].kg - a[1].kg);   // 計量は軽いものから順に台へ
   let cards = '';
   collGroups = list.map(([name, g]) => ({ name, ...g }));
-  for (const [name, g] of list) { let src = ''; try { src = thumbOf(g.pc); } catch (e) { } cards += `<div class="ci${weigh ? ' wz' : ''}" title=""${esc(L('押すと、だんじりにくっついている様子を3Dで見られます', 'Tap to see it stuck on the danjiri in 3D'))}">${src ? `<img src="${src}" alt="">` : ''}${esc(tn(name))}<b>×${g.n}</b></div>`; }
+  for (const [name, g] of list) { let src = ''; try { src = thumbOf(g.pc); } catch (e) { } cards += `<div class="ci${weigh ? ' wz' : ''}" title="${esc(L('押すと、だんじりにくっついている様子を3Dで見られます', 'Tap to see it stuck on the danjiri in 3D'))}">${src ? `<img src="${src}" alt="">` : ''}${esc(tn(name))}<b>×${g.n}</b></div>`; }
   return `<div class="collHead">${L('ひっつけたもの', 'Stuck to your danjiri')}<br>${L('総量', 'Total')} <b id="collN">${weigh ? 0 : n}</b>${L('個', ' items')}・<b id="collKg">${weigh ? fmtKg(0) : fmtKg(kg)}</b><span class="wDone hidden" id="collDone">${L('計量完了!', 'WEIGHED!')}</span></div><div class="collGrid">${cards}</div>`;
 }
 // 結果画面の「ひっつけたもの」を計量: 1 種類ずつ台に載せ、数と重さを勢いよくカウントアップ（押すと最後まで飛ばす）
@@ -1389,6 +1397,7 @@ function weighIn() {
   box.onpointerdown = fin;
   cards.forEach(c => c.querySelector('b').textContent = '×0');
   const step = now => {
+    if ($('result').classList.contains('hidden')) { cancelAnimationFrame(weighRAF); weighRAF = 0; box.onpointerdown = null; return; }   // 結果画面を離れたら、音も飛ぶ絵も止める
     const u = uAt(Math.max(0, now - t0));
     if (u >= G.length) { fin(); return; }
     // 量っている札は薄く出し、量り終わった札から順にポンと入る
@@ -1418,7 +1427,7 @@ function weighFly(card) {
 const swatch = team => `<span class="sw" style="background:${team.css}"></span>`;
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // ================= いいね!: 表彰の間、TikTok のように超連打できる（押しっぱなしでも連射）。押すと 👍 がふわふわ飛ぶ（オンラインは部屋のみんなにも飛ぶ） =================
-const LIKE = { to: null, counts: new Map(), q: 0, qTo: null, t: 0, live: 0, combo: 0, comboT: 0, hold: 0 };
+const LIKE = { to: null, counts: new Map(), q: new Map(), t: 0, live: 0, combo: 0, comboT: 0, hold: 0 };
 const LIKE_ICONS = ['👍', '👍', '👍', '✨', '🎉', '🏮', '💯', '🔥'];
 function likeFloat(n, from = $('pdLike')) {   // from: 飛ばし始めるボタン（null なら画面の右下あたりから）
   const fromBtn = !!from, b = from && from.getBoundingClientRect(), layer = $('likeLayer');
@@ -1452,7 +1461,7 @@ function likeOnce(to, b) {
   if (onPd) { setT(cb, `×${LIKE.combo}`); cb.classList.add('on'); cb.classList.remove('pop'); void cb.offsetWidth; cb.classList.add('pop'); }
   LIKE.comboT = setTimeout(() => { LIKE.combo = 0; cb.classList.remove('on'); }, 900);
   likeFloat(1 + (LIKE.combo % 10 === 0 ? 4 : 0), b); AU.sfx('like', LIKE.combo);
-  if (mode === 'online') { if (LIKE.qTo !== to) { likeFlush(); LIKE.qTo = to; } LIKE.q++; if (LIKE.q >= 30) likeFlush(); else if (!LIKE.t) LIKE.t = setTimeout(likeFlush, 350); }
+  if (mode === 'online') { LIKE.q.set(to, (LIKE.q.get(to) || 0) + 1); if (!LIKE.t) LIKE.t = setTimeout(likeFlush, 350); }
 }
 // 押した瞬間に数える（click を待たない）。押しっぱなしなら、だんだん速く連射
 function likeDown(e, b = e.currentTarget) {
@@ -1471,7 +1480,15 @@ function likeUp() { clearTimeout(LIKE.hold); LIKE.hold = 0; if (LIKE.holdEl) LIK
   for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, () => { if (LIKE.holdEl && LIKE.holdEl.classList.contains('rlk')) likeUp(); });
   t.addEventListener('contextmenu', e => { if (btn(e)) e.preventDefault(); });
 }
-function likeFlush() { clearTimeout(LIKE.t); LIKE.t = 0; if (LIKE.q && LIKE.qTo) netSend({ t: 'like', to: LIKE.qTo, n: Math.min(30, LIKE.q) }); LIKE.q = 0; }
+// 送るのは 350ms に 1 回・1 人分だけ（サーバーは 250ms 以内の連投を捨てる）。残りは次の回へ
+function likeFlush() {
+  clearTimeout(LIKE.t); LIKE.t = 0;
+  const [to, n] = LIKE.q.entries().next().value || [];
+  if (!to) return;
+  const k = Math.min(30, n); netSend({ t: 'like', to, n: k });
+  if (n > k) LIKE.q.set(to, n - k); else LIKE.q.delete(to);
+  if (LIKE.q.size) LIKE.t = setTimeout(likeFlush, 350);
+}
 // ほかの人のいいね
 function onLike(m) {
   const to = String(m.to || ''), n = Math.max(1, Math.min(30, m.n | 0));
@@ -1511,7 +1528,7 @@ function podium(order) {
     const r = seq[k], rank = list.indexOf(r) + 1, last = k === seq.length - 1;
     SC.i = racers.indexOf(r); SC.yaw = Math.PI * (0.8 + k * 0.4); SC.pitch = 0.24; SC.dist = 19; SC.auto = true; SC.focus = null;
     $('pdCup').textContent = ['🏆', '🥈', '🥉'][rank - 1];
-    likeFlush(); LIKE.to = likeKey(r); LIKE.combo = 0; $('pdCombo').classList.remove('on'); likeShow();
+    LIKE.to = likeKey(r); LIKE.combo = 0; $('pdCombo').classList.remove('on'); likeShow();
     setT($('pdTitle'), rank === 1 ? L('優 勝', 'WINNER!') : L(`${rank} 位`, `#${rank}`));
     $('pdName').innerHTML = `${swatch(r.team)}${esc(r === player && mode === 'online' ? myName : r.name)}`;
     const box = document.querySelector('#podium .pd-box'); box.classList.remove('pd-go'); void box.offsetWidth; box.classList.add('pd-go');
@@ -1604,9 +1621,10 @@ function updateMyBest() {
   const vals = { lap: player.finished ? player.finishTime / LAPS : 0, speed: stats.topSpeed * 3.6, drift: stats.bestDrift, stuck: stuckKg(player), smash: stats.smash, air: stats.maxAir };
   const up = [], gain = {}, prev = {};
   for (const [k] of RK_CATS) {
-    const v = vals[k]; if (!(v > 0) || (k === 'lap' && v < 20)) continue;
-    const cur = P[k], better = !cur || (k === 'lap' ? v < cur.val : v > cur.val);
-    if (better) { gain[k] = cur ? (k === 'lap' ? cur.val / v - 1 : v / Math.max(0.01, cur.val) - 1) : null; prev[k] = cur ? cur.val : null; P[k] = { val: Math.round(v * 100) / 100, at: now, tod }; up.push(k); }
+    const v = Math.round(vals[k] * 100) / 100; if (!(v > 0) || (k === 'lap' && v < 20)) continue;
+    // 表示が同じ（97 km/h → 97 km/h など）なら更新にしない
+    const cur = P[k], f = RK_CATS.find(c => c[0] === k)[3], better = !cur || ((k === 'lap' ? v < cur.val : v > cur.val) && f(v) !== f(cur.val));
+    if (better) { gain[k] = cur ? (k === 'lap' ? cur.val / v - 1 : v / Math.max(0.01, cur.val) - 1) : null; prev[k] = cur ? cur.val : null; P[k] = { val: v, at: now, tod }; up.push(k); }
   }
   // 更新した部門ごとに、その時のだんじり（くっつけた物ごと）を写真と内訳で残す
   if (up.length) {
@@ -1619,7 +1637,7 @@ function updateMyBest() {
   if (up.length) {
     const PRI = ['stuck', 'smash', 'lap', 'speed', 'drift', 'air'];
     const top = [...up].sort((a, b) => ((gain[b] ?? -1) - (gain[a] ?? -1)) || PRI.indexOf(a) - PRI.indexOf(b))[0];
-    const pct = gain[top] != null ? `${L('自己ベスト', 'Personal best')} +${Math.round(gain[top] * 100)}%` : L('はじめての記録', 'First record');
+    const pct = gain[top] != null ? `${L('自己ベスト', 'Personal best')} +${gain[top] < 0.01 ? Math.max(0.1, gain[top] * 100).toFixed(1) : Math.round(gain[top] * 100)}%` : L('はじめての記録', 'First record');
     // 更新した部門ごとに、前の記録 → 今回（差）
     const diff = k => {
       const a = prev[k], b = P[k].val, f = RK_CATS.find(c => c[0] === k)[3];
@@ -2716,7 +2734,7 @@ async function boot() {
       placeAt(s, lane = 0, mode = 0) { SIM.placeCar(player.car, course, s, lane); player.car.prog = s; camMode = mode; cam.ready = false; for (const r of racers) r.ropes.forEach(o => (o.init = false)); },
       breakdown() { const out = {}; const tally = (o, k) => o.traverse(x => { if ((x.isMesh || x.isPoints || x.isLine) && x.visible && x.material && x.material.visible !== false) out[k] = (out[k] || 0) + 1; }); racers.forEach(r => tally(r.D.group, 'danjiri')); scene.children.forEach(c => { if (!racers.some(r => r.D.group === c)) tally(c, c.isInstancedMesh ? 'instanced' : c.type); }); return out; },
       SIM, course, get world() { return world; },
-      run(n, inp) { debugInp = inp; for (let i = 0; i < n; i++) { step(DT); gameTime += DT; cordIdx = 0; for (const r of racers) { updateVisual(r, DT, gameTime); hitProps(r); snagSpans(r); updateTangle(r, DT); } cordMesh.count = cordIdx; cordMesh.instanceMatrix.needsUpdate = true; world.update(DT, gameTime, camera.position, racers.map(r => r.vis)); } debugInp = null; const c = player.car; return { s: c.s | 0, u: +c.u.toFixed(1), v: +c.v.toFixed(1), roll: +c.roll.toFixed(2), stuck: player.stick.list.length, smash: stats.smash, crash: c.crashT > 0 }; }, auto(v) { debugAuto = v; }, info() { renderer.info.autoReset = true; return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r({ ...renderer.info.render, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures })))); }, get state() { return state; }, get player() { return player; }, get racers() { return racers; }, get stats() { return stats; }, get night() { return night; }, startSolo, showSoloResult, input, keys, setCam: m => { camMode = m; }, setNight: v => { night = v; applyTimeOfDay(); }, loadStage, get place() { return place; }, displayDj, djData, get cu() { return CU; } };
+      run(n, inp) { debugInp = inp; for (let i = 0; i < n; i++) { step(DT); if (state === 'race') updateHappenings(DT); gameTime += DT; cordIdx = 0; for (const r of racers) { updateVisual(r, DT, gameTime); hitProps(r); snagSpans(r); updateTangle(r, DT); } cordMesh.count = cordIdx; cordMesh.instanceMatrix.needsUpdate = true; world.update(DT, gameTime, camera.position, racers.map(r => r.vis)); } debugInp = null; const c = player.car; return { s: c.s | 0, u: +c.u.toFixed(1), v: +c.v.toFixed(1), roll: +c.roll.toFixed(2), stuck: player.stick.list.length, smash: stats.smash, crash: c.crashT > 0 }; }, auto(v) { debugAuto = v; }, info() { renderer.info.autoReset = true; return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r({ ...renderer.info.render, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures })))); }, get state() { return state; }, get player() { return player; }, get racers() { return racers; }, get stats() { return stats; }, get night() { return night; }, startSolo, showSoloResult, input, keys, setCam: m => { camMode = m; }, setNight: v => { night = v; applyTimeOfDay(); }, loadStage, get place() { return place; }, displayDj, djData, get cu() { return CU; } };
   }
 }
 boot();

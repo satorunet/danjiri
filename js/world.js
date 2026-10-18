@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import {
   toon, withOutline, atlasify, atlasAttr, canvasTex, col, colored, asphaltTex, stoneTex, tileWalkTex, gravelTex, grassTex, waterTex, plankTex,
   facadeAtlas, machiyaAtlas, roofTileTex, awningTex, signAtlas, noboriAtlas, lanternTex, shideGeo, stripeTex,
-} from './gfx.js?v=156';
-import { merge, PROP_TYPES, spectatorGeo } from './models.js?v=156';
-import * as ST from './stages.js?v=156';
-import { HALF_W, WALL, SIDE, BIN, heightS, sampleS, project, binOf, sideOf, kickAt } from './sim.js?v=156';
+} from './gfx.js?v=161';
+import { merge, PROP_TYPES, spectatorGeo } from './models.js?v=161';
+import * as ST from './stages.js?v=161';
+import { HALF_W, WALL, SIDE, BIN, heightS, sampleS, project, binOf, sideOf, kickAt } from './sim.js?v=161';
 
 // 毎回同じ町並みになるように種つき乱数
 let seed = 20261018;
@@ -809,7 +809,7 @@ export function buildWorld(scene, course, opts = {}) {
         paris: [['bike', 'パン屋の自転車', 4.5, 1], ['petite', 'フランスの小型車', 8, 1], ['velib', 'シェア自転車', 4.5, 1], ['poodle', 'プードルとマダム', 2.0, 1], ['scooter', 'スクーター', 9, 2], ['van', '配達のバン', 7, 1]],
         ny: [['taxi', 'タクシー', 10, 1], ['police', 'パトカー', 12, 1], ['courier', '自転車の配達員', 6, 1], ['schoolbus', 'スクールバス', 7, 1], ['hotdog', 'ホットドッグ屋台', 3, 1], ['firetruck', '消防車', 9, 1], ['limo', 'リムジン', 8, 1]],
         giza: [['camel', 'らくだの隊列', 2.4, 3], ['tuktuk', 'トゥクトゥク', 7, 1], ['donkey', 'ロバの荷車', 2.6, 1], ['microbus', '乗り合いバス', 7, 1], ['tourbus', '観光バス', 7, 1]],
-        venice: [['gondola', 'ゴンドラ', 3.2, 1], ['canoe', 'カヌー', 4.5, 2], ['vaporetto', '水上バス', 4, 1], ['watertaxi', '水上タクシー', 9, 1], ['cargoboat', '荷物運びの船', 3.5, 1], ['policeboat', '警察の船', 8, 1]],
+        venice: [['biggondola', 'ゴンドラ', 3.2, 1], ['canoe', 'カヌー', 4.5, 2], ['vaporetto', '水上バス', 4, 1], ['watertaxi', '水上タクシー', 9, 1], ['cargoboat', '荷物運びの船', 3.5, 1], ['policeboat', '警察の船', 8, 1]],
       }[TH];
       let k = 0;
       course.straights.forEach((st, j) => {
@@ -820,9 +820,11 @@ export function buildWorld(scene, course, opts = {}) {
           if ((j === 0 && s > bridge[0] - 14 && s < bridge[1] + 14) || Math.abs(s - 40) < 14 || course.prof.kick.some(q => Math.abs(s - q.s) < 16) || Math.abs(s - course.prof.jumpS) < 26) continue;
           const [type, name, speed, n] = MOV[k++ % MOV.length], dir = R() < 0.5 ? 1 : -1;
           sampleS(course, s, P);
+          const g = [], spd = speed * rr(0.85, 1.15);   // 隊列はそろって歩く
           for (let i = 0; i < n; i++) {
-            const lat = -dir * (WALL + 7 + i * (n > 2 ? 2.2 : 3.4));
-            W.props.push({ type, x: P.x - P.tz * lat, z: P.z + P.tx * lat, y: heightS(course, s), yaw: Math.atan2(-P.tz * dir, P.tx * dir), s, mover: { s, lat, dir, speed: speed * rr(0.85, 1.15), on: false, name, px: P.x, pz: P.z, tx: P.tx, tz: P.tz } });
+            const sp = type === 'camel' ? 3.6 : n > 2 ? 2.2 : 3.4, lat = -dir * (WALL + 7 + i * sp);   // らくだは体が長いので間をあけて一列に
+            const p = { type, x: P.x - P.tz * lat, z: P.z + P.tx * lat, y: heightS(course, s), yaw: Math.atan2(-P.tz * dir, P.tx * dir), s, mover: { s, lat, dir, speed: spd, gap: i * sp, g, on: false, name, px: P.x, pz: P.z, tx: P.tx, tz: P.tz } };
+            g.push(p); W.props.push(p);
           }
         }
       });
@@ -892,7 +894,10 @@ export function buildWorld(scene, course, opts = {}) {
       if (kind === 'quicksand') { const t = canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#c9a46a'; g.fillRect(0, 0, w, h); g.strokeStyle = '#8a6a3a'; g.lineWidth = 5; g.beginPath(); for (let a = 0; a < 26; a += 0.2) { const r = a * 2.3; g.lineTo(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r); } g.stroke(); }); return [new THREE.CircleGeometry(3.2, 28).rotateX(-Math.PI / 2), toon({ map: t })]; }
       if (kind === 'sandstorm') { const g = []; for (let i = 0; i < 8; i++) g.push(col(T(new THREE.TorusGeometry(0.6 + i * 0.35, 0.12, 4, 14).rotateX(Math.PI / 2), Math.sin(i) * 0.3, 0.4 + i * 0.7, Math.cos(i) * 0.3), i % 2 ? 0xd8b884 : 0xc9a46a)); return [merge(g), toon({ vertexColors: true, transparent: true, opacity: 0.75 })]; }
       if (kind === 'wave') return [merge([col(box(WALL * 2, 0.5, 1.6, 0, 0.1, 0), 0xe8f6ff), col(box(WALL * 2, 0.3, 1.0, 0, 0.45, 0.4), 0xffffff)]), toon({ vertexColors: true, transparent: true, opacity: 0.85 })];
-      if (kind === 'bump') { const g = []; for (let x = -WALL; x < WALL; x += 0.9) g.push(col(T(new THREE.BoxGeometry(0.8, 0.35, 0.8), x + 0.45, 0.17, 0), (x * 7 | 0) % 2 ? 0x9a968e : 0x86827a)); return [merge(g), toon({ vertexColors: true })]; }
+      if (kind === 'bump') { // 石畳の段差: 道の灰色に紛れないよう明るい石にして、手前と奥に黄色の注意線
+        const g = []; for (let x = -WALL; x < WALL; x += 0.9) g.push(col(T(new THREE.BoxGeometry(0.8, 0.45, 0.8), x + 0.45, 0.22, 0), (x * 7 | 0) % 2 ? 0xe8dcc0 : 0xc8b898));
+        for (const z of [-0.85, 0.85]) for (let x = -WALL; x < WALL; x += 1.4) g.push(col(box(0.8, 0.03, 0.22, x + 0.7, 0.015, z), 0xf2c11c));
+        return [merge(g), toon({ vertexColors: true })]; }
       if (kind === 'spray') { const g = [col(cyl(0.18, 0.22, 0.7, 10, 0, 0.35, 0), 0xd8261c), col(T(new THREE.SphereGeometry(0.16, 10, 8), 0, 0.78, 0), 0xf2c14e)]; for (let k = 0; k < 7; k++) { const t = k / 6; g.push(col(T(new THREE.SphereGeometry(0.22 + t * 0.35, 10, 8), 0, 0.6 + Math.sin(t * Math.PI) * 1.4, 0.4 + t * 3.2), 0xbfe6ff)); } g.push(col(new THREE.CircleGeometry(2.4, 20).rotateX(-Math.PI / 2).translate(0, 0.02, 2.6), 0x8ac0e0)); return [merge(g), toon({ vertexColors: true, transparent: true, opacity: 0.85 })]; }
       if (kind === 'plate') { const g = [col(box(4.2, 0.12, 3.2, 0, 0.06, 0), 0x5a5a60)]; for (let k = 0; k < 3; k++) g.push(col(box(4.2, 0.02, 0.06, 0, 0.13, -1.0 + k), 0x7a7a80)); for (const [x, z] of [[-2.6, 1.6], [2.6, 1.6], [-2.6, -1.6], [2.6, -1.6]]) g.push(col(cyl(0.05, 0.3, 0.7, 10, x, 0.35, z), 0xff6a1a), col(cyl(0.16, 0.22, 0.12, 10, x, 0.36, z), 0xf8f8f8)); return [merge(g), toon({ vertexColors: true })]; }
       if (kind === 'banana') { const g = []; for (let i = 0; i < 3; i++) { const p = new THREE.TorusGeometry(0.3, 0.07, 6, 10, 2.2); p.rotateX(Math.PI / 2); p.rotateY(i * 2.1); p.translate(0, 0.06, 0); g.push(col(p, 0xf2d21c)); } g.push(col(T(new THREE.SphereGeometry(0.06, 6, 5), 0, 0.08, 0), 0x5a4a1a)); return [merge(g), toon({ vertexColors: true })]; }
