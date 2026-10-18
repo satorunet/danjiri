@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=132';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=132';
-import { buildWorld } from './world.js?v=132';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=132';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=132';
-import { FX, SpeedShader } from './fx.js?v=132';
-import * as AU from './audio.js?v=132';
+import * as SIM from './sim.js?v=133';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=133';
+import { buildWorld } from './world.js?v=133';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=133';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=133';
+import { FX, SpeedShader } from './fx.js?v=133';
+import * as AU from './audio.js?v=133';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1375,7 +1375,7 @@ function showSoloResult() {
   if (player.finished && (!best || player.finishTime < best)) { store.set(bestKey(), player.finishTime); $('resNew').textContent = best ? L('ベストタイム更新!', 'New best time!') : L('ベストタイム記録!', 'Best time set!'); }
   else $('resNew').textContent = L(`ベスト ${fmt(best)}`, `Best ${fmt(best)}`);
   $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
-  $('retryBtn').classList.remove('hidden'); setT($('nextInfo'), ''); showChat(false);
+  $('retryBtn').classList.remove('hidden'); setNext($('nextInfo'), '', ''); showChat(false);
   podium(order);   // 3 位 → 2 位 → 1 位を表彰してから結果
 }
 
@@ -2194,10 +2194,19 @@ let holdWait = store.get('danjiri-hold', '0') === '1';
 function showHold() { const b = $('lobbyHold'); if (b) { b.textContent = `${L('だれか来るまで待つ', 'Wait for players')}：${holdWait ? 'ON' : 'OFF'}`; b.classList.toggle('on', holdWait); } }
 function updateNextInfo() {
   const m = NET.room;
-  if (!m) { setT($('nextInfo'), NET.failed ? L('接続が切れました', 'Disconnected') : ''); return; }
-  const sec = Math.max(0, Math.ceil((m.phaseEnd - serverNow()) / 1000));
-  setT($('nextInfo'), m.phase === 'wait' ? L(`次のレースは ${sec} 秒後に出発（そのまま自動で参加）`, `Next race in ${sec}s (you join automatically)`) : m.phase === 'result' ? L(`まもなく次のレースの受付… ${sec}`, `Next race opens soon… ${sec}`) : m.phase === 'race' ? L('部屋はレース中。次のレースから参加します', 'The room is racing. You join the next race') : '');
+  if (!m) { setNext($('nextInfo'), 'x' + NET.failed, NET.failed ? `<small>${L('接続が切れました', 'Disconnected')}</small>` : ''); return; }
+  const el = $('nextInfo');
+  if (m.phase === 'race') { setNext(el, 'race', `<small>${L('部屋はレース中。次のレースから参加します', 'The room is racing. You join the next race')}</small>`); return; }
+  if (m.phase !== 'wait' && m.phase !== 'result') { setNext(el, '', ''); return; }
+  // 次の試合までの秒数を大きく。次の舞台（前とは違う町）も出す
+  const sec = Math.max(0, Math.ceil(((m.nextAt || m.phaseEnd) - serverNow()) / 1000));
+  const [np, nt] = String(m.next || (m.phase === 'wait' ? '' : '')).split('-');
+  const stage = np && PLACES[np] ? placeName(np, nt === 'night') : '';
+  const held = m.phase === 'wait' && m.hold;
+  setNext(el, `${sec}|${held}|${stage}|${LANG}`, held ? `<div class="nx-t">${L('だれか来るまで待っています…', 'Waiting for someone to join…')}</div>`
+    : `<div class="nx-t">${L('次の試合まで', 'Next race in')}</div><div class="nx-n"><b>${sec}</b>${L('秒', 's')}</div>${stage ? `<div class="nx-s">${L('次の舞台', 'Next stage')}：<b>${esc(stage)}</b></div>` : ''}<small>${L('そのまま待てば自動で参加します', 'Stay here and you join automatically')}</small>`);
 }
+function setNext(el, key, html) { if (el.dataset.k === key) return; el.dataset.k = key; el.innerHTML = html; el.classList.toggle('nx-on', !!html && key !== 'race'); }
 function showOnlineResult(m) {
   if (mode !== 'online' || !NET.raceKey || !['countdown', 'race', 'finish', 'watch'].includes(state)) return;
   NET.best = m.best || NET.best;

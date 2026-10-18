@@ -124,6 +124,8 @@ const num = (v, lo, hi, d = 0) => { v = Number(v); return Number.isFinite(v) ? M
 const GHOST_SLOT = 1;
 const flagsOf = c => (c.air ? 1 : 0) | (c.crashT > 0 ? 2 : 0) | (c.boosting ? 4 : 0) | (c.drift ? 8 : 0) | (c.tipped ? 16 : 0);
 
+// 次のステージ: 前と違う町（昼夜もくじ引き）
+const pickStage = prev => { const pl = String(prev || '').split('-')[0], list = PLACES.filter(p => p !== pl); return list[Math.floor(Math.random() * list.length)] + (Math.random() < 0.5 ? '-day' : '-night'); };
 const rooms = new Set();
 let nextId = 1, nextRoom = 1;
 
@@ -133,7 +135,7 @@ class Room {
   broadcast(msg) { const d = JSON.stringify(msg); for (const p of this.players.values()) send(p, d); }
   info() {
     return {
-      t: 'room', room: this.id, phase: this.phase, phaseEnd: this.phaseEnd, startAt: this.startAt, endAt: this.firstFin ? this.firstFin + T_AFTER : 0, now: Date.now(), laps: LAPS, stage: this.stage, hold: !!this.hold,
+      t: 'room', room: this.id, phase: this.phase, phaseEnd: this.phaseEnd, startAt: this.startAt, endAt: this.firstFin ? this.firstFin + T_AFTER : 0, next: this.nextStage || '', nextAt: this.phase === 'result' ? this.phaseEnd + T_JOIN + 2000 : this.phase === 'wait' ? this.phaseEnd : 0, now: Date.now(), laps: LAPS, stage: this.stage, hold: !!this.hold,
       players: [...this.players.values()].map(p => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, racing: p.racing, fin: p.fin, ghost: p.ghost ? { start: p.ghost.start, fin: p.ghost.fin } : null })),
       cpus: this.cpus.map(c => ({ id: c.id, name: 'CPU', team: c.team, slot: c.slot, fin: c.fin, cpu: true })),
     };
@@ -192,8 +194,8 @@ class Room {
       const car = SIM.gridCar(course, slot);
       return { id: `c${this.id}_${slot}`, team: freeTeams[k], slot, car, ai: SIM.makeAI(k), fin: null };
     });
-    // ステージ（昼 / 夜）は部屋ごとにくじ引き。みんな同じ町を走る
-    this.stage = ['jp', 'paris', 'ny', 'giza', 'venice'][Math.floor(Math.random() * 5)] + (Math.random() < 0.5 ? '-day' : '-night');
+    // ステージ（昼 / 夜）は部屋ごとにくじ引き（結果発表の時に決めておく）。みんな同じ町を走る
+    this.stage = this.nextStage || pickStage(this.stage); this.nextStage = '';
     // 町の壊れ具合は部屋ごと
     this.course = { ...course, ext: [new Float32Array(course.nb), new Float32Array(course.nb)] };
     this.phase = 'race'; this.startAt = now + T_COUNT; this.phaseEnd = this.startAt + T_RACE; this.firstFin = 0; this.allDoneAt = 0;
@@ -211,6 +213,7 @@ class Room {
     for (const p of this.players.values()) { p.racing = false; p.slot = -1; }
     this.cpus = [];
     this.phase = 'result'; this.phaseEnd = now + T_RESULT;
+    this.nextStage = pickStage(this.stage);   // 次は必ず前と違う町
     this.broadcast({ t: 'result', room: this.id, list, best: topBest() });
     this.sync();
   }
