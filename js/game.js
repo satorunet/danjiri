@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=102';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=102';
-import { buildWorld } from './world.js?v=102';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=102';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=102';
-import { FX, SpeedShader } from './fx.js?v=102';
-import * as AU from './audio.js?v=102';
+import * as SIM from './sim.js?v=103';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=103';
+import { buildWorld } from './world.js?v=103';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=103';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=103';
+import { FX, SpeedShader } from './fx.js?v=103';
+import * as AU from './audio.js?v=103';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -256,21 +256,24 @@ function setFlagIcon(r, url) {
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     // 交差旗: だんじりの後ろに 2 本、根元で交差させて左右へ開く（後ろ＝追いかける側から見える向き）
     const flag = new THREE.Group(); flag.position.set(0, 2.3, -1.72); flag.rotation.x = -0.3; flag.scale.setScalar(0.72);   // だんじりの後ろの手すりの内側（床）から竿を立て、屋根の後ろを通るよう少し後ろへ倒す
-    const clothMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true });
+    const clothMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true }), flags = [];
     const poleMat = new THREE.MeshBasicMaterial({ color: 0x2a1a0e }), knobMat = new THREE.MeshBasicMaterial({ color: 0xf0bc3c });
     for (const sx of [-1, 1]) {
       // 根元は左右に離し、内へ傾けて竿の途中（高さ 2.5 m あたり）で X に交差。上の旗どうしは近く
       // 持ち手（竿の下半分）が「×」になる: 根元を左右に離して内へ倒し、1.4 m あたりで交差
       // 交差旗（✕）: 竿 2 本が下のほうで交差し、それぞれの竿の先に旗。旗は外へ向かってなびく
-      const lean = 0.5;
-      const arm = new THREE.Group(); arm.position.set(-sx * 0.6, 0, sx * 0.06); arm.rotation.z = -sx * lean;
+      const lean = 0.25;   // 開きは控えめに（旗がだんじりの幅に収まるように）
+      const arm = new THREE.Group(); arm.position.set(-sx * 0.45, 0, sx * 0.06); arm.rotation.z = -sx * lean;
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 5.2, 6).translate(0, 2.6, 0), poleMat);   // 長めの竿で旗を屋根より上へ
       const knob = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), knobMat); knob.position.y = 5.25;
-      const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.95), clothMat);
-      cloth.position.set(sx * 0.62, 4.65, 0); cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）   // 布はまっすぐ立つように傾きを戻す
-      arm.add(pole, knob, cloth); flag.add(arm);
+      // 大きめの旗。竿側を固定して、外へ行くほどはためく（frame のはためき）
+      const W = 1.35, H = 1.1, geo = new THREE.PlaneGeometry(W, H, 10, 4);
+      const cloth = new THREE.Mesh(geo, clothMat);
+      cloth.position.set(sx * W / 2, 4.62, 0); cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）
+      cloth.userData.base = geo.attributes.position.array.slice(); cloth.userData.sx = sx; cloth.userData.W = W;
+      arm.add(pole, knob, cloth); flag.add(arm); flags.push(cloth);
     }
-    flag.userData.cloth = { material: clothMat };
+    flag.userData.cloth = { material: clothMat }; flag.userData.cloths = flags;
     D.body.add(flag); D.iconFlag = flag;
     crewTex(r);   // 法被の背中（マークが「写真」の時）
   };
@@ -2247,6 +2250,19 @@ function frame(nowMs) {
   if (state === 'race' || state === 'finish' || state === 'watch') { for (const r of racers) { if (r.ghost) continue; hitProps(r); grabReach(r); carEffects(r, sdt, camera.position); } }
   if (state === 'watch') updateWatchBar();
   updateCamera(dt, t);
+  // 交差旗のはためき（竿から離れるほど大きく波打つ。速いほど激しく）
+  for (const r of racers) {
+    const cl = r.D.iconFlag?.userData.cloths; if (!cl || r.hidden) continue;
+    const sp = Math.min(1.6, 0.5 + (r.vis.speed || 0) / 20), ph = (r.slotIdx || 0) * 1.7;
+    for (const c of cl) {
+      const pos = c.geometry.attributes.position, b = c.userData.base, W = c.userData.W;
+      for (let i = 0; i < pos.count; i++) {
+        const x = b[i * 3], y = b[i * 3 + 1], d = (x * (c.userData.sx < 0 ? 1 : -1) + W / 2) / W;   // 0 = 竿側, 1 = 先
+        pos.setZ(i, Math.sin(t * 7 * sp + d * 5 + ph + y * 1.2) * 0.16 * d * sp);
+      }
+      pos.needsUpdate = true;
+    }
+  }
   // 自分の旗はスタートの時だけ半透明（並んで出る時に前が見えるように）。走り出して 5 秒たったら元に戻す
   if (player && player.D.iconFlag) { const m = player.D.iconFlag.userData.cloth.material, want = (state === 'countdown' || (state === 'race' && raceT < 5)) && player.kind === 'me' && !SC.on ? 0.28 : 1; m.opacity += (want - m.opacity) * Math.min(1, dt * 6); m.depthWrite = m.opacity > 0.9; }
   // 名札は遠いほど少し大きく（画面上で小さくなりすぎない）
