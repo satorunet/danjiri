@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=118';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=118';
-import { buildWorld } from './world.js?v=118';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=118';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=118';
-import { FX, SpeedShader } from './fx.js?v=118';
-import * as AU from './audio.js?v=118';
+import * as SIM from './sim.js?v=119';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=119';
+import { buildWorld } from './world.js?v=119';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=119';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=119';
+import { FX, SpeedShader } from './fx.js?v=119';
+import * as AU from './audio.js?v=119';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -355,6 +355,7 @@ function cropDone(use) {
 }
 function showIconUI() {
   cuSummary();
+  $('cuFlagBox')?.classList.toggle('hidden', !myIcon);   // 旗の付け方は画像をえらんでから
   $('iconImg').classList.toggle('hidden', !myIcon); if (myIcon) $('iconImg').src = myIcon;
   $('iconDel').classList.toggle('hidden', !myIcon);
   $('customThumb').classList.toggle('hidden', !myIcon); if (myIcon) $('customThumb').src = myIcon;
