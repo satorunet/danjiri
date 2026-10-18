@@ -16,7 +16,7 @@ const ROOM_MAX = 8;
 const SLOTS = [1, 2, 0, 3, 5, 6, 4, 7];   // 人が入る順のスタート位置（0〜3 前列・4〜7 後列）
 const MIN_CARS = 4;                       // 4 台に満たない分は CPU
 const LAPS = 2;
-const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 20000,   /* 1 位のゴールから 20 秒で決着 */ T_RACE = 420000, T_RESULT = 20000;
+const T_WAIT = 15000, T_JOIN = 6000, T_FULL = 2500, T_COUNT = 4500, T_AFTER = 15000,   /* 1 位のゴールから 15 秒で決着 */ T_RACE = 420000, T_RESULT = 20000;
 const VMAX = 48;                     // m/s: どのだんじりもこれより速くは進めない
 const NAME_MAX = 12;
 const BEST_FILE = process.env.BEST_FILE || path.join(__dirname, 'data', 'best2.json');

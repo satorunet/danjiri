@@ -165,6 +165,17 @@
   #custom .cu-teams .sw { width: 14px; height: 14px; border-radius: 3px; }
   #custom .cu-icon { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0; }
   #custom .cu-icon .go { margin: 0; font-size: 14px; padding: 6px 12px; }
+  .lb-cu { margin: 10px 0 4px; text-align: left; background: rgba(255,246,228,0.05); border: 1px solid rgba(242,193,78,0.35); border-radius: 14px; padding: 6px 10px; }
+  .lb-cu summary { cursor: pointer; font-weight: 700; color: var(--gold); padding: 4px 0; text-align: center; }
+  .lb-cu .lc-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .lb-cu .lc-row { display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 3px 0; }
+  .lb-cu .lc-row::-webkit-scrollbar { display: none; }
+  .lb-cu .lc-row button { flex: none; white-space: nowrap; font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
+  .lb-cu .lc-row button.sel { border-color: var(--gold); background: rgba(242,193,78,0.18); }
+  .lb-cu .lc-txt { display: flex; gap: 6px; align-items: center; margin-top: 3px; }
+  .lb-cu .lc-txt input { flex: 1 1 0; width: 0; font: inherit; font-size: 15px; padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.3); color: var(--paper); }
+  .lb-cu .lc-txt .go { margin: 0; padding: 6px 14px; font-size: 14px; }
+  .lb-cu .lc-msg { font-size: 12px; color: var(--gold); min-height: 1.2em; margin-top: 4px; text-align: center; }
   #custom .cu-fin { display: flex; flex-wrap: nowrap; justify-content: flex-start; gap: 4px; margin: 4px 0 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
   #custom .cu-fin::-webkit-scrollbar { display: none; }
   #custom .cu-fin button { flex: none; white-space: nowrap; font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
@@ -469,6 +480,13 @@
     <ul class="lobbyList" id="lobbyList"></ul>
     <div class="best" data-en="Up to 8 · CPUs fill to 4 · 2 laps · random town">最大8台・4台未満はCPU・2周・町はくじ引き</div>
     <div class="chat hidden" id="lobbyChat"><div class="chat-log" id="lobbyChatLog"></div><form class="chat-row" id="lobbyChatForm"><select class="chat-stamp" id="lobbyStamp" aria-label="定型文"><option value="" data-en="Quick">定型文</option><option value="おつかれ!">おつかれ!</option><option value="ナイス!">ナイス!</option><option value="もう一回!">もう一回!</option><option value="やりまわし最高!">やりまわし最高!</option><option value="GG">GG</option></select><input id="lobbyChatIn" maxlength="40" autocomplete="off" placeholder="ひとこと（40字まで）" data-en-ph="Say something (40 chars)"><button class="go" type="submit" data-en="Send">送る</button></form></div>
+    <details class="lb-cu" id="lobbyCu"><summary data-en="🎨 Quick custom (from the next race)">🎨 かんたんカスタム（次のレースから）</summary>
+      <div class="lc-sub" data-en="Type">型</div><div class="lc-row" id="lcType"></div>
+      <div class="lc-sub" data-en="Finish">仕上げ</div><div class="lc-row" id="lcFin"></div>
+      <div class="lc-sub" data-en="Crew formation">引き手の配置</div><div class="lc-row" id="lcForm"></div>
+      <div class="lc-sub" data-en="Banner text">幟の文字</div><form class="lc-txt" id="lcTextForm"><input id="lcText" maxlength="8" placeholder="御祭禮" autocomplete="off"><button class="go ghost" type="submit" data-en="Set">きめる</button></form>
+      <div class="lc-msg" id="lcMsg"></div>
+    </details>
     <div class="ranking" id="lobbyRank"></div>
     <div id="roomPick" class="hidden"><div class="rp-head" data-en="Pick a room">部屋をえらぶ</div><div id="roomList"></div><button class="go ghost rp-new" id="rpNew" data-en="+ New room">＋ 新しい部屋</button></div>
     <button class="go ghost" id="lobbyRooms" data-en="🚪 Rooms">🚪 部屋をえらぶ</button><button class="go ghost" id="lobbyHold">だれか来るまで待つ：OFF</button><button class="go ghost" id="lobbyQuit" data-en="Leave">やめる</button>
@@ -594,6 +612,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=133"></script>
+<script type="module" src="js/game.js?v=134"></script>
 </body>
 </html>

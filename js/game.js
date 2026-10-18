@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=133';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=133';
-import { buildWorld } from './world.js?v=133';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=133';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=133';
-import { FX, SpeedShader } from './fx.js?v=133';
-import * as AU from './audio.js?v=133';
+import * as SIM from './sim.js?v=134';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=134';
+import { buildWorld } from './world.js?v=134';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=134';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=134';
+import { FX, SpeedShader } from './fx.js?v=134';
+import * as AU from './audio.js?v=134';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1949,6 +1949,23 @@ function netJoin(how, room) {
   netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew, ty: myType, fl: myFlag });
   renderLobby();
 }
+// 待合室のかんたんカスタム: 型・仕上げ・引き手の配置・幟の文字。変えたらすぐ部屋のみんなへ送る（次のレースから反映）
+function lobbyCustom() {
+  const row = (id, list, cur, pick) => {
+    $(id).innerHTML = list.map((t, i) => `<button data-i="${i}" class="${i === cur ? 'sel' : ''}">${esc(t)}</button>`).join('');
+    $(id).querySelectorAll('button').forEach(b => b.onclick = () => { pick(+b.dataset.i); $(id).querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); sendCustom(); });
+  };
+  row('lcType', DJ_TYPES.map(t => L(t.ja, t.en)), myType, i => { myType = i; store.set('danjiri-type', i); });
+  row('lcFin', FINISHES.map(f => L(f.ja, f.en)), myFinish, i => { myFinish = i; store.set('danjiri-finish', i); });
+  row('lcForm', SIM.FORMS.map(f => L(f.ja, f.en)), myForm, i => { myForm = i; store.set('danjiri-form', i); });
+  $('lcText').value = myText;
+  $('lcTextForm').onsubmit = e => { e.preventDefault(); myText = cleanBanner($('lcText').value); $('lcText').value = myText; store.set('danjiri-text', myText); sendCustom(); };
+  setT($('lcMsg'), '');
+}
+function sendCustom() {
+  netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew, ty: myType, fl: myFlag });
+  setT($('lcMsg'), L('次のレースからこのだんじりで走ります', 'You race with this from the next race'));
+}
 // 部屋えらび: 部屋番号・状況・人数を見て入る
 let roomPoll = 0;
 function roomsOpen(on) {
@@ -2233,7 +2250,7 @@ function startOnline() {
   NET.how = null; NET.ghost = false; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   mode = 'online'; state = 'lobby';
   $('title').classList.add('hidden'); $('lobby').classList.remove('hidden');
-  renderLobby(); netConnect();
+  lobbyCustom(); renderLobby(); netConnect();
 }
 
 // ================= タイトル画面 =================
@@ -2330,7 +2347,7 @@ function afterGoal(r, inp) {
   else if (past < 100) inp.throttle *= 0.3;
   else { inp.throttle = 0; inp.brake = 1; }
 }
-const END_AFTER = 20;   // 1 位のゴールから決着までの秒数
+const END_AFTER = 15;   // 1 位のゴールから決着までの秒数
 function step(dt) {
   const racing = state === 'race' || state === 'finish' || state === 'result';
   if (!racing) return;
@@ -2398,7 +2415,7 @@ function frame(nowMs) {
       if (n <= 3) { cnt.classList.remove('hidden'); setT(cnt, n); if (n !== lastCount) { lastCount = n; AU.sfx('count'); } }
     } else { cnt.classList.add('hidden'); state = 'race'; message(L('ソーリャ!!', 'SORYA!!'), 'gold', true); AU.sfx('go'); }
   }
-  // 1 位がゴールしてから 20 秒で決着（ひとりで: ここで決める / みんなで: サーバーが決める。残り時間を出す）
+  // 1 位がゴールしてから 15 秒で決着（ひとりで: ここで決める / みんなで: サーバーが決める。残り時間を出す）
   if (state === 'race' || state === 'finish') {
     let left = null;
     if (mode === 'solo') {
