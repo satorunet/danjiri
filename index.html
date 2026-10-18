@@ -183,6 +183,12 @@
   #showcase .sc-name { min-width: 160px; text-align: center; font-family: 'Dela Gothic One', sans-serif; font-size: 18px; white-space: nowrap; }
   #showcase .sc-name small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-size: 12px; color: var(--muted); }
   #showcase .go { font-size: 14px; padding: 6px 14px; }
+  #showcase .sc-acts { display: flex; justify-content: center; align-items: center; gap: 6px; }
+  #showcase .sc-menu { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  #showcase .sc-menu.hidden { display: none; }
+  #showcase .sc-menu button { font: inherit; font-size: 15px; font-weight: 700; color: var(--paper); background: rgba(255,255,255,0.08); border: 1px solid rgba(242,193,78,0.4); border-radius: 12px; padding: 9px 14px; cursor: pointer; text-align: left; }
+  #showcase .sc-menu button:hover { border-color: var(--gold); }
+  #showcase .sc-icon { font-size: 20px; line-height: 1; padding: 6px 10px; min-width: 42px; flex: none; }
   .mb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
   .mb-cell { background: rgba(255,246,228,0.06); border: 1px solid rgba(242,193,78,0.3); border-radius: 10px; padding: 8px 4px; }
   .mb-cell small { display: block; color: var(--muted); font-size: 11px; }
@@ -217,11 +223,18 @@
   #showcase .sc-share { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 18px; padding: 10px 16px; pointer-events: auto; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
   #showcase .sc-share b { font-family: 'Dela Gothic One', sans-serif; font-size: 18px; color: var(--gold); }
   #showcase .sc-share small { display: block; font-size: 12px; color: var(--paper); margin: 4px 0 8px; }
-  #showcase .sc-items { max-height: 30vh; overflow-y: auto; margin-top: 8px; max-width: 520px; }
   #showcase .sc-share .go { font-size: 14px; padding: 6px 14px; margin: 0 3px; }
   .share-btn.x { background: #111; border-color: #555; }
   .share-msg { font-size: 12px; color: var(--gold); min-height: 1.2em; }
   .rk-card { width: min(720px, 100%); max-height: 92vh; overflow-y: auto; background: #150f2a; }
+  #itemsWin { background: rgba(6,4,14,0.82); z-index: 45; }
+  #itemsWin .collGrid { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; max-height: 58vh; margin: 8px 0; }
+  #itemsWin .ci { font-size: 11px; padding: 4px 2px 5px; }
+  #itemsWin .ci img { width: 72px; height: 72px; }
+  #itemsWin .ci b { font-size: 13px; }
+  #itemsWin .stats { margin: 10px 0; text-align: left; font-size: 15px; }
+  #itemsWin .stats div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 8px 10px; }
+  #itemsWin .stats b { display: block; font-size: 18px; }
   #ranking, #mybest { background: rgba(6,4,14,0.82); z-index: 40; }
   .overlay, .card, .rk-list, .collGrid, .rk-detail { touch-action: pan-y; }
   #rkCat.rk-cats { display: flex; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; gap: 6px; padding: 4px 2px 8px; margin: 6px 0; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: thin; touch-action: pan-x; }
@@ -488,6 +501,14 @@
     <div id="rkDetail" class="rk-detail hidden"></div>
   </div>
 </div>
+<div id="itemsWin" class="overlay hidden">
+  <div class="card rk-card">
+    <h2 id="itemsTitle"></h2>
+    <div class="collNone" id="itemsNote" data-en="Tap one to see where it is stuck in 3D">押すと、だんじりのどこにくっついているか 3D で見られます</div>
+    <div id="itemsBody"></div>
+    <button class="go ghost" id="itemsClose" data-en="Close">とじる</button>
+  </div>
+</div>
 <div id="mybest" class="overlay hidden">
   <div class="card rk-card">
     <h2 data-en="⭐ My Best">⭐ マイベスト</h2>
@@ -549,9 +570,9 @@
     <button class="sc-arrow" id="scPrev">◀</button>
     <div class="sc-name" id="scName"></div>
     <button class="sc-arrow" id="scNext">▶</button>
-    <button class="go ghost" id="scBack" data-en="Back to results">結果に戻る</button>
+    <button class="go ghost sc-icon" id="scBack" title="結果に戻る" aria-label="結果に戻る">↩</button>
   </div>
-  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><div><button class="go online hidden" id="scSharePlay" data-en="▶ Play the run">▶ 走りを再生</button><button class="go ghost" id="scShareItems" data-en="🧲 Stuck list">🧲 ひっついたもの</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div><div class="mb-chips sc-items hidden" id="scShareList"></div></div>
+  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><div class="sc-acts"><button class="go ghost sc-icon" id="scMenuBtn" title="メニュー" aria-label="メニュー">☰</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div><div class="sc-menu hidden" id="scMenu"><button id="scSharePlay" class="hidden" data-en="▶ Play the run">▶ 走りを再生</button><button id="scShareSum" data-en="📊 Record">📊 記録</button><button id="scShareItems" data-en="🧲 Stuck list">🧲 ひっついたもの</button></div></div>
 </div>
 <div id="err"></div>
 
@@ -565,6 +586,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=127"></script>
+<script type="module" src="js/game.js?v=129"></script>
 </body>
 </html>

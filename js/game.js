@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=127';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=127';
-import { buildWorld } from './world.js?v=127';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=127';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=127';
-import { FX, SpeedShader } from './fx.js?v=127';
-import * as AU from './audio.js?v=127';
+import * as SIM from './sim.js?v=129';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=129';
+import { buildWorld } from './world.js?v=129';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=129';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=129';
+import { FX, SpeedShader } from './fx.js?v=129';
+import * as AU from './audio.js?v=129';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -843,6 +843,7 @@ function showcaseOpen(on) {
   SC.on = on; SC.auto = true; SC.focus = null; SC.dist = 16;
   $('showcase').classList.toggle('hidden', !on); $('result').classList.toggle('hidden', on);
   if (on) { SC.i = Math.max(0, racers.indexOf(player)); showcaseName(); }
+  for (const id of ['scPrev', 'scNext']) $(id).classList.toggle('hidden', racers.length < 2);   // ◀▶ はほかの町のだんじりへ切り替え（1 台だけの時は出さない）
 }
 function showcaseName() {
   const r = racers[SC.i]; if (!r) return;
@@ -1702,14 +1703,50 @@ async function openShare(id) {
   $('scSharePlay').classList.toggle('hidden', !sh.rec);
   const it = sh.dj?.items || [];
   $('scShareItems').classList.toggle('hidden', !it.length);
-  $('scShareList').classList.add('hidden');
-  $('scShareList').innerHTML = `<div style="width:100%;font-weight:700">${L(`ひっついたもの ${s.items || it.reduce((a, x) => a + x[1], 0)}個`, `Stuck: ${s.items || it.reduce((a, x) => a + x[1], 0)}`)}${s.kg ? `（${fmtKg(s.kg)}）` : ''}</div>` + it.map(([n, c]) => `<span>${esc(tn(n))} ×${c}</span>`).join('');
   shareScName();
-  $('scShare').classList.remove('hidden'); setT($('scBack'), L('タイトルへ', 'Title'));
+  $('scMenu').classList.add('hidden'); $('scShare').classList.remove('hidden'); scBackIcon(true);
+  document.querySelector('#showcase .sc-hint').classList.add('hidden');   // 上の札とかぶるので操作の説明は出さない
 }
 // 下の名前の欄は、預けた時の数を出す（組み直しただんじりには数の記録がないので）
 function shareScName() { const v = shareView; if (!v) return; const s = v.sh.st; $('scName').innerHTML = `${swatch(TEAMS[v.sh.dj.team | 0])}${esc(v.sh.name)}<small>${L('ひっつけたもの', 'Stuck')} ${s.items}${L('個', '')} · ${fmtKg(s.kg)}</small>`; }
-function shareClose() { if (!shareView) return; shareView = null; $('scShare').classList.add('hidden'); setT($('scBack'), L('結果に戻る', 'Back to results')); setURL(homeURL()); }
+// ひっついたもの（別ウィンドウ）: 部品ごとの絵と個数。押すとその部品に寄って 3D で見せる
+function openItemsWin() {
+  const v = shareView; if (!v || !player) return;
+  const s = v.sh.st, items = v.sh.dj?.items || [];
+  setT($('itemsTitle'), L(`🧲 ${v.sh.name} のひっついたもの`, `🧲 ${v.sh.name}'s haul`));
+  let html = player.stick.log?.size ? collectedHTML(player) : '';
+  // 3D に組み直せなかった分（だんじりに載せたのは 80 個まで）は名前と数だけ
+  const shown = new Map(); for (const g of player.stick.log?.size ? collGroups : []) shown.set(g.name, g.n);
+  const rest = items.map(([n, c]) => [n, c - (shown.get(n) || 0)]).filter(x => x[1] > 0);
+  if (rest.length) html += `<div class="collNone" style="margin-top:6px">${L('ほかにも', 'Also')}</div><div class="mb-chips">${rest.map(([n, c]) => `<span>${esc(tn(n))} ×${c}</span>`).join('')}</div>`;
+  if (!html) html = `<div class="collNone">${L('なし', 'None')}</div>`;
+  $('itemsBody').innerHTML = `<div class="collNone">${L('合計', 'Total')} <b>${s.items}</b>${L('個', '')}・<b>${fmtKg(s.kg)}</b></div>` + html;
+  $('itemsBody').querySelectorAll('.collHead').forEach(e => e.remove());
+  $('itemsBody').querySelectorAll('.ci').forEach((el, i) => el.onclick = () => { const g = collGroups[i]; if (!g) return; $('itemsWin').classList.add('hidden'); SC.focus = g.pc; SC.dist = 7; SC.auto = true; });
+  $('itemsNote').classList.toggle('hidden', !player.stick.log?.size);
+  $('itemsWin').classList.remove('hidden'); $('itemsWin').scrollTop = 0;
+}
+// その試合の記録のまとめ（別ウィンドウ）
+function openSummaryWin() {
+  const v = shareView; if (!v) return;
+  const sh = v.sh, s = sh.st, date = new Date(sh.at * 1000).toLocaleString(LANG === 'en' ? 'en-US' : 'ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  setT($('itemsTitle'), L(`📊 ${sh.name} の記録`, `📊 ${sh.name}'s record`));
+  const cell = (k, v) => `<div>${k}<b>${v}</b></div>`;
+  $('itemsBody').innerHTML = `<div class="collNone">${esc(pName(sh.place))} · ${sh.tod === 'night' ? L('夜', 'Night') : L('昼', 'Day')} · ${sh.laps}${L('周', ' laps')} · ${esc(date)}</div><div class="stats">`
+    + cell(L('順位', 'Place'), s.rank ? (s.n ? L(`${s.n}台中 ${s.rank}位`, `#${s.rank} of ${s.n}`) : L(`${s.rank}位`, `#${s.rank}`)) : '—')
+    + cell(L('タイム', 'Time'), s.time ? fmt(s.time) : L('ゴールならず', 'DNF'))
+    + cell(L('最高速度', 'Top speed'), `${s.speed}km/h`)
+    + cell(L('最長やりまわし', 'Longest drift'), `${(+s.drift).toFixed(1)}${L('秒', 's')}`)
+    + cell(L('最高ジャンプ', 'Longest air'), `${(+s.air).toFixed(2)}${L('秒', 's')}`)
+    + cell(L('壊したもの', 'Smashed'), s.smash)
+    + cell(L('ひっつけたもの', 'Stuck'), `${s.items}${L('個', '')}・${fmtKg(s.kg)}`)
+    + `</div>`;
+  $('itemsNote').classList.add('hidden');
+  $('itemsWin').classList.remove('hidden'); $('itemsWin').scrollTop = 0;
+}
+// 下の戻るボタンはアイコンだけ（🏠 タイトルへ / ↩ 戻る）
+function scBackIcon(home) { const b = $('scBack'), t = home ? L('タイトルへ', 'Title') : L('戻る', 'Back'); b.textContent = home ? '🏠' : '↩'; b.title = t; b.setAttribute('aria-label', t); }
+function shareClose() { if (!shareView) return; shareView = null; $('itemsWin').classList.add('hidden'); $('scShare').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.remove('hidden'); scBackIcon(false); setURL(homeURL()); }
 // 結果画面の登録フォーム
 // ランクインできそうな時だけ登録フォームを出す（今のランキングと比べる。30 位以内か、表がまだ埋まっていない部門があれば）
 const RK_LIMITS = { lap: [22, 600, true], speed: [1, 160], drift: [0.3, 15], stuck: [1, 2e7], smash: [1, 3000], air: [0.2, 5] };
@@ -2258,9 +2295,12 @@ function setupTitle() {
   $('rpPrev').onclick = () => rpPick(-1); $('rpNext').onclick = () => rpPick(1);
   $('scBack').onclick = () => { if (state === 'display') { const sv = !!shareView; shareClose(); showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); if (!sv) openRanking(rkPlace); } else showcaseOpen(false); };
   $('shareBtn').onclick = makeShare;
-  $('scShareItems').onclick = () => $('scShareList').classList.toggle('hidden');
+  // ☰: 走りを再生・記録・ひっついたもの をまとめる
+  $('scMenuBtn').onclick = () => $('scMenu').classList.toggle('hidden');
+  $('scShareItems').onclick = () => { $('scMenu').classList.add('hidden'); openItemsWin(); }; $('scShareSum').onclick = () => { $('scMenu').classList.add('hidden'); openSummaryWin(); };
+  $('itemsClose').onclick = () => $('itemsWin').classList.add('hidden');
   $('scShareGo').onclick = () => { shareClose(); showcaseOpen(false); toTitle(); };
-  $('scSharePlay').onclick = () => { const v = shareView; if (!v) return; $('scShare').classList.add('hidden'); showcaseOpen(false); playReplay({ name: v.sh.name }, v.sh.place, v.sh.tod, v.sh.rec); };
+  $('scSharePlay').onclick = () => { const v = shareView; if (!v) return; $('scMenu').classList.add('hidden'); $('scShare').classList.add('hidden'); showcaseOpen(false); playReplay({ name: v.sh.name }, v.sh.place, v.sh.tod, v.sh.rec); };
   $('scPrev').onclick = () => { SC.i = (SC.i + racers.length - 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
   $('scNext').onclick = () => { SC.i = (SC.i + 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
   $('langBtn').onclick = () => { LANG = LANG === 'en' ? 'ja' : 'en'; store.set('danjiri-lang', LANG); applyLang(); if (state === 'title') buildSolo(); };
