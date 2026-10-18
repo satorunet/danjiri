@@ -184,7 +184,8 @@
   #showcase .sc-name small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-size: 12px; color: var(--muted); }
   #showcase .go { font-size: 14px; padding: 6px 14px; }
   #showcase .sc-acts { display: flex; justify-content: center; align-items: center; gap: 6px; }
-  #showcase .sc-menu { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  #showcase #scMenuBtn { position: absolute; top: 8px; right: 8px; margin: 0; }
+  #showcase .sc-menu { position: absolute; top: 54px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 4px; min-width: 190px; background: rgba(18,12,36,0.96); border: 2px solid var(--gold-deep); border-radius: 14px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
   #showcase .sc-menu.hidden { display: none; }
   #showcase .sc-menu button { font: inherit; font-size: 15px; font-weight: 700; color: var(--paper); background: rgba(255,255,255,0.08); border: 1px solid rgba(242,193,78,0.4); border-radius: 12px; padding: 9px 14px; cursor: pointer; text-align: left; }
   #showcase .sc-menu button:hover { border-color: var(--gold); }
@@ -220,7 +221,7 @@
   #shareOut img { width: 100%; max-width: 360px; border-radius: 10px; border: 2px solid var(--gold-deep); display: block; margin: 0 auto 4px; }
   #shareOut input { flex: 1 1 0; width: 0; min-width: 160px; font: inherit; font-size: 12px; padding: 5px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.3); color: var(--paper); }
   #shareOut .share-msg { width: 100%; text-align: center; }
-  #showcase .sc-share { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 18px; padding: 10px 16px; pointer-events: auto; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
+  #showcase .sc-share { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 18px; padding: 10px 54px; pointer-events: auto; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
   #showcase .sc-share b { font-family: 'Dela Gothic One', sans-serif; font-size: 18px; color: var(--gold); }
   #showcase .sc-share small { display: block; font-size: 12px; color: var(--paper); margin: 4px 0 8px; }
   #showcase .sc-share .go { font-size: 14px; padding: 6px 14px; margin: 0 3px; }
@@ -572,7 +573,7 @@
     <button class="sc-arrow" id="scNext">▶</button>
     <button class="go ghost sc-icon" id="scBack" title="結果に戻る" aria-label="結果に戻る">↩</button>
   </div>
-  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><div class="sc-acts"><button class="go ghost sc-icon" id="scMenuBtn" title="メニュー" aria-label="メニュー">☰</button><button class="go online hidden" id="scSharePlay" data-en="▶ Play the run">▶ 走りを再生</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div><div class="sc-menu hidden" id="scMenu"><button id="scShareSum" data-en="📊 Record">📊 記録</button><button id="scShareItems" data-en="🧲 Stuck list">🧲 ひっついたもの</button></div></div>
+  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><button class="go ghost sc-icon" id="scMenuBtn" title="メニュー" aria-label="メニュー">☰</button><div class="sc-acts"><button class="go online hidden" id="scSharePlay" data-en="▶ Play the run">▶ 走りを再生</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div><div class="sc-menu hidden" id="scMenu"><button id="scShareSum" data-en="📊 Record">📊 記録</button><button id="scShareItems" data-en="🧲 Stuck list">🧲 ひっついたもの</button><button id="scShareTop" data-en="🏠 Back to top">🏠 トップに戻る</button></div></div>
 </div>
 <div id="err"></div>
 
@@ -586,6 +587,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=130"></script>
+<script type="module" src="js/game.js?v=131"></script>
 </body>
 </html>

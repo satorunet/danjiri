@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=130';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=130';
-import { buildWorld } from './world.js?v=130';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=130';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=130';
-import { FX, SpeedShader } from './fx.js?v=130';
-import * as AU from './audio.js?v=130';
+import * as SIM from './sim.js?v=131';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=131';
+import { buildWorld } from './world.js?v=131';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=131';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=131';
+import { FX, SpeedShader } from './fx.js?v=131';
+import * as AU from './audio.js?v=131';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1706,6 +1706,7 @@ async function openShare(id) {
   shareScName();
   $('scMenu').classList.add('hidden'); $('scShare').classList.remove('hidden'); scBackIcon(true);
   document.querySelector('#showcase .sc-hint').classList.add('hidden');   // 上の札とかぶるので操作の説明は出さない
+  document.querySelector('#showcase .sc-bar').classList.add('hidden');   // 下の欄も出さない（トップへは ☰ から）
 }
 // 下の名前の欄は、預けた時の数を出す（組み直しただんじりには数の記録がないので）
 function shareScName() { const v = shareView; if (!v) return; const s = v.sh.st; $('scName').innerHTML = `${swatch(TEAMS[v.sh.dj.team | 0])}${esc(v.sh.name)}<small>${L('ひっつけたもの', 'Stuck')} ${s.items}${L('個', '')} · ${fmtKg(s.kg)}</small>`; }
@@ -1746,7 +1747,7 @@ function openSummaryWin() {
 }
 // 下の戻るボタンはアイコンだけ（🏠 タイトルへ / ↩ 戻る）
 function scBackIcon(home) { const b = $('scBack'), t = home ? L('タイトルへ', 'Title') : L('戻る', 'Back'); b.textContent = home ? '🏠' : '↩'; b.title = t; b.setAttribute('aria-label', t); }
-function shareClose() { if (!shareView) return; shareView = null; $('itemsWin').classList.add('hidden'); $('scShare').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.remove('hidden'); scBackIcon(false); setURL(homeURL()); }
+function shareClose() { if (!shareView) return; shareView = null; $('itemsWin').classList.add('hidden'); $('scShare').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.remove('hidden'); document.querySelector('#showcase .sc-bar').classList.remove('hidden'); scBackIcon(false); setURL(homeURL()); }
 // 結果画面の登録フォーム
 // ランクインできそうな時だけ登録フォームを出す（今のランキングと比べる。30 位以内か、表がまだ埋まっていない部門があれば）
 const RK_LIMITS = { lap: [22, 600, true], speed: [1, 160], drift: [0.3, 15], stuck: [1, 2e7], smash: [1, 3000], air: [0.2, 5] };
@@ -2299,6 +2300,7 @@ function setupTitle() {
   $('scMenuBtn').onclick = () => $('scMenu').classList.toggle('hidden');
   $('scShareItems').onclick = () => { $('scMenu').classList.add('hidden'); openItemsWin(); }; $('scShareSum').onclick = () => { $('scMenu').classList.add('hidden'); openSummaryWin(); };
   $('itemsClose').onclick = () => $('itemsWin').classList.add('hidden');
+  $('scShareTop').onclick = () => { $('scMenu').classList.add('hidden'); shareClose(); showcaseOpen(false); toTitle(); };
   $('scShareGo').onclick = () => { shareClose(); showcaseOpen(false); toTitle(); };
   $('scSharePlay').onclick = () => { const v = shareView; if (!v) return; $('scMenu').classList.add('hidden'); $('scShare').classList.add('hidden'); showcaseOpen(false); playReplay({ name: v.sh.name }, v.sh.place, v.sh.tod, v.sh.rec); };
   $('scPrev').onclick = () => { SC.i = (SC.i + racers.length - 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
