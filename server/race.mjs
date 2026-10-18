@@ -276,6 +276,11 @@ wss.on('connection', (ws, req) => {
       case 'leave': if (room) room.remove(p); break;
       case 'rank': { const res = submitRank(p, m); send(p, { t: 'rankres', ...res }); break; }
       case 'ranks': { const pl = PLACES.includes(m.place) ? m.place : 'jp'; send(p, { t: 'ranks', place: pl, cats: ranks[pl] }); break; }
+      case 'rankfind': { // 記録ごとの URL (?r=ID): その記録の町と、載っている部門・順位
+        const id = String(m.id || ''); let place = null; const at = {};
+        for (const pl of PLACES) for (const [c, list] of Object.entries(ranks[pl] || {})) { const i = list.findIndex(x => x.id === id); if (i >= 0) { place = pl; at[c] = i + 1; } }
+        send(p, { t: 'rankfind', id, place, at }); break;
+      }
       case 'rankimg': send(p, { t: 'rankimg', id: String(m.id || ''), data: readImg(m.id) }); break;
       case 'rankdj': send(p, { t: 'rankdj', id: String(m.id || ''), dj: readDj(m.id) }); break;
       case 'rankrep': send(p, { t: 'rankrep', id: String(m.id || ''), rec: readRep(m.id) }); break;

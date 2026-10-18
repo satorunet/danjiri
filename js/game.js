@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=70';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=70';
-import { buildWorld } from './world.js?v=70';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=70';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=70';
-import { FX, SpeedShader } from './fx.js?v=70';
-import * as AU from './audio.js?v=70';
+import * as SIM from './sim.js?v=71';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=71';
+import { buildWorld } from './world.js?v=71';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=71';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=71';
+import { FX, SpeedShader } from './fx.js?v=71';
+import * as AU from './audio.js?v=71';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1258,7 +1258,7 @@ function showRankForm() {
       msg.innerHTML = got.length ? `${L('ランクイン!', 'Ranked!')}<br>` + got.join('<br>') : L('登録しました（今回はランク外）', 'Submitted (not in the top 30 this time)');
       // 自分の記録を共有（いちばん良い順位の部門）
       const bestCat = Object.entries(r.got || {}).sort((a, b) => a[1] - b[1])[0];
-      if (bestCat) { const sh = document.createElement('div'); sh.className = 'rk-share'; sh.style.gridColumn = '1 / -1'; sh.innerHTML = shareButtons(rankURL(st.place, bestCat[0], r.id), L(`だんじり疾走「${pName(st.place)}」${catName(bestCat[0])}ランキングで ${bestCat[1]}位になった!`, `I placed #${bestCat[1]} in ${catName(bestCat[0])} at ${pName(st.place)} in Danjiri Dash!`)); $('rankForm').appendChild(sh); }
+      if (bestCat) { const sh = document.createElement('div'); sh.className = 'rk-share'; sh.style.gridColumn = '1 / -1'; sh.innerHTML = shareButtons(recURL(r.id), L(`だんじり疾走「${pName(st.place)}」${catName(bestCat[0])}ランキングで ${bestCat[1]}位になった!`, `I placed #${bestCat[1]} in ${catName(bestCat[0])} at ${pName(st.place)} in Danjiri Dash!`)); $('rankForm').appendChild(sh); }
       btn.textContent = L('登録済み', 'Done');
     } catch { msg.textContent = L('通信できませんでした', 'Network error'); btn.disabled = false; }
   };
@@ -1268,6 +1268,7 @@ const rankURL = (pl, cat, id) => `${location.origin}${location.pathname.replace(
 // 見ているランキング/記録をアドレスバーにも反映（そのままコピーで共有できる）
 const setURL = u => { try { history.replaceState(null, '', u); } catch { } };
 const homeURL = () => location.pathname + (location.search.includes('debug') ? '?debug' : '');
+const recURL = id => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?r=${id}`;   // プレイ記録ごとの URL
 const catName = k => { const c = RK_CATS.find(x => x[0] === k); return c ? L(c[1], c[2]) : k; };
 const pName = p => (LANG === 'en' ? PLACE_EN[p] : PLACES[p]);
 function shareButtons(url, text) {
@@ -1313,6 +1314,12 @@ function renderRkList() {
   // 共有 URL から開いた時は、その記録を見せる
   if (rkOpenId) { const i = list.findIndex(e => e.id === rkOpenId); rkOpenId = null; if (i >= 0) showRkDetail(list[i], cat, i + 1); }
 }
+// この記録が載っている部門と順位（タップでその部門に切り替え）
+function recRanks(id) {
+  const out = [];
+  for (const c of RK_CATS) { const list = rkData?.cats?.[c[0]] || [], i = list.findIndex(x => x.id === id); if (i >= 0) out.push(`<button data-c="${c[0]}" class="${c[0] === rkCat ? 'sel' : ''}">${c[6]} ${esc(L(c[4], c[5]))} <b>${i + 1}${L('位', '')}</b> <small>${c[3](list[i].val)}</small></button>`); }
+  return out.join('');
+}
 function showRkDetail(e, cat, n) {
   const d = $('rkDetail');
   const date = new Date(e.at * 1000).toLocaleDateString(LANG === 'en' ? 'en-US' : 'ja-JP');
@@ -1323,11 +1330,13 @@ function showRkDetail(e, cat, n) {
     <div class="collNone">${esc(LANG === 'en' ? PLACE_EN[rkPlace] : PLACES[rkPlace])} · ${e.tod === 'night' ? L('夜', 'Night') : L('昼', 'Day')} · ${e.laps}${L('周', ' laps')} · ${date}</div>
     ${e.comment ? `<div class="rk-dc">「${esc(e.comment)}」</div>` : ''}
     <div class="rk-actions">${e.rep ? `<button class="go" id="rkPlay">▶ ${L('走りを再生', 'Play the run')}</button>` : ''}${e.dj ? `<button class="go ghost" id="rkItems">🧲 ${L('積んだもの', 'Haul')}</button><button class="go online" id="rkDj">🏮 ${L('だんじり表示', 'View danjiri')}</button>` : ''}</div>
+    <div class="rk-recs">${recRanks(e.id)}</div>
     <div class="mb-chips" id="rkItemList"></div>
-    <div class="rk-share">${shareButtons(rankURL(rkPlace, rkCat, e.id), L(`だんじり疾走「${pName(rkPlace)}」${catName(rkCat)} ${n}位 ${e.name}（${cat[3](e.val)}）`, `Danjiri Dash — ${pName(rkPlace)} ${catName(rkCat)} #${n} ${e.name} (${cat[3](e.val)})`))}</div>
+    <div class="rk-share">${shareButtons(recURL(e.id), L(`だんじり疾走「${pName(rkPlace)}」${catName(rkCat)} ${n}位 ${e.name}（${cat[3](e.val)}）`, `Danjiri Dash — ${pName(rkPlace)} ${catName(rkCat)} #${n} ${e.name} (${cat[3](e.val)})`))}</div>
     <button class="go ghost" id="rkBack">${L('もどる', 'Back')}</button>`;
   d.classList.remove('hidden');
-  setURL(rankURL(rkPlace, rkCat, e.id));
+  setURL(recURL(e.id));
+  d.querySelectorAll('.rk-recs button').forEach(b => b.onclick = () => { const c = RK_CATS.find(x => x[0] === b.dataset.c), list = rkData?.cats?.[c[0]] || [], i = list.findIndex(x => x.id === e.id); if (i < 0) return; rkCat = c[0]; renderRkTabs(); renderRkList(); showRkDetail(list[i], c, i + 1); });
   $('rkBack').onclick = () => { d.classList.add('hidden'); setURL(rankURL(rkPlace, rkCat)); };
   if (e.rep) $('rkPlay').onclick = () => { d.classList.add('hidden'); playReplay(e, rkPlace, e.tod); };
   if (e.dj) {
@@ -1688,6 +1697,11 @@ async function boot() {
   requestAnimationFrame(frame);
   onlineCountTick();
   // 共有 URL（?rank=町&cat=部門&id=記録）から来た時はランキングを開く
+  { const r = new URLSearchParams(location.search).get('r');
+    if (r && /^[0-9a-z]{1,12}$/.test(r)) rankAsk({ t: 'rankfind', id: r }, 'rankfind').then(m => {
+      if (!m.place) { openRanking('jp'); return; }   // 圏外に落ちた記録
+      const cs = Object.keys(m.at).sort((a, b) => m.at[a] - m.at[b]); rkCat = cs[0] || 'lap'; rkOpenId = r; openRanking(m.place);
+    }).catch(() => { }); }
   { const q = new URLSearchParams(location.search), rp = q.get('rank'); if (rp && PLACES[rp]) { const c = q.get('cat'); if (RK_CATS.some(x => x[0] === c)) rkCat = c; rkOpenId = q.get('id') || null; openRanking(rp); } }
   if (new URLSearchParams(location.search).has('debug')) {
     window.__dj = {

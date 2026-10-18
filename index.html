@@ -117,6 +117,7 @@
   .res-badge .rb-title { display: inline-block; }
   .foot { margin-top: 14px; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
   .foot a { color: var(--muted); text-decoration: underline; }
+  .foot a.gh { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
   .res-badge .mb-lines { margin: 8px auto 0; padding: 6px 10px; max-width: 460px; border: 1px solid rgba(242,193,78,0.4); border-radius: 10px; background: rgba(255,246,228,0.05); text-shadow: none; }
   .res-badge .mb-head { font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 12px; color: var(--muted); }
   .res-badge .mb-line { font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 14px; color: var(--paper); line-height: 1.6; text-align: left; }
@@ -143,6 +144,11 @@
   .rk-detail { position: absolute; inset: 10px; background: rgba(18,12,36,0.97); border: 2px solid var(--gold-deep); border-radius: 14px; padding: 16px; text-align: center; overflow-y: auto; }
   .rk-detail img.pv { width: 100%; max-width: 480px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: #000; }
   .rk-detail .rk-dn { font-family: 'Dela Gothic One', sans-serif; font-size: 22px; margin: 8px 0 2px; }
+  .rk-detail .rk-recs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 8px 0; }
+  .rk-detail .rk-recs button { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.45); background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
+  .rk-detail .rk-recs button.sel { background: rgba(242,193,78,0.22); }
+  .rk-detail .rk-recs b { color: var(--gold); }
+  .rk-detail .rk-recs small { opacity: .8; }
   .rk-detail .rk-dc { font-size: 15px; margin: 6px 0; white-space: pre-wrap; word-break: break-word; }
   .rk-detail a { color: #8fd0ff; word-break: break-all; }
   .flag { width: 22px; height: 15px; vertical-align: -2px; margin-right: 6px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
@@ -312,7 +318,7 @@
       </div>
       <div class="best" id="bestT"></div>
     </div>
-    <div class="foot">© 2026 <a href="https://satoru.net/" target="_blank" rel="noopener">satoru.net</a> · <a href="https://github.com/satorunet/danjiri" target="_blank" rel="noopener">GitHub</a></div>
+    <div class="foot">© 2026 <a href="https://satoru.net/" target="_blank" rel="noopener">satoru.net</a> · <a href="https://github.com/satorunet/danjiri" target="_blank" rel="noopener" class="gh"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
   </div>
 </div>
 
@@ -390,6 +396,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=70"></script>
+<script type="module" src="js/game.js?v=71"></script>
 </body>
 </html>
