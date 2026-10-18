@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=81';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=82';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -258,6 +258,31 @@ function shared() {
     drumHead: toon({ color: 0xf3e6c8 }),
   };
   return SHARED;
+}
+// だんじりの仕上げ（カスタム）: 0 欅・1 白木・2 朱塗り・3 黒漆・4 金ピカ。共有の材質を仕上げ用の材質に差し替える
+export const FINISHES = [
+  { ja: '欅（標準）', en: 'Keyaki' },
+  { ja: '白木', en: 'Plain wood', wood: [0xfff4dc, 0x2a2416], woodD: [0xf6e2c0, 0x201a10], carve: [0xfff0d8, 0x2a2416] },
+  { ja: '朱塗り', en: 'Vermilion', wood: [0xff6a4c, 0x220400], woodD: [0xe8442c, 0x1a0200], carve: [0xff9a80, 0x200400] },
+  { ja: '黒漆', en: 'Black lacquer', wood: [0x3c3636, 0x050505], woodD: [0x2a2424, 0x030303], carve: [0x6a6060, 0x080808] },
+  { ja: '金ピカ', en: 'All gold', wood: [0xffd060, 0x3a2600], woodD: [0xe8b440, 0x2a1a00], carve: [0xffe28a, 0x3a2800], black: [0xb08820, 0x201400] },
+];
+const finishMats = {};
+export function setFinish(D, k) {
+  const S = shared(), F = FINISHES[k] || FINISHES[0];
+  const map = new Map();
+  for (const key of ['wood', 'woodD', 'carve', 'black']) {
+    if (!F[key]) continue;
+    const id = k + key;
+    if (!finishMats[id]) { const m = S[key].clone(); m.color.setHex(F[key][0]); if (m.emissive) m.emissive.setHex(F[key][1]); finishMats[id] = m; }
+    map.set(S[key], finishMats[id]);
+  }
+  // 元に戻す時のために、最初の材質を覚えておく
+  D.body.traverse(o => {
+    if (!o.isMesh) return;
+    if (o.userData.baseMat === undefined) o.userData.baseMat = o.material;
+    o.material = map.get(o.userData.baseMat) || o.userData.baseMat;
+  });
 }
 export function setLanternGlow(v) { const S = shared(); S.lantern.emissiveIntensity = v; }
 

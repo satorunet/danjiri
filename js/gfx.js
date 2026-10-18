@@ -126,7 +126,7 @@ export function lanternTex(kanji = '祭', band = '#d0261c') {
     }
   });
 }
-export function bannerTex(team) {
+export function bannerTex(team, text = '御祭禮') {
   return canvasTex(256, 768, (g, w, h) => {
     const sq = 16;
     for (let y = 0; y < h; y += sq) for (let x = 0; x < w; x += sq) {
@@ -137,7 +137,9 @@ export function bannerTex(team) {
     g.fillStyle = 'rgba(0,0,0,0.12)'; for (let y = sq * 2; y < h - sq * 2; y += 6) g.fillRect(sq * 2, y, w - sq * 4, 1);
     g.strokeStyle = '#f2c14e'; g.lineWidth = 4; g.strokeRect(sq * 2 + 8, sq * 2 + 8, w - sq * 4 - 16, h - sq * 4 - 16);
     kiri(g, w / 2, 120, 52, '#f2c14e');
-    vtext(g, '御祭禮', w / 2, 270, 120, 150, '#f6d36a', '#3a0a06', 10);
+    // 幟の文字（カスタムで 1〜4 文字）。文字数に合わせて大きさと間隔を変える
+    const ch = [...(text || '御祭禮')].slice(0, 4), n = ch.length, size = [0, 170, 150, 120, 100][n], step = [0, 0, 190, 150, 118][n];
+    vtext(g, ch.join(''), w / 2, 420 - (n - 1) * step / 2, size, step, '#f6d36a', '#3a0a06', 10);
     g.fillStyle = team.css; g.beginPath(); g.arc(w / 2, h - 88, 34, 0, Math.PI * 2); g.fill();
     g.strokeStyle = '#f6d36a'; g.lineWidth = 4; g.stroke();
     g.font = `52px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText(team.kanji, w / 2, h - 86);

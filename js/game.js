@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=81';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=81';
-import { buildWorld } from './world.js?v=81';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=81';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=81';
-import { FX, SpeedShader } from './fx.js?v=81';
-import * as AU from './audio.js?v=81';
+import * as SIM from './sim.js?v=82';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=82';
+import { buildWorld } from './world.js?v=82';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=82';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=82';
+import { FX, SpeedShader } from './fx.js?v=82';
+import * as AU from './audio.js?v=82';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -164,7 +164,7 @@ function loadStage(pl, nt = night) {
 // ================= コースと町 =================
 let course;
 const fx = new FX(scene);
-const crowd = new CrowdRig(scene, 8 * 19, 8);
+const crowd = new CrowdRig(scene, 8 * 24, 8);
 const ropeMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 0.07, 1), new THREE.MeshToonMaterial({ color: 0xd8c08a }), 4 * 2 * 7);
 ropeMesh.frustumCulled = false; ropeMesh.castShadow = true; scene.add(ropeMesh);
 // 絡まった提灯の紐
@@ -206,10 +206,27 @@ function makeRacer(teamIdx, slot, kind, extra = {}) {
   if (r.name && kind !== 'me') D.group.add(r.tag = nameTag(r.name, team.css));
   const ic = kind === 'me' ? myIcon : extra.id != null ? NET.icons?.[extra.id] : null;
   if (ic) setFlagIcon(r, ic);
+  const tx = kind === 'me' ? myText : extra.id != null ? NET.texts?.[extra.id] : '';
+  if (tx) setBannerText(r, tx);
+  const fn = kind === 'me' ? myFinish : extra.id != null ? NET.finishes?.[extra.id] : 0;
+  if (fn) setFinish(D, fn);
+  r.form = kind === 'me' ? myForm : extra.id != null ? NET.forms?.[extra.id] || 0 : 0;
+  if (kind === 'me') car.mod = SIM.FORMS[myForm].mod;
   return r;
 }
 // ================= アイコン旗（タイトルで設定した画像を、だんじり後ろの大きな旗に） =================
 let myIcon = store.get('danjiri-icon', '') || '';
+let myText = store.get('danjiri-text', '') || '';
+let myFinish = +store.get('danjiri-finish', 0) || 0;
+let myForm = +store.get('danjiri-form', 0) || 0;
+const cleanBanner = s => [...String(s || '').replace(/[\s\u0000-\u001f<>&"']/g, '')].slice(0, 4).join('');
+// 幟の文字を差し替え（2 本の幟は同じ材質）
+function setBannerText(r, text) {
+  const b = r.D.banners[0]; if (!b) return;
+  const m = b.cloth.material, old = m.map;
+  m.map = bannerTex(r.team, cleanBanner(text) || '御祭禮'); m.needsUpdate = true;
+  if (old) old.dispose();
+}
 const iconImgs = new Map();   // dataURL → 読み込んだ画像
 function setFlagIcon(r, url) {
   const D = r.D;
@@ -262,9 +279,15 @@ function customOpen(on) {
   SC.preview = on;
   if (on) {
     buildSolo(); soloOnlyMe(); $('title').classList.add('hidden');
-    showcaseOpen(true); $('result').classList.add('hidden'); SC.i = 0; SC.yaw = Math.PI * 0.85; SC.pitch = 0.3; SC.dist = 14;
+    showcaseOpen(true); $('result').classList.add('hidden'); SC.i = 0; SC.yaw = Math.PI * 0.85; SC.pitch = 0.5; SC.dist = 21;
     document.querySelector('#showcase .sc-bar').classList.add('hidden');
     $('cuTeams').innerHTML = TEAMS.map((t, i) => `<button data-t="${i}" class="${i === selTeam ? 'sel' : ''}"><span class="sw" style="background:${t.css}"></span>${esc(teamName(t))}</button>`).join('');
+    $('cuFin').innerHTML = FINISHES.map((f, i) => `<button data-f="${i}" class="${i === myFinish ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
+    $('cuFin').querySelectorAll('button').forEach(b => b.onclick = () => { myFinish = +b.dataset.f; store.set('danjiri-finish', myFinish); $('cuFin').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); setFinish(player.D, myFinish); });
+    const formDesc = () => setT($('cuFormD'), L(SIM.FORMS[myForm].dja, SIM.FORMS[myForm].den));
+    $('cuForm').innerHTML = SIM.FORMS.map((f, i) => `<button data-f="${i}" class="${i === myForm ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
+    $('cuForm').querySelectorAll('button').forEach(b => b.onclick = () => { myForm = +b.dataset.f; store.set('danjiri-form', myForm); $('cuForm').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); player.form = myForm; player.car.mod = SIM.FORMS[myForm].mod; formDesc(); SC.dist = Math.max(SC.dist, 21); });
+    formDesc();
     $('cuTeams').querySelectorAll('button').forEach(b => b.onclick = () => { selTeam = +b.dataset.t; store.set('danjiri-team', selTeam); $('cuTeams').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); buildSolo(); soloOnlyMe(); showIconUI(); });
     showIconUI();
   } else {
@@ -300,13 +323,23 @@ const ROPE_L = 10.5, ROPE_N = 7;
 function l2w(c, lx, lz) { const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw); return [c.x + fz * lx + fx * lz, c.z - fx * lx + fz * lz]; }
 function groundAt(x, z, hint) { SIM.project(course, x, z, hint, PR); return SIM.heightS(course, PR.s); }
 function personRoot(x, y, z, yaw) { return tmpM.compose(tmpP.set(x, y, z), tmpQ.setFromAxisAngle(YAX, yaw), ONE); }
+// 引き手の配置ごとの並び（梃子 beam・後押し push）と綱の長さ
+const BASE_CREW = [['beam', 0.98, 2.75], ['beam', -0.98, 2.75], ['beam', 0.98, 3.75], ['beam', -0.98, 3.75], ['push', 0.6, -3.55], ['push', 0, -3.65], ['push', -0.6, -3.55]];
+const CREW_LAYOUT = [
+  BASE_CREW,
+  [['beam', 0.98, 3.25], ['beam', -0.98, 3.25], ['push', 0.6, -3.55], ['push', -0.6, -3.55]],                                   // 前曳き: 綱に人を回す
+  [...BASE_CREW, ['beam', 1.3, -2.9], ['beam', -1.3, -2.9], ['beam', 1.3, -1.9], ['beam', -1.3, -1.9]],                         // 後梃子
+  [...BASE_CREW, ['push', 1.2, -3.4], ['push', -1.2, -3.4], ['push', 0.3, -4.45], ['push', -0.3, -4.45]],                       // 後押し
+  [...BASE_CREW, ['beam', 1.55, 1.0], ['beam', -1.55, 1.0]],                                                                   // やりまわし: 横に走り手
+];
+const ROPE_F = [1, 1.4, 0.8, 0.9, 1];
 function updateCrew(r, dt, t) {
   const c = r.vis, sp = c.speed || 0, air = !!c.air, crash = c.crashT > 0;
   r.phase += dt * (2.2 + sp * 0.62);
   const flyY = air ? c.y : null;
   let seed = r.slotIdx * 31;
   // 梃子と後ろの押し手（だんじりと一緒に動く）
-  const fixed = [['beam', 0.98, 2.75], ['beam', -0.98, 2.75], ['beam', 0.98, 3.75], ['beam', -0.98, 3.75], ['push', 0.6, -3.55], ['push', 0, -3.65], ['push', -0.6, -3.55]];
+  const fixed = CREW_LAYOUT[r.form || 0];
   for (const [kind, lx, lz] of fixed) {
     const [x, z] = l2w(c, lx, lz);
     const gy = air ? flyY + 0.2 : groundAt(x, z, c.si ?? -1);
@@ -320,8 +353,9 @@ function updateCrew(r, dt, t) {
   for (const rope of r.ropes) {
     const N = rope.nodes, [ax, az] = l2w(c, rope.sd * 0.55, 4.45);
     const ay = c.y + 0.98;
-    const seg = ROPE_L / (ROPE_N - 1) * 0.97;
-    const lx = ax + Math.sin(yawLead) * ROPE_L + Math.cos(yawLead) * rope.sd * 0.5, lz = az + Math.cos(yawLead) * ROPE_L - Math.sin(yawLead) * rope.sd * 0.5;
+    const seg = ROPE_L * (ROPE_F[r.form || 0] || 1) / (ROPE_N - 1) * 0.97;
+    const RL = ROPE_L * (ROPE_F[r.form || 0] || 1);
+    const lx = ax + Math.sin(yawLead) * RL + Math.cos(yawLead) * rope.sd * 0.5, lz = az + Math.cos(yawLead) * RL - Math.sin(yawLead) * rope.sd * 0.5;
     if (!rope.init || Math.hypot(N[0].x - ax, N[0].z - az) > 8) {
       for (let k = 0; k < ROPE_N; k++) { const f = k / (ROPE_N - 1); N[k].x = lerp(ax, lx, f); N[k].z = lerp(az, lz, f); N[k].y = ay; }
       rope.init = true;
@@ -709,7 +743,7 @@ function updateCamera(dt, t) {
     const v = racers[SC.i].vis;
     if (SC.auto) SC.yaw += dt * 0.35;
     // 見る中心: ふつうはだんじり全体、ひっつけたものを押した時はその物がくっついている所
-    let tx = v.x, ty = v.y + 2.6, tz = v.z;
+    let tx = v.x, ty = v.y + 2.6 - (SC.preview ? 3 : 0), tz = v.z;   // カスタム中は下のパネルに隠れないよう、だんじりを画面の上寄りに
     const f = SC.focus;
     if (f && f.st === 5 && f.who) {
       if (f.obj) { f.obj.getWorldPosition(tmpP); tx = tmpP.x; ty = tmpP.y + 1; tz = tmpP.z; }
@@ -1552,7 +1586,7 @@ function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (tex
 function netJoin(how, room) {
   NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   netSend({ t: 'join', name: myName, team: selTeam, v: 3, how, room }); netSend({ t: 'hold', on: holdWait });
-  if (myIcon) netSend({ t: 'icon', data: myIcon });
+  if (myIcon || myText || myFinish || myForm) netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm });
   renderLobby();
 }
 // 部屋えらび: 部屋番号・状況・人数を見て入る
@@ -1599,7 +1633,10 @@ function onNet(m) {
   else if (m.t === 'room') onRoom(m);
   else if (m.t === 'peek') onPeek(m);
   else if (m.t === 'rooms') renderRooms(m);
-  else if (m.t === 'icon') { (NET.icons ||= {})[m.id] = m.data; const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) setFlagIcon(r, m.data); }
+  else if (m.t === 'icon') {
+    (NET.icons ||= {})[m.id] = m.data; (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0;
+    const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; }
+  }
   else if (m.t === 'chat') onChat(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
@@ -1872,6 +1909,10 @@ function setupTitle() {
     catch { alert(L('画像を読み込めませんでした', 'Could not read that image')); }
   };
   $('iconDel').onclick = () => { myIcon = ''; store.set('danjiri-icon', ''); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); };
+  $('cuText').value = myText;
+  const setText = () => { myText = cleanBanner($('cuText').value); $('cuText').value = myText; store.set('danjiri-text', myText); if (player) setBannerText(player, myText); SC.yaw = Math.PI * 0.6; };
+  $('cuTextSet').onclick = setText; $('cuText').onchange = setText;
+  $('cuText').oninput = () => { const t = cleanBanner($('cuText').value); if (player) setBannerText(player, t); };   // 打った端からその場で変わる
   $('customBtn').onclick = () => customOpen(true); $('cuDone').onclick = () => customOpen(false);
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
   $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };

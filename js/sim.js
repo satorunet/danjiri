@@ -23,6 +23,15 @@ export const CAR = {
   G: 22, TIP: 0.8, CRASH_V: 24, BREAK_V: 3.5, LAND_CRASH: 20, BOOST_USE: 0.3,
 };
 
+// 引き手の配置（カスタム）: 走りの性格が変わる。mod は c.mod に入れて stepCar で使う
+export const FORMS = [
+  { ja: 'バランス', en: 'Balanced', dja: '標準の配置', den: 'Standard crew', mod: { acc: 1, vmax: 1, steer: 1, tip: 1, drift: 1 } },
+  { ja: '前曳き', en: 'Rope rush', dja: '綱が長い: 速いが曲がりにくい', den: 'Long ropes: fast, wide turns', mod: { acc: 1.1, vmax: 1.06, steer: 0.86, tip: 0.94, drift: 1 } },
+  { ja: '後梃子', en: 'Rear levers', dja: '梃子が多い: よく曲がり倒れにくい', den: 'More levers: sharp turns, stable', mod: { acc: 0.96, vmax: 0.96, steer: 1.2, tip: 1.18, drift: 1 } },
+  { ja: '後押し', en: 'Pushers', dja: '押し手が多い: 出足が鋭い', den: 'More pushers: quick start', mod: { acc: 1.25, vmax: 0.97, steer: 1, tip: 1, drift: 1 } },
+  { ja: 'やりまわし', en: 'Drift crew', dja: 'やりまわしで気合がたまりやすい', den: 'Drifts charge the gauge faster', mod: { acc: 1, vmax: 0.97, steer: 1.08, tip: 1.05, drift: 1.6 } },
+];
+const NOMOD = FORMS[0].mod;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -326,7 +335,8 @@ export function stepCar(c, inp, dt, course) {
     c.drift = drifting;
   } else if (c.drift) c.driftT += dt;
   // 前後
-  const vmax = c.boosting ? CAR.BOOST_VMAX : CAR.VMAX, acc = c.boosting ? CAR.BOOST_ACC : CAR.ACC;
+  const M = c.mod || NOMOD;
+  const vmax = (c.boosting ? CAR.BOOST_VMAX : CAR.VMAX) * M.vmax, acc = (c.boosting ? CAR.BOOST_ACC : CAR.ACC) * M.acc;
   let v = c.v;
   if (!c.air) {
     if (thr > 0 && v < vmax) v = Math.min(vmax, v + thr * acc * (1 - Math.max(0, v) / vmax * 0.6) * dt);
@@ -343,13 +353,13 @@ export function stepCar(c, inp, dt, course) {
   // 横: 操縦で横へ寄せる力と、角で外へ振られる力
   const geo = Math.max(0.55, 1 + kap * c.u);           // 外側ほど回り道（道のりの進みが遅い）
   const fling = c.air ? 0 : kap * v * Math.abs(v) / geo * CAR.FLING * (drifting ? 0.42 : 1) * (c.crashT > 0 ? 0.3 : 1);
-  const steerA = (c.air ? 0.25 : 1) * (CAR.STEER_A + Math.min(Math.abs(v), 30) * CAR.STEER_V) * Math.min(1, Math.abs(v) / 4 + 0.15);
+  const steerA = (c.air ? 0.25 : 1) * (CAR.STEER_A + Math.min(Math.abs(v), 30) * CAR.STEER_V) * Math.min(1, Math.abs(v) / 4 + 0.15) * M.steer;
   const aU = -st * steerA * (v < -0.5 ? -1 : 1) + fling;
   c.vu += aU * dt;
   c.vu *= Math.exp(-dt * (c.air ? 0.3 : drifting ? 1.6 : CAR.U_DAMP));
   // やりまわし中は車輪が浮いてポンポン跳ねる
   if (drifting && v > 15 && Math.floor((c.driftT + dt) / 0.6) > Math.floor(c.driftT / 0.6)) hop(c, 2.2 + v * 0.07, ev);
-  if (drifting) { c.driftT += dt; c.boost = Math.min(1, c.boost + (0.05 + Math.min(0.35, Math.abs(kap) * v * 0.25)) * dt); }
+  if (drifting) { c.driftT += dt; c.boost = Math.min(1, c.boost + (0.05 + Math.min(0.35, Math.abs(kap) * v * 0.25)) * M.drift * dt); }
   // 進める
   c.u += c.vu * dt;
   const s0 = c.s, lb0 = c.lapBase;
@@ -440,7 +450,7 @@ export function stepCar(c, inp, dt, course) {
   else if (!c.air) rollT = clamp(aLeft * CAR.ROLL_K * (drifting ? 0.62 : 1), -1.0, 1.0);
   c.rollV += (38 * (rollT - c.roll) - 5 * c.rollV) * dt * (c.air ? 0.3 : 1);
   c.roll += c.rollV * dt;
-  if (Math.abs(c.roll) > CAR.TIP && c.crashT <= 0) crash(c, 'tip', ev);
+  if (Math.abs(c.roll) > CAR.TIP * (c.mod ? c.mod.tip : 1) && c.crashT <= 0) crash(c, 'tip', ev);
   const pitchT = c.air ? -Math.atan2(c.vy, Math.max(4, Math.abs(v))) * 0.5 : -Math.atan(c.slope) + clamp((thr - brk) * 0.03, -0.05, 0.05);
   c.pitchV += (30 * (pitchT - c.pitch) - 6 * c.pitchV) * dt;
   c.pitch += c.pitchV * dt;

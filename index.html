@@ -125,7 +125,7 @@
   .icon-row .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
   .icon-row .icon-img { width: 24px; height: 24px; border-width: 1px; border-radius: 5px; }
   #custom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; justify-content: center; padding: 0 10px 12px; pointer-events: none; }
-  #custom .cu-card { pointer-events: auto; width: min(460px, 100%); background: rgba(18,12,36,0.92); border: 2px solid var(--gold-deep); border-radius: 16px; padding: 10px 12px; text-align: center; }
+  #custom .cu-card { pointer-events: auto; width: min(460px, 100%); max-height: 58vh; overflow-y: auto; background: rgba(18,12,36,0.92); border: 2px solid var(--gold-deep); border-radius: 16px; padding: 8px 12px; text-align: center; }
   #custom .cu-label { font-size: 12px; font-weight: 900; color: var(--muted); letter-spacing: .1em; margin-top: 4px; }
   #custom .cu-teams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 4px 0 6px; }
   #custom .cu-teams button { font: inherit; font-size: 13px; padding: 5px 2px; border-radius: 8px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
@@ -133,6 +133,10 @@
   #custom .cu-teams .sw { width: 14px; height: 14px; border-radius: 3px; }
   #custom .cu-icon { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0; }
   #custom .cu-icon .go { margin: 0; font-size: 14px; padding: 6px 12px; }
+  #custom .cu-fin { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 4px 0 6px; }
+  #custom .cu-fin button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
+  #custom .cu-fin button.sel { border-color: var(--gold); background: rgba(242,193,78,0.18); }
+  #custom .cu-text { width: 130px; font: inherit; font-size: 18px; text-align: center; padding: 5px 8px; border-radius: 8px; border: 1px solid rgba(242,193,78,0.5); background: rgba(0,0,0,0.3); color: var(--paper); }
   #custom .cu-note { font-size: 11px; color: var(--muted); margin: 2px 0 6px; }
   #custom #cuDone { margin: 2px 0 0; padding: 8px 28px; }
   .icon-img { width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--gold); object-fit: cover; }
@@ -430,8 +434,15 @@
 <div id="replayBar" class="hidden"><span id="rpName"></span><button class="go ghost" id="rpStop" data-en="Stop">やめる</button></div>
 <div id="custom" class="hidden">
   <div class="cu-card">
+    <div class="cu-label" data-en="DANJIRI">だんじり</div>
+    <div class="cu-fin" id="cuFin"></div>
+    <div class="cu-label" data-en="CREW FORMATION">引き手の配置</div>
+    <div class="cu-fin" id="cuForm"></div>
+    <div class="cu-note" id="cuFormD"></div>
     <div class="cu-label" data-en="TOWN COLOR">町（色）</div>
     <div class="cu-teams" id="cuTeams"></div>
+    <div class="cu-label" data-en="BANNER TEXT (up to 4)">幟（のぼり）の文字（4文字まで）</div>
+    <div class="cu-icon"><input id="cuText" class="cu-text" maxlength="8" placeholder="御祭禮" autocomplete="off"><button class="go ghost" id="cuTextSet" data-en="Set">きめる</button></div>
     <div class="cu-label" data-en="FLAG ICON">旗のアイコン</div>
     <div class="cu-icon"><img id="iconImg" class="icon-img hidden" alt=""><button class="go ghost" id="iconBtn" data-en="🖼 Pick image">🖼 画像をえらぶ</button><button class="go ghost hidden" id="iconDel" data-en="Remove">はずす</button><input type="file" id="iconFile" accept="image/*" hidden></div>
     <div class="cu-note" data-en="Your icon flies on the flag behind your danjiri, for everyone in online races.">アイコンはだんじり後ろの旗に出て、オンラインでみんなに見えます</div>
@@ -459,6 +470,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=81"></script>
+<script type="module" src="js/game.js?v=82"></script>
 </body>
 </html>
