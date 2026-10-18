@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=99';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=100';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -449,18 +449,53 @@ export function makeDanjiri(team, type = 0) {
     for (const sx of [-1, 1]) put(S.shide, sg2.clone().rotateY(sx * Math.PI / 2).translate(sx * (w / 2 + 0.02), y0 + 0.05, z0 + d * 0.3));
   }
   }
-  if (type === 4) {   // 龍の曳山: 前に龍の頭、屋根の背にたてがみ
-    const G = 0x2a8a4a, Gd = 0x1d5e33;
-    put(S.vc, col(box(1.0, 0.75, 1.3, 0, 5.05, 2.55), G));
-    put(S.vc, col(box(0.8, 0.45, 0.9, 0, 4.85, 3.4), G));                 // 鼻先
-    put(S.vc, col(box(0.82, 0.16, 0.95, 0, 4.58, 3.35), 0xd8d0b8));       // 下あご
-    for (const sx of [-1, 1]) {
-      put(S.vc, col(sph(0.13, sx * 0.42, 5.25, 3.0, 8, 6), 0xffd23a));    // 目
-      put(S.vc, col(sph(0.07, sx * 0.47, 5.27, 3.08, 6, 4), 0x1a0a00));
-      put(S.gold, rotX(new THREE.ConeGeometry(0.09, 0.9, 6), -0.9).translate(sx * 0.3, 5.75, 2.25));   // 角
-      put(S.vc, col(rotX(cyl(0.02, 0.02, 1.2, 4), 1.2).translate(sx * 0.45, 4.8, 4.0), 0xf0e0b0));     // ひげ
+  if (type === 4) {   // 龍の曳山: 屋根の上をうねる長い胴、口を開けた頭、枝角・ひげ・炎のたてがみ、前足に宝珠
+    const G = 0x1f8a4c, Gd = 0x13552e, BELLY = 0xe8c860, RED = 0xd42a1e;
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    // 胴: 頭（前）から屋根の上をうねって後ろへ。だんだん細く
+    const path = new THREE.CatmullRomCurve3([V(0, 5.0, 2.3), V(0.55, 5.55, 1.4), V(-0.5, 5.6, 0.4), V(0.55, 5.55, -0.6), V(-0.45, 5.45, -1.6), V(0.25, 5.2, -2.4), V(0.6, 5.7, -3.0)]);
+    const body = new THREE.TubeGeometry(path, 80, 0.3, 10, false);
+    { const pos = body.attributes.position, n = 81, ring = 11;   // しっぽへ向けて細くする
+      for (let i = 0; i < n; i++) { const t = i / (n - 1), k = 1 - t * 0.75, c = path.getPointAt(t); for (let j = 0; j < ring; j++) { const q = i * ring + j; pos.setXYZ(q, c.x + (pos.getX(q) - c.x) * k, c.y + (pos.getY(q) - c.y) * k, c.z + (pos.getZ(q) - c.z) * k); } }
+      body.computeVertexNormals(); }
+    put(S.vc, col(body, G));
+    // 背びれ（赤）と腹の金の帯
+    for (let i = 1; i < 18; i++) {
+      const t = i / 18, c = path.getPointAt(t), tg = path.getTangentAt(t), k = 1 - t * 0.75;
+      const fin = new THREE.ConeGeometry(0.1 * k + 0.03, 0.42 * k + 0.12, 4).scale(0.4, 1, 1).translate(0, 0.28 * k + 0.08, 0);
+      fin.rotateX(Math.atan2(tg.z, tg.y) * 0 + (tg.z > 0 ? -0.35 : 0.35)).translate(c.x, c.y + 0.12 * k, c.z);
+      put(S.vc, col(fin, i % 2 ? RED : 0xf0bc3c));
+      put(S.vc, col(sph(0.16 * k + 0.04, c.x, c.y - 0.2 * k, c.z, 6, 4).scale(1, 0.5, 1).translate(0, (c.y - 0.2 * k) * 0.5, 0), BELLY));
     }
-    for (let i = 0; i < 6; i++) put(S.vc, col(rotX(new THREE.ConeGeometry(0.16, 0.5, 4), -0.3).translate(0, 5.35 + (i % 2) * 0.05, 1.7 - i * 0.55), Gd));   // たてがみ
+    // 頭（前を向いて口を開ける）
+    const hz = 2.75, hy = 5.25;
+    put(S.vc, col(new THREE.SphereGeometry(0.48, 12, 10).scale(1, 0.85, 1.15).translate(0, hy, hz), G));
+    put(S.vc, col(box(0.62, 0.3, 0.85, 0, hy + 0.05, hz + 0.7), G));                 // 上あご
+    put(S.vc, col(box(0.56, 0.16, 0.8, 0, hy - 0.35, hz + 0.62).rotateX(0), Gd));    // 下あご（開いた口）
+    put(S.vc, col(box(0.5, 0.06, 0.7, 0, hy - 0.16, hz + 0.6), RED));                // 口の中
+    for (const sx of [-1, 1]) {
+      for (let k = 0; k < 3; k++) put(S.vc, col(new THREE.ConeGeometry(0.04, 0.16, 4).rotateX(Math.PI).translate(sx * 0.2, hy - 0.16, hz + 0.95 - k * 0.2), 0xffffff));   // 牙
+      put(S.vc, col(new THREE.ConeGeometry(0.035, 0.12, 4).translate(sx * 0.18, hy - 0.22, hz + 0.95), 0xffffff));
+      put(S.vc, col(sph(0.12, sx * 0.3, hy + 0.25, hz + 0.32, 8, 6), 0xffd23a));      // 目（金）
+      put(S.vc, col(sph(0.055, sx * 0.36, hy + 0.27, hz + 0.4, 6, 4), RED));
+      put(S.vc, col(box(0.2, 0.06, 0.3, sx * 0.25, hy + 0.36, hz + 0.3).rotateZ(0), Gd));   // まゆ
+      // 枝角（金）
+      const horn = new THREE.CatmullRomCurve3([V(sx * 0.22, hy + 0.35, hz), V(sx * 0.42, hy + 0.85, hz - 0.35), V(sx * 0.55, hy + 1.25, hz - 0.85)]);
+      put(S.gold, new THREE.TubeGeometry(horn, 12, 0.06, 6));
+      put(S.gold, new THREE.CylinderGeometry(0.02, 0.04, 0.4, 5).rotateX(-0.5).rotateZ(-sx * 0.4).translate(sx * 0.48, hy + 0.95, hz - 0.45));
+      // ひげ（長く後ろへなびく）
+      const wh = new THREE.CatmullRomCurve3([V(sx * 0.28, hy, hz + 1.05), V(sx * 0.7, hy + 0.1, hz + 0.9), V(sx * 1.05, hy - 0.2, hz + 0.3), V(sx * 1.2, hy - 0.5, hz - 0.4)]);
+      put(S.vc, col(new THREE.TubeGeometry(wh, 16, 0.025, 4), 0xf6e6b0));
+      // 炎のたてがみ
+      for (let k = 0; k < 4; k++) put(S.vc, col(new THREE.ConeGeometry(0.1, 0.55, 5).rotateZ(sx * (0.9 + k * 0.15)).rotateX(0.5).translate(sx * 0.42, hy + 0.1 - k * 0.12, hz - 0.2 - k * 0.15), k % 2 ? RED : 0xf08a1e));
+      // 前足（爪で屋根の前をつかむ）
+      const leg = new THREE.CatmullRomCurve3([V(sx * 0.25, 5.05, 2.15), V(sx * 0.55, 4.7, 2.5), V(sx * 0.4, 4.45, 2.85)]);
+      put(S.vc, col(new THREE.TubeGeometry(leg, 10, 0.09, 6), G));
+      for (let k = -1; k <= 1; k++) put(S.gold, new THREE.ConeGeometry(0.035, 0.18, 4).rotateX(Math.PI / 2 + 0.6).translate(sx * 0.4 + k * 0.06, 4.38, 2.98));
+    }
+    // 宝珠（炎つき）を前足の間に
+    put(S.vc, col(sph(0.2, 0, 4.55, 3.15, 12, 10), 0xfff2c0));
+    for (let k = 0; k < 5; k++) put(S.vc, col(new THREE.ConeGeometry(0.06, 0.3, 5).rotateZ((k - 2) * 0.4).translate((k - 2) * 0.07, 4.8, 3.15), k % 2 ? RED : 0xf08a1e));
   }
   if (type === 1 || type === 3) {   // 布団太鼓・神輿: 長い担ぎ棒（金の金具つき）
     for (const sx of [-1, 1]) { put(S.wood, box(0.18, 0.18, 7.4, sx * 1.32, 1.6, 0)); for (const sz of [-1, 1]) put(S.gold, box(0.22, 0.22, 0.12, sx * 1.32, 1.6, sz * 3.7)); }
