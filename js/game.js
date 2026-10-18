@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=116';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=116';
-import { buildWorld } from './world.js?v=116';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=116';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=116';
-import { FX, SpeedShader } from './fx.js?v=116';
-import * as AU from './audio.js?v=116';
+import * as SIM from './sim.js?v=117';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=117';
+import { buildWorld } from './world.js?v=117';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=117';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=117';
+import { FX, SpeedShader } from './fx.js?v=117';
+import * as AU from './audio.js?v=117';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -255,29 +255,31 @@ function setFlagIcon(r, url) {
     g.fillStyle = '#f2c14e'; g.fillRect(14, 14, 228, 228);
     g.drawImage(img, 20, 20, 216, 216);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-    // 交差旗: だんじりの後ろに 2 本、根元で交差させて左右へ開く（後ろ＝追いかける側から見える向き）
-    const flag = new THREE.Group(); flag.position.set(0, 2.3, -1.72); flag.rotation.x = -0.3; flag.scale.setScalar(0.72);   // だんじりの後ろの手すりの内側（床）から竿を立て、屋根の後ろを通るよう少し後ろへ倒す
+    // 交差旗: だんじりの後ろと前に 1 組ずつ。竿 2 本が手すりの内側から立って × に交差し、竿の先（剣先）に大きな旗
     const clothMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true }), flags = [];
     const poleMat = new THREE.MeshBasicMaterial({ color: 0x2a1a0e }), knobMat = new THREE.MeshBasicMaterial({ color: 0xf0bc3c }), bladeMat = new THREE.MeshBasicMaterial({ color: 0xe4e9ef });
-    for (const sx of [-1, 1]) {
-      // 根元は左右に離し、内へ傾けて竿の途中（高さ 2.5 m あたり）で X に交差。上の旗どうしは近く
-      // 持ち手（竿の下半分）が「×」になる: 根元を左右に離して内へ倒し、1.4 m あたりで交差
-      // 交差旗（✕）: 竿 2 本が下のほうで交差し、それぞれの竿の先に旗。旗は外へ向かってなびく
-      const lean = 0.78;   // 竿ごと外へ倒す（旗も一緒に外向き）
-      const arm = new THREE.Group(); arm.position.set(-sx * 0.8, 0, sx * 0.06); arm.rotation.z = -sx * lean;   // 根元も広げて、× の交差の高さは前と同じくらいに
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 4.7, 6).translate(0, 2.35, 0), poleMat);   // 大きい旗が手すり・提灯に当たらない長さ   // 旗が屋根のてっぺんより少し低くなる長さ
-      // 竿の先は剣先: 平たい両刃の刃＋鍔＋根元の金具（金）
-      const knob = new THREE.Group(); knob.position.y = 4.7;
-      const blade = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.85, 4).scale(1, 1, 0.25).translate(0, 0.56, 0), bladeMat);
-      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.08).translate(0, 0.12, 0), knobMat);
-      const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.16, 8).translate(0, 0.02, 0), knobMat);
-      knob.add(blade, guard, ferrule);
-      // 大きめの旗。竿側を固定して、外へ行くほどはためく（frame のはためき）
-      const W = 2.0, H = 1.65, geo = new THREE.PlaneGeometry(W, H, 12, 5);   // 前の 1.5 倍
-      const cloth = new THREE.Mesh(geo, clothMat);
-      cloth.position.set(sx * W / 2, 4.7 - H / 2, 0);   // 旗の上端を竿の先（剣先の根元）にそろえる cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）
-      cloth.userData.base = geo.attributes.position.array.slice(); cloth.userData.sx = sx; cloth.userData.W = W;
-      arm.add(pole, knob, cloth); flag.add(arm); flags.push(cloth);
+    const flag = new THREE.Group();
+    for (const fz of [-1, 1]) {   // -1 = 後ろ（追いかける側から見える）、1 = 前
+      const set = new THREE.Group(); set.position.set(0, 2.3, fz * 1.72); set.rotation.x = fz * 0.3; set.scale.setScalar(0.72);   // 外へ少し倒す
+      for (const sx of [-1, 1]) {
+        const lean = 0.78;   // 竿ごと外へ倒す（旗も一緒に外向き）
+        const arm = new THREE.Group(); arm.position.set(-sx * 0.8, 0, sx * 0.06); arm.rotation.z = -sx * lean;   // 根元を広げて × に交差
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 4.7, 6).translate(0, 2.35, 0), poleMat);   // 大きい旗が手すり・提灯に当たらない長さ
+        // 竿の先は剣先: 平たい両刃の刃（銀）＋鍔＋根元の金具（金）
+        const knob = new THREE.Group(); knob.position.y = 4.7;
+        const blade = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.85, 4).scale(1, 1, 0.25).translate(0, 0.56, 0), bladeMat);
+        const guard = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.08).translate(0, 0.12, 0), knobMat);
+        const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.16, 8).translate(0, 0.02, 0), knobMat);
+        knob.add(blade, guard, ferrule);
+        // 大きめの旗。竿側を固定して、外へ行くほどはためく（frame のはためき）
+        const W = 2.0, H = 1.65, geo = new THREE.PlaneGeometry(W, H, 12, 5);
+        const cloth = new THREE.Mesh(geo, clothMat);
+        cloth.position.set(sx * W / 2, 4.7 - H / 2, 0);   // 旗の上端を竿の先（剣先の根元）にそろえる
+        cloth.rotation.set(0, fz < 0 ? Math.PI : 0, 0);   // 写真の表を外（後ろの旗は後ろ、前の旗は前）へ向ける
+        cloth.userData.base = geo.attributes.position.array.slice(); cloth.userData.sx = fz < 0 ? sx : -sx; cloth.userData.W = W;
+        arm.add(pole, knob, cloth); set.add(arm); flags.push(cloth);
+      }
+      flag.add(set);
     }
     flag.userData.cloth = { material: clothMat }; flag.userData.cloths = flags;
     D.body.add(flag); D.iconFlag = flag;
