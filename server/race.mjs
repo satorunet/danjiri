@@ -420,6 +420,14 @@ wss.on('connection', (ws, req) => {
         room.broadcast({ t: 'chat', id: p.id, name: p.name, team: p.team, text });
         break;
       }
+      case 'like': { // 表彰のいいね!（まとめて送られてくる。部屋のほかの人へ）
+        if (!room || now - (p.lastLike || 0) < 250) break;
+        p.lastLike = now;
+        const to = String(m.to || '').slice(0, 16), n = num(m.n, 1, 30, 1) | 0;
+        if (!/^[0-9a-z_]+$/i.test(to)) break;
+        for (const q of room.players.values()) if (q !== p) send(q, { t: 'like', id: p.id, to, n });
+        break;
+      }
       case 'icon': { // だんじりカスタム: 旗のアイコン（128px の JPEG、20 KB まで）・幟の文字（4 文字）・仕上げ
         let d = typeof m.data === 'string' ? m.data : '';
         if (d && (!d.startsWith('data:image/jpeg;base64,') || d.length > 28000)) d = '';

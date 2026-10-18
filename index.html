@@ -143,6 +143,19 @@
   #podium .pd-cup { font-size: 54px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); }
   #podium .pd-title { font-family: 'Dela Gothic One', sans-serif; font-size: clamp(40px, 11vw, 72px); color: var(--gold); text-shadow: 0 5px 0 #6b3d10, 0 0 30px rgba(226,64,47,0.6); letter-spacing: .15em; }
   #podium .pd-name { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-family: 'Dela Gothic One', sans-serif; font-size: clamp(20px, 5vw, 30px); color: #fff; background: rgba(18,12,36,0.8); border: 2px solid var(--gold); border-radius: 30px; padding: 4px 18px; }
+  #podium .pd-like { position: absolute; right: 18px; bottom: calc(110px + env(safe-area-inset-bottom)); width: 76px; height: 76px; border-radius: 50%; border: 3px solid #fff; background: radial-gradient(circle at 35% 30%, #ff7aa0, #e8205a); color: #fff; font: inherit; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(232,32,90,0.55); cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  #podium .pd-like .pd-heart { font-size: 30px; line-height: 1; }
+  #podium .pd-like span:last-child { font-size: 14px; font-family: 'Dela Gothic One', sans-serif; }
+  #podium .pd-like.pop { animation: likePop .25s ease-out; }
+  @keyframes likePop { 40% { transform: scale(1.18); } }
+  #likeLayer { position: fixed; inset: 0; pointer-events: none; z-index: 41; overflow: hidden; }
+  #likeLayer .lk { position: absolute; font-size: 30px; will-change: transform, opacity; animation: lkUp var(--t, 2.4s) cubic-bezier(.2,.6,.4,1) forwards; }
+  @keyframes lkUp {
+    0% { transform: translate(0, 0) scale(.3) rotate(0); opacity: 0; }
+    12% { transform: translate(calc(var(--dx) * .15), -6vh) scale(var(--s)) rotate(calc(var(--r) * .3)); opacity: 1; }
+    45% { transform: translate(calc(var(--dx) * -.4), -28vh) scale(var(--s)) rotate(calc(var(--r) * -.4)); opacity: 1; }
+    100% { transform: translate(var(--dx), -62vh) scale(calc(var(--s) * 1.1)) rotate(var(--r)); opacity: 0; }
+  }
   #podium .pd-skip { margin-top: 10px; font-size: 12px; color: #fff; opacity: .75; text-shadow: 0 1px 3px #000; }
   @keyframes pdIn { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   #crop { z-index: 60; }
@@ -589,7 +602,8 @@
     <div><button class="go" id="crOk" data-en="Use this">これにする</button><button class="go ghost" id="crCancel" data-en="Cancel">やめる</button></div>
   </div>
 </div>
-<div id="podium" class="hidden"><div class="pd-box"><div class="pd-cup" id="pdCup">🏆</div><div class="pd-title" id="pdTitle">優 勝</div><div class="pd-name" id="pdName"></div><div class="pd-skip" data-en="Tap to continue">タップで結果へ</div></div></div>
+<div id="podium" class="hidden"><div class="pd-box"><div class="pd-cup" id="pdCup">🏆</div><div class="pd-title" id="pdTitle">優 勝</div><div class="pd-name" id="pdName"></div><div class="pd-skip" data-en="Tap to continue">タップで結果へ</div></div><button class="pd-like" id="pdLike" aria-label="いいね"><span class="pd-heart">❤️</span><span id="pdLikeN">0</span></button></div>
+<div id="likeLayer"></div>
 <div id="showcase" class="hidden">
   <div class="sc-hint" data-en="Drag to rotate · scroll / pinch to zoom">ドラッグで回す・ホイール / 2本指でズーム</div>
   <div class="sc-bar">
@@ -612,6 +626,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=135"></script>
+<script type="module" src="js/game.js?v=136"></script>
 </body>
 </html>

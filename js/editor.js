@@ -1,7 +1,7 @@
 // だんじりエディター（テスト版）: 部品を組み合わせてオリジナルのだんじりを作る
 import * as THREE from 'three';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { makeDanjiri, DJ_TYPES, DJ_PARTS, TYPE_PARTS, normParts, FINISHES, setFinish, CUSTOM_SHAPES, CUSTOM_MATS, CUSTOM_MAX, customMesh, normCustom, PIC_MAX } from './models.js?v=135';
+import { makeDanjiri, DJ_TYPES, DJ_PARTS, TYPE_PARTS, normParts, FINISHES, setFinish, CUSTOM_SHAPES, CUSTOM_MATS, CUSTOM_MAX, customMesh, normCustom, PIC_MAX } from './models.js?v=136';
 
 const $ = id => document.getElementById(id);
 const TEAMS = [

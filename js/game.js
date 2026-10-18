@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=135';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=135';
-import { buildWorld } from './world.js?v=135';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=135';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=135';
-import { FX, SpeedShader } from './fx.js?v=135';
-import * as AU from './audio.js?v=135';
+import * as SIM from './sim.js?v=136';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=136';
+import { buildWorld } from './world.js?v=136';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=136';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=136';
+import { FX, SpeedShader } from './fx.js?v=136';
+import * as AU from './audio.js?v=136';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1325,6 +1325,40 @@ function collectedHTML(r) {
 }
 const swatch = team => `<span class="sw" style="background:${team.css}"></span>`;
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// ================= いいね!: 表彰の間、何回でも押せる。押すとハートがふわふわ飛ぶ（オンラインは部屋のみんなにも飛ぶ） =================
+const LIKE = { to: null, counts: new Map(), q: 0, qTo: null, t: 0, live: 0 };
+const LIKE_ICONS = ['❤️', '💖', '💗', '💕', '👍', '✨', '🎉', '🏮'];
+function likeFloat(n, fromBtn = true) {
+  const b = $('pdLike').getBoundingClientRect(), layer = $('likeLayer');
+  for (let i = 0; i < n && LIKE.live < 90; i++) {
+    const el = document.createElement('span'); el.className = 'lk';
+    el.textContent = LIKE_ICONS[Math.random() < 0.55 ? 0 : Math.floor(Math.random() * LIKE_ICONS.length)];
+    const x = fromBtn ? b.left + b.width / 2 - 15 + (Math.random() - 0.5) * 24 : innerWidth * (0.55 + Math.random() * 0.4), y = fromBtn ? b.top - 10 : innerHeight * 0.8;
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    el.style.setProperty('--dx', `${Math.round((Math.random() - 0.65) * 160)}px`); el.style.setProperty('--s', (0.8 + Math.random() * 0.8).toFixed(2));
+    el.style.setProperty('--r', `${Math.round((Math.random() - 0.5) * 50)}deg`); el.style.setProperty('--t', `${(2 + Math.random() * 1.2).toFixed(2)}s`);
+    el.style.animationDelay = `${i * 70}ms`;
+    LIKE.live++; el.addEventListener('animationend', () => { el.remove(); LIKE.live--; });
+    layer.appendChild(el);
+  }
+}
+const likeKey = r => (r ? String(r.id ?? racers.indexOf(r)) : '');
+function likeShow() { setT($('pdLikeN'), LIKE.counts.get(LIKE.to) || 0); }
+function likeTap(e) {
+  e.stopPropagation(); e.preventDefault();
+  if (!LIKE.to) return;
+  LIKE.counts.set(LIKE.to, (LIKE.counts.get(LIKE.to) || 0) + 1); likeShow();
+  const b = $('pdLike'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  likeFloat(1 + (Math.random() < 0.3 ? 1 : 0));
+  if (mode === 'online') { if (LIKE.qTo !== LIKE.to) { likeFlush(); LIKE.qTo = LIKE.to; } LIKE.q++; if (!LIKE.t) LIKE.t = setTimeout(likeFlush, 350); }
+}
+function likeFlush() { clearTimeout(LIKE.t); LIKE.t = 0; if (LIKE.q && LIKE.qTo) netSend({ t: 'like', to: LIKE.qTo, n: LIKE.q }); LIKE.q = 0; }
+// ほかの人のいいね
+function onLike(m) {
+  const to = String(m.to || ''), n = Math.max(1, Math.min(30, m.n | 0));
+  LIKE.counts.set(to, (LIKE.counts.get(to) || 0) + n);
+  if (!$('podium').classList.contains('hidden') && to === LIKE.to) { likeShow(); likeFloat(Math.min(n, 8), false); }
+}
 // ================= 表彰: 1 位のだんじりを 3D でくるくる（紙吹雪・歓声）→ 結果 =================
 let podiumT = 0;
 // order: 1 位から順の配列（3 位 → 2 位 → 1 位の順に見せる）
@@ -1344,6 +1378,7 @@ function podium(order) {
   document.querySelector('#showcase .sc-bar').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.add('hidden');
   $('podium').classList.remove('hidden');
   $('podium').onclick = done;
+  $('pdLike').onclick = likeTap; LIKE.counts.clear();
   // 3 位 → 2 位 → 1 位
   const seq = [...list].reverse();
   const show = k => {
@@ -1351,13 +1386,14 @@ function podium(order) {
     const r = seq[k], rank = list.indexOf(r) + 1, last = k === seq.length - 1;
     SC.i = racers.indexOf(r); SC.yaw = Math.PI * (0.8 + k * 0.4); SC.pitch = 0.24; SC.dist = 19; SC.auto = true; SC.focus = null;
     $('pdCup').textContent = ['🏆', '🥈', '🥉'][rank - 1];
+    likeFlush(); LIKE.to = likeKey(r); likeShow();
     setT($('pdTitle'), rank === 1 ? L('優 勝', 'WINNER!') : L(`${rank} 位`, `#${rank}`));
     $('pdName').innerHTML = `${swatch(r.team)}${esc(r === player && mode === 'online' ? myName : r.name)}`;
     const box = document.querySelector('#podium .pd-box'); box.classList.remove('pd-go'); void box.offsetWidth; box.classList.add('pd-go');
     const v = r.vis, n = rank === 1 ? 4 : 1;
     for (let j = 0; j < n; j++) setTimeout(() => { if (SC.podium) fx.burst('confetti', v.x + (Math.random() - 0.5) * 6, v.y + 8, v.z + (Math.random() - 0.5) * 6, rank === 1 ? 90 : 40, { speed: 7, up: 7, life: 3.5 }); }, j * 900);
     AU.cheer(rank === 1 ? 0.9 : 0.4, rank === 1 ? 4 : 1.5);
-    podiumT = setTimeout(() => (last ? done() : show(k + 1)), last ? 4800 : 2300);
+    podiumT = setTimeout(() => (last ? done() : show(k + 1)), last ? 5600 : 3000);   // いいねを押す間も少しとる
   };
   show(0);
 }
@@ -2016,6 +2052,7 @@ function onNet(m) {
     const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { r.flagMode = NET.flagModes[m.id]; if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; r.crew = NET.crews[m.id]; crewTex(r); }
   }
   else if (m.t === 'chat') onChat(m);
+  else if (m.t === 'like') onLike(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
 }
