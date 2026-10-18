@@ -194,7 +194,7 @@ class Room {
     this.stage = ['jp', 'paris', 'ny', 'giza', 'venice'][Math.floor(Math.random() * 5)] + (Math.random() < 0.5 ? '-day' : '-night');
     // 町の壊れ具合は部屋ごと
     this.course = { ...course, ext: [new Float32Array(course.nb), new Float32Array(course.nb)] };
-    this.phase = 'race'; this.startAt = now + T_COUNT; this.phaseEnd = this.startAt + T_RACE; this.firstFin = 0;
+    this.phase = 'race'; this.startAt = now + T_COUNT; this.phaseEnd = this.startAt + T_RACE; this.firstFin = 0; this.allDoneAt = 0;
     this.sync();
   }
   finish(now) {
@@ -243,8 +243,10 @@ class Room {
       const racing = [...this.players.values()].filter(p => p.racing);
       if (!racing.length) { this.phase = 'wait'; this.cpus = []; this.phaseEnd = now + T_JOIN; this.hold = false; this.updateHold(false); this.sync(); return; }
       if (now >= this.startAt) this.simulate(now, steps, dt);
+      // 全員ゴールしても 4 秒は走り抜ける様子を見せてから結果へ
       const done = racing.every(p => p.fin != null);
-      if (done || now >= this.phaseEnd || (this.firstFin && now >= this.firstFin + T_AFTER)) this.finish(now);
+      if (done && !this.allDoneAt) this.allDoneAt = now;
+      if ((done && now >= this.allDoneAt + 4000) || now >= this.phaseEnd || (this.firstFin && now >= this.firstFin + T_AFTER)) this.finish(now);
     } else if (this.phase === 'result') {
       if (now >= this.phaseEnd) { this.phase = 'wait'; this.phaseEnd = now + T_JOIN + 2000; this.hold = false; this.updateHold(false); this.sync(); }
     }
