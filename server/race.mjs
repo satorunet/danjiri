@@ -5,6 +5,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import http from 'http';
+import crypto from 'crypto';
 import { WebSocketServer } from 'ws';
 import * as SIM from '../js/sim.js';
 
@@ -277,7 +279,85 @@ function findRoom(legacy = false) {
   return open.sort((a, b) => b.players.size - a.players.size)[0] || new Room(legacy);
 }
 
-const wss = new WebSocketServer({ host: '127.0.0.1', port: PORT, maxPayload: 120000 });
+// ================= 試合後のシェア（/p/ID: X などに貼ると、その人のだんじりの写真と名前がカードに出る） =================
+const SHARE_DIR = path.join(path.dirname(RANK_FILE), 'share');
+const SHARE_KEEP = 5000;   // 古いものから消す
+const SITE = 'https://danjiri.satoru.net';
+const lastShare = new Map();   // IP → 最後に作った時刻
+let shareMade = 0;
+const okDj = dj => dj && Array.isArray(dj.stuck) && dj.stuck.length <= 80 && Array.isArray(dj.items) && dj.items.length <= 60
+  && dj.stuck.every(e => e && ['p', 's', 'r', 'g'].includes(e.k) && Number.isInteger(e.i) && e.i >= 0 && e.i < 100000 && Array.isArray(e.L) && e.L.length === 16 && e.L.every(v => Number.isFinite(v) && Math.abs(v) < 1e4))
+  && dj.items.every(it => Array.isArray(it) && typeof it[0] === 'string' && it[0].length <= 24 && Number.isInteger(it[1]) && it[1] > 0 && it[1] < 1000);
+function makeShare(p, m) {
+  const now = Date.now(), ip = p.ip || '?';
+  if (now - (lastShare.get(ip) || 0) < 8000) return { ok: false, err: 'wait' };
+  const place = PLACES.includes(m.place) ? m.place : null;
+  if (!place || typeof m.img !== 'string' || !m.img.startsWith('data:image/jpeg;base64,') || !okDj(m.dj)) return { ok: false, err: 'bad' };
+  const buf = Buffer.from(m.img.slice(23), 'base64');
+  if (buf.length < 3000 || buf.length > 400000 || buf[0] !== 0xff || buf[1] !== 0xd8) return { ok: false, err: 'img' };
+  const st = m.st || {};
+  const sh = {
+    v: 1, name: cleanName(m.name), place, tod: m.tod === 'night' ? 'night' : 'day', laps: num(m.laps, 1, 3, 2) | 0, at: Math.floor(now / 1000),
+    st: { rank: num(st.rank, 0, 8, 0) | 0, n: num(st.n, 0, 8, 0) | 0, time: r2(num(st.time, 0, 9999, 0)), kg: Math.round(num(st.kg, 0, 1e9, 0)), items: num(st.items, 0, 1e5, 0) | 0, smash: num(st.smash, 0, 1e5, 0) | 0, speed: Math.round(num(st.speed, 0, 999, 0)), drift: r2(num(st.drift, 0, 99, 0)), air: r2(num(st.air, 0, 99, 0)) },
+    dj: { team: num(m.dj.team, 0, 7, 0) | 0, stuck: m.dj.stuck.map(e => ({ k: e.k, i: e.i, L: e.L })), items: m.dj.items.map(it => [cleanText(it[0], 24), it[1]]) },
+  };
+  const rec = m.rec;
+  if (rec && Array.isArray(rec.f) && rec.f.length >= 70 && rec.f.length <= 7 * 4000 && rec.f.length % 7 === 0 && rec.f.every(v => Number.isInteger(v) && Math.abs(v) < 1e6)) sh.rec = { team: num(rec.team, 0, 7, 0) | 0, f: rec.f };
+  const id = crypto.randomBytes(6).toString('base64url').replace(/[-_]/g, 'x').toLowerCase().slice(0, 8);
+  try {
+    fs.mkdirSync(SHARE_DIR, { recursive: true });
+    fs.writeFileSync(path.join(SHARE_DIR, id + '.jpg'), buf);
+    fs.writeFileSync(path.join(SHARE_DIR, id + '.json'), JSON.stringify(sh));
+  } catch (e) { console.error(e); return { ok: false, err: 'save' }; }
+  lastShare.set(ip, now);
+  if (++shareMade % 50 === 0) pruneShares();
+  return { ok: true, id };
+}
+function pruneShares() {
+  try {
+    const list = fs.readdirSync(SHARE_DIR).filter(f => f.endsWith('.json')).map(f => ({ f, t: fs.statSync(path.join(SHARE_DIR, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    for (const { f } of list.slice(SHARE_KEEP)) { const id = f.slice(0, -5); for (const x of [id + '.json', id + '.jpg']) try { fs.unlinkSync(path.join(SHARE_DIR, x)); } catch { } }
+  } catch { }
+}
+const shareId = id => (/^[0-9a-z]{6,12}$/.test(String(id)) ? String(id) : null);
+function readShare(id) {
+  id = shareId(id); if (!id) return null;
+  try { return JSON.parse(fs.readFileSync(path.join(SHARE_DIR, id + '.json'), 'utf8')); } catch { return null; }
+}
+const PLACE_JA = { jp: '日本の町', paris: 'パリ', ny: 'ニューヨーク', giza: 'ギザ', venice: 'ベネチア' };
+const kgText = kg => (kg >= 1000 ? `${(kg / 1000).toFixed(kg >= 1e4 ? 0 : 1)}トン` : `${kg}kg`);
+const escH = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// ゲームの index.html をそのまま返し、カード用の meta だけ差し替える（<base> で js などは / から読む）
+const INDEX = path.join(__dirname, '..', 'index.html');
+function sharePage(id, sh) {
+  let html = fs.readFileSync(INDEX, 'utf8');
+  const s = sh.st, title = `${sh.name} のだんじり ― だんじり疾走`;
+  const desc = [s.rank ? `${PLACE_JA[sh.place]}で${s.n ? s.n + '台中 ' : ''}${s.rank}位` : PLACE_JA[sh.place], s.items ? `ひっつけた物 ${s.items}個（${kgText(s.kg)}）` : '', s.smash ? `壊した数 ${s.smash}` : '', s.speed ? `最高 ${s.speed}km/h` : ''].filter(Boolean).join('・') + '。くっつけた物ごと 3D で見られます。';
+  const img = `${SITE}/p/${id}.jpg`, url = `${SITE}/p/${id}`;
+  const set = (attr, key, val) => { html = html.replace(new RegExp(`(<meta ${attr}="${key}" content=")[^"]*(")`), `$1${escH(val)}$2`); };
+  set('property', 'og:title', title); set('property', 'og:description', desc); set('property', 'og:url', url); set('property', 'og:image', img);
+  set('name', 'twitter:title', title); set('name', 'twitter:description', desc); set('name', 'twitter:image', img); set('name', 'description', desc);
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${escH(title)}</title>`).replace('<head>', '<head>\n<base href="/">');
+  return html;
+}
+const httpServer = http.createServer((req, res) => {
+  const u = (req.url || '').split('?')[0];
+  let m = u.match(/^\/p\/([0-9a-z]{6,12})\.jpg$/);
+  if (m) {
+    fs.readFile(path.join(SHARE_DIR, m[1] + '.jpg'), (err, buf) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable' }); res.end(buf);
+    });
+    return;
+  }
+  m = u.match(/^\/p\/([0-9a-z]{6,12})$/);
+  const sh = m && readShare(m[1]);
+  if (!sh) { res.writeHead(302, { Location: '/' }); res.end(); return; }
+  try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(sharePage(m[1], sh)); }
+  catch (e) { console.error(e); res.writeHead(500); res.end(); }
+});
+httpServer.listen(PORT, '127.0.0.1');
+const wss = new WebSocketServer({ server: httpServer, maxPayload: 480000 });
 wss.on('connection', (ws, req) => {
   if (wss.clients.size > 400) { ws.close(1013, 'busy'); return; }
   const p = { id: nextId++, ws, name: '名無し', room: null, msgs: 0, msgT: Date.now(), ip: String(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim() };   // Cloudflare 越しでも本当の送り元
@@ -319,6 +399,8 @@ wss.on('connection', (ws, req) => {
       }
       case 'leave': if (room) room.remove(p); break;
       case 'rank': { const res = submitRank(p, m); send(p, { t: 'rankres', ...res }); break; }
+      case 'share': { const res = makeShare(p, m); send(p, { t: 'shareres', ...res }); break; }
+      case 'shareget': { const sh = readShare(m.id); send(p, { t: 'shareget', id: shareId(m.id), sh }); break; }
       case 'ranks': { const pl = PLACES.includes(m.place) ? m.place : 'jp'; send(p, { t: 'ranks', place: pl, cats: ranks[pl] }); break; }
       case 'rankfind': { // 記録ごとの URL (?r=ID): その記録の町と、載っている部門・順位
         const id = String(m.id || ''); let place = null; const at = {};

@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=125';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=125';
-import { buildWorld } from './world.js?v=125';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=125';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=125';
-import { FX, SpeedShader } from './fx.js?v=125';
-import * as AU from './audio.js?v=125';
+import * as SIM from './sim.js?v=126';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=126';
+import { buildWorld } from './world.js?v=126';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=126';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=126';
+import { FX, SpeedShader } from './fx.js?v=126';
+import * as AU from './audio.js?v=126';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -33,7 +33,8 @@ const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in win
 if (isTouch) document.body.classList.add('touch');
 const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { } } };
 // オンラインの接続先: ページのある場所の ws（satoru.net/danjiri/ws でも danjiri.satoru.net/ws でも動く）
-const wsURL = () => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + location.pathname.replace(/[^/]*$/, '') + 'ws';
+const BASE = location.pathname.replace(/\/p\/[^/]*$/, '/').replace(/[^/]*$/, '');   // シェアの URL（/p/ID）から開いた時もゲームの置き場所を指す
+const wsURL = () => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + BASE + 'ws';
 // ================= 言語（日本語 / 英語）。日本語以外のブラウザは最初から英語 =================
 let LANG = store.get('danjiri-lang', /^ja\b/i.test(navigator.language || '') ? 'ja' : 'en');
 const L = (ja, en) => (LANG === 'en' ? en : ja);
@@ -1121,7 +1122,7 @@ function updateTurnCall(c) {
       el.className = (Lt ? 'L' : 'R') + (now ? ' now' : '');
       $('turnEdge').className = now ? (Lt ? 'L' : 'R') : '';
       if (now && turnUI.key && turnUI.key[1] === '0') AU.sfx('turnNow');
-      setT(el.querySelector('.tx'), now ? (Lt ? L('左へ!!', 'LEFT!!') : L('右へ!!', 'RIGHT!!')) : (Lt ? L('次は左!', 'Left ahead!') : L('次は右!', 'Right ahead!')));
+      setT(el.querySelector('.tx'), now ? (Lt ? L('左へ!!', 'LEFT!!') : L('右へ!!', 'RIGHT!!')) : '');   // 手前の予告は矢印と »»» だけ（文字は出さない）
     }
     setT(el.querySelector('small'), now && fast ? L('勢いのまま突っ込め!', 'Charge in!') : `${Math.max(0, Math.round(nc.dist))} m`);
     const id = nc.c.idx + Math.floor(c.prog / course.L) * 100;
@@ -1367,7 +1368,7 @@ function showSoloResult() {
     const time = r.finished ? r.finishTime : raceT + (gs - r.car.prog) / 18;
     return `<tr class="${r === player ? 'me' : ''}"><td>${L(`${i + 1}位`, `#${i + 1}`)}</td><td>${swatch(r.team)}${esc(r.name)}</td><td>${r.finished ? '' : L('約 ', '~')}${fmt(time)}</td></tr>`;
   }).join('');
-  const rank = order.indexOf(player) + 1;
+  const rank = order.indexOf(player) + 1; resInfo = { rank, n: order.length }; shareReset(true);
   $('resTitle').textContent = rank === 1 ? L('優勝! 町の誇りや!', 'VICTORY! Pride of the town!') : L(`${rank}位 ゴール`, `Finished #${rank}`);
   const best = +store.get(bestKey(), 0);
   if (player.finished && (!best || player.finishTime < best)) { store.set(bestKey(), player.finishTime); $('resNew').textContent = best ? L('ベストタイム更新!', 'New best time!') : L('ベストタイム記録!', 'Best time set!'); }
@@ -1545,8 +1546,8 @@ function rpPick(d) {
   const i = RP.list.findIndex(x => x.r === RP.r), n = RP.list[(i + d + RP.list.length) % RP.list.length];
   RP.r = n.r; RP.f = n.f; player = n.r; cam.ready = false; rpLabel();
 }
-async function playReplay(e, pl, tod) {
-  let m; try { m = await rankAsk({ t: 'rankrep', id: e.id }, 'rankrep'); } catch { return; }
+async function playReplay(e, pl, tod, rec0) {
+  let m; if (rec0) m = { rec: rec0 }; else try { m = await rankAsk({ t: 'rankrep', id: e.id }, 'rankrep'); } catch { return; }
   if (!m.rec || !m.rec.f) return;
   ['ranking', 'title', 'result', 'hud', 'touch', 'count'].forEach(id => $(id).classList.add('hidden'));
   withLoading(() => {
@@ -1595,6 +1596,7 @@ function replayStop() {
     state = 'result'; $('result').classList.remove('hidden'); $('result').scrollTop = 0;
     return;
   }
+  if (shareView) { const v = shareView; openShare(v.id); return; }
   toTitle(); openRanking(rkPlace);
 }
 // ゴールの瞬間の写真（320×180 の JPEG）
@@ -1632,6 +1634,75 @@ function displayDj(dj, e, pl) {
     showcaseOpen(true);
   });
 }
+// ================= 試合後のシェア: だんじりの写真（カード用）と積んだ物・走りを預けて URL をもらう =================
+let resInfo = { rank: 0, n: 0 }, shareMade = null;
+function shareReset(on) { shareMade = null; $('shareBox').classList.toggle('hidden', !on); $('shareOut').innerHTML = ''; $('shareBtn').disabled = false; $('shareBtn').classList.remove('hidden'); }
+const shareName = () => (mode === 'online' ? myName : ($('nameIn')?.value.trim() || store.get('danjiri-name', '') || L('名無し', 'Anonymous'))).slice(0, 12);
+// カード用 1200×630: 自分のだんじりを斜め前から撮って、名前と成績を重ねる
+function shareCard(r, name) {
+  const W = 1200, H = 630, v = r.vis, a = v.yaw + 0.75;
+  const sp = camera.position.clone(), sq = camera.quaternion.clone(), sf = camera.fov, sa = camera.aspect, pr = renderer.getPixelRatio();
+  let url = null;
+  try {
+    renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+    camera.fov = 34; camera.aspect = W / H; camera.updateProjectionMatrix();
+    camera.position.set(v.x + Math.sin(a) * 15, v.y + 5.6, v.z + Math.cos(a) * 15); camera.lookAt(v.x - Math.cos(a) * 1.6, v.y + 3.2, v.z + Math.sin(a) * 1.6);
+    const tag = r.tag; if (tag) tag.visible = false;
+    const others = racers.filter(o => o !== r && o.D.group.visible); others.forEach(o => { o.D.group.visible = false; });   // カードは自分のだんじりだけ
+    renderer.render(scene, camera);
+    if (tag) tag.visible = true; others.forEach(o => { o.D.group.visible = true; });
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    g.drawImage(renderer.domElement, 0, 0, W, H);
+    const gr = g.createLinearGradient(0, H * 0.55, 0, H); gr.addColorStop(0, 'rgba(10,6,24,0)'); gr.addColorStop(1, 'rgba(10,6,24,0.88)'); g.fillStyle = gr; g.fillRect(0, H * 0.55, W, H * 0.45);
+    // ロゴ
+    g.font = `900 34px ${FONT}`; const lw = g.measureText('だんじり疾走').width;
+    g.fillStyle = 'rgba(18,12,36,0.85)'; g.beginPath(); g.roundRect(28, 26, lw + 44, 58, 29); g.fill();
+    g.fillStyle = '#f2c14e'; g.textBaseline = 'middle'; g.fillText('だんじり疾走', 50, 56);
+    // 名前と成績
+    g.fillStyle = r.team.css; g.fillRect(40, H - 168, 12, 128);
+    g.textBaseline = 'alphabetic'; g.fillStyle = '#fff'; g.font = `900 64px ${FONT}`; g.lineWidth = 8; g.strokeStyle = 'rgba(0,0,0,0.5)';
+    const nm = `${name} のだんじり`; g.strokeText(nm, 72, H - 104, W - 110); g.fillText(nm, 72, H - 104, W - 110);
+    const n = r.stick.log ? r.stick.log.size : 0;
+    const bits = [resInfo.rank ? `${pName(place)} ${resInfo.rank}位` : pName(place), n ? `ひっつけ ${n}個・${fmtKg(stuckKg(r))}` : '', stats.smash ? `破壊 ${stats.smash}` : '', `最高 ${Math.round(stats.topSpeed * 3.6)}km/h`].filter(Boolean);
+    g.font = `700 32px 'Zen Kaku Gothic New', sans-serif`; g.fillStyle = '#ffe9a8'; g.fillText(bits.join('　'), 74, H - 50, W - 110);
+    for (const q of [0.82, 0.7, 0.58, 0.46]) { url = c.toDataURL('image/jpeg', q); if (url.length < 380000) break; }
+  } catch (e) { url = null; }
+  renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight);
+  camera.position.copy(sp); camera.quaternion.copy(sq); camera.fov = sf; camera.aspect = sa; camera.updateProjectionMatrix();
+  return url;
+}
+async function makeShare() {
+  if (shareMade) return;
+  const btn = $('shareBtn'); btn.disabled = true; setT(btn, L('つくっています…', 'Creating…'));
+  const name = shareName(), img = shareCard(player, name);
+  const fail = t => { btn.disabled = false; setT(btn, L('📣 だんじりをシェア', '📣 Share my danjiri')); $('shareOut').textContent = t; };
+  if (!img) { fail(L('写真が撮れませんでした', 'Could not take the picture')); return; }
+  const kg = stuckKg(player), items = player.stick.log ? player.stick.log.size : 0;
+  let m;
+  try {
+    m = await rankAsk({ t: 'share', name, place, tod: night ? 'night' : 'day', laps: LAPS, img, dj: djData(), rec: rec && rec.f.length >= 70 ? { team: player.teamIdx, f: rec.f } : null,
+      st: { rank: resInfo.rank, n: resInfo.n, time: player.finished ? player.finishTime : 0, kg, items, smash: stats.smash, speed: stats.topSpeed * 3.6, drift: stats.bestDrift, air: stats.maxAir } }, 'shareres');
+  } catch { fail(L('つながりませんでした。もう一度どうぞ', 'Could not connect. Try again')); return; }
+  if (!m.ok) { fail(m.err === 'wait' ? L('少し待ってからもう一度どうぞ', 'Wait a moment and try again') : L('作れませんでした', 'Could not create it')); return; }
+  const url = `${location.origin}${BASE}p/${m.id}`;
+  shareMade = url; btn.classList.add('hidden');
+  const text = L(`だんじり疾走「${pName(place)}」${resInfo.rank ? resInfo.rank + '位! ' : ''}${items ? `ひっつけた物 ${items}個（${fmtKg(kg)}）` : ''} #だんじり疾走`, `Danjiri Dash — ${pName(place)}${resInfo.rank ? ' #' + resInfo.rank : ''}${items ? `, stuck ${items} things` : ''} #DanjiriDash`);
+  $('shareOut').innerHTML = `<img src="${img}" alt=""><input readonly value="${esc(url)}">${shareButtons(url, text)}`;
+  $('shareOut').querySelector('input').onclick = e => e.target.select();
+}
+// シェアの URL（/p/ID）から来た時: そのだんじりを積んだ物ごと 3D で見せる
+let shareView = null;
+async function openShare(id) {
+  let m; try { m = await rankAsk({ t: 'shareget', id }, 'shareget'); } catch { return; }
+  const sh = m.sh; if (!sh) { setURL(homeURL()); return; }
+  shareView = { id, sh };
+  displayDj(sh.dj, { name: sh.name, tod: sh.tod }, sh.place);
+  const s = sh.st, bits = [s.rank ? L(`${pName(sh.place)} ${s.rank}位`, `${pName(sh.place)} #${s.rank}`) : pName(sh.place), s.items ? L(`ひっつけた物 ${s.items}個（${fmtKg(s.kg)}）`, `Stuck ${s.items} (${fmtKg(s.kg)})`) : '', s.smash ? L(`壊した数 ${s.smash}`, `Smashed ${s.smash}`) : '', s.speed ? L(`最高 ${s.speed}km/h`, `Top ${s.speed} km/h`) : ''].filter(Boolean);
+  $('scShareInfo').innerHTML = `<b>${esc(sh.name)}${L(' のだんじり', "'s danjiri")}</b><small>${esc(bits.join(' ・ '))}</small>`;
+  $('scSharePlay').classList.toggle('hidden', !sh.rec);
+  $('scShare').classList.remove('hidden'); setT($('scBack'), L('タイトルへ', 'Title'));
+}
+function shareClose() { if (!shareView) return; shareView = null; $('scShare').classList.add('hidden'); setT($('scBack'), L('結果に戻る', 'Back to results')); setURL(homeURL()); }
 // 結果画面の登録フォーム
 // ランクインできそうな時だけ登録フォームを出す（今のランキングと比べる。30 位以内か、表がまだ埋まっていない部門があれば）
 const RK_LIMITS = { lap: [22, 600, true], speed: [1, 160], drift: [0.3, 15], stuck: [1, 2e7], smash: [1, 3000], air: [0.2, 5] };
@@ -1675,11 +1746,11 @@ async function showRankForm() {
   };
 }
 // 共有: その記録（またはその町・部門の表）を開く URL
-const rankURL = (pl, cat, id) => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?rank=${pl}&cat=${cat}${id ? '&id=' + id : ''}`;
+const rankURL = (pl, cat, id) => `${location.origin}${BASE}?rank=${pl}&cat=${cat}${id ? '&id=' + id : ''}`;
 // 見ているランキング/記録をアドレスバーにも反映（そのままコピーで共有できる）
 const setURL = u => { try { history.replaceState(null, '', u); } catch { } };
-const homeURL = () => location.pathname + (location.search.includes('debug') ? '?debug' : '');
-const recURL = id => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?r=${id}`;   // プレイ記録ごとの URL
+const homeURL = () => BASE + (location.search.includes('debug') ? '?debug' : '');
+const recURL = id => `${location.origin}${BASE}?r=${id}`;   // プレイ記録ごとの URL
 const catName = k => { const c = RK_CATS.find(x => x[0] === k); return c ? L(c[1], c[2]) : k; };
 const pName = p => (LANG === 'en' ? PLACE_EN[p] : PLACES[p]);
 function shareButtons(url, text) {
@@ -1990,7 +2061,7 @@ function showGhostResult() {
   const rows = racers.filter(r => r === player || !r.ghostVisitor).map(r => ({ r, t: r === player ? player.finishTime : r.finished ? r.finishTime : null }))
     .sort((a, b) => (a.t == null) - (b.t == null) || a.t - b.t);
   $('resTable').innerHTML = rows.map((e, i) => `<tr class="${e.r === player ? 'me' : ''}"><td>${e.t == null ? '—' : L(`${i + 1}位`, `#${i + 1}`)}</td><td>${swatch(e.r.team)}${e.r === player ? '👻 ' + esc(myName) + L('（あなた）', ' (you)') : esc(e.r.name)}</td><td>${e.t == null ? L('記録なし', 'DNF') : fmt(e.t)}</td></tr>`).join('');
-  const rank = rows.findIndex(e => e.r === player) + 1;
+  const rank = rows.findIndex(e => e.r === player) + 1; resInfo = { rank: 0, n: 0 }; shareReset(true);
   $('resTitle').textContent = L(`👻 ゴースト ${rank}位相当`, `👻 Ghost: would be #${rank}`);
   $('resNew').textContent = L('本戦の記録とくらべた順位です（ゴーストは順位外）', 'Compared with the race times (ghost runs are unranked)');
   $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
@@ -2089,7 +2160,7 @@ function showOnlineResult(m) {
   state = 'result'; AU.stopMusic();
   ['hud', 'touch', 'count'].forEach(id => $(id).classList.add('hidden'));
   $('resTable').innerHTML = m.list.map(e => `<tr class="${e.id === NET.id ? 'me' : ''}"><td>${L(`${e.rank}位`, `#${e.rank}`)}</td><td>${swatch(TEAMS[e.team])}${esc(e.cpu ? 'CPU ' + teamName(TEAMS[e.team]) : e.name)}${e.id === NET.id ? L('（あなた）', ' (you)') : ''}</td><td>${e.est ? '約 ' : ''}${fmt(e.time)}</td></tr>`).join('');
-  const mine = m.list.find(e => e.id === NET.id);
+  const mine = m.list.find(e => e.id === NET.id); resInfo = { rank: mine ? mine.rank : 0, n: m.list.length }; shareReset(!watching);
   $('resTitle').textContent = !mine ? L('結果', 'Results') : mine.rank === 1 ? L('優勝! 町の誇りや!', 'VICTORY! Pride of the town!') : L(`${mine.rank}位`, `#${mine.rank}`);
   const bi = mine && !mine.est ? NET.best.findIndex(b => b.name === myName && b.time === mine.time) : -1;
   $('resNew').textContent = bi >= 0 ? L(`オンライン番付 ${bi + 1}位 に入りました!`, `Online ranking #${bi + 1}!`) : '';
@@ -2178,7 +2249,10 @@ function setupTitle() {
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');
   $('showBtn').onclick = playMatch; $('rpStop').onclick = replayStop;
   $('rpPrev').onclick = () => rpPick(-1); $('rpNext').onclick = () => rpPick(1);
-  $('scBack').onclick = () => { if (state === 'display') { showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); openRanking(rkPlace); } else showcaseOpen(false); }; 
+  $('scBack').onclick = () => { if (state === 'display') { const sv = !!shareView; shareClose(); showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); if (!sv) openRanking(rkPlace); } else showcaseOpen(false); };
+  $('shareBtn').onclick = makeShare;
+  $('scShareGo').onclick = () => { shareClose(); showcaseOpen(false); toTitle(); };
+  $('scSharePlay').onclick = () => { const v = shareView; if (!v) return; $('scShare').classList.add('hidden'); showcaseOpen(false); playReplay({ name: v.sh.name }, v.sh.place, v.sh.tod, v.sh.rec); };
   $('scPrev').onclick = () => { SC.i = (SC.i + racers.length - 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
   $('scNext').onclick = () => { SC.i = (SC.i + 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
   $('langBtn').onclick = () => { LANG = LANG === 'en' ? 'ja' : 'en'; store.set('danjiri-lang', LANG); applyLang(); if (state === 'title') buildSolo(); };
@@ -2365,6 +2439,7 @@ async function boot() {
   requestAnimationFrame(frame);
   onlineCountTick();
   // 共有 URL（?rank=町&cat=部門&id=記録）から来た時はランキングを開く
+  { const pm = location.pathname.match(/\/p\/([0-9a-z]{6,12})$/) || [0, new URLSearchParams(location.search).get('p')]; if (pm[1] && /^[0-9a-z]{6,12}$/.test(pm[1])) openShare(pm[1]); }
   { const r = new URLSearchParams(location.search).get('r');
     if (r && /^[0-9a-z]{1,12}$/.test(r)) rankAsk({ t: 'rankfind', id: r }, 'rankfind').then(m => {
       if (!m.place) { openRanking('jp'); return; }   // 圏外に落ちた記録
