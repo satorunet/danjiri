@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=122';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=122';
-import { buildWorld } from './world.js?v=122';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=122';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=122';
-import { FX, SpeedShader } from './fx.js?v=122';
-import * as AU from './audio.js?v=122';
+import * as SIM from './sim.js?v=123';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=123';
+import { buildWorld } from './world.js?v=123';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=123';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=123';
+import { FX, SpeedShader } from './fx.js?v=123';
+import * as AU from './audio.js?v=123';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1370,7 +1370,7 @@ function showSoloResult() {
   const rank = order.indexOf(player) + 1;
   $('resTitle').textContent = rank === 1 ? L('優勝! 町の誇りや!', 'VICTORY! Pride of the town!') : L(`${rank}位 ゴール`, `Finished #${rank}`);
   const best = +store.get(bestKey(), 0);
-  if (!best || player.finishTime < best) { store.set(bestKey(), player.finishTime); $('resNew').textContent = best ? L('ベストタイム更新!', 'New best time!') : L('ベストタイム記録!', 'Best time set!'); }
+  if (player.finished && (!best || player.finishTime < best)) { store.set(bestKey(), player.finishTime); $('resNew').textContent = best ? L('ベストタイム更新!', 'New best time!') : L('ベストタイム記録!', 'Best time set!'); }
   else $('resNew').textContent = L(`ベスト ${fmt(best)}`, `Best ${fmt(best)}`);
   $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
   $('retryBtn').classList.remove('hidden'); setT($('nextInfo'), ''); showChat(false);
@@ -1896,7 +1896,7 @@ function onRoom(m) {
   NET.room = m; LAPS = m.laps;
   const me = m.players.find(p => p.id === NET.id);
   const key = m.room + ':' + m.startAt;
-  if (m.phase === 'race' && me && me.racing && NET.raceKey !== key && ['lobby', 'result', 'watch', 'replay'].includes(state)) { if (state === 'replay') { RP.on = false; RP.match = false; $('replayBar').classList.add('hidden'); } watchEnd(); NET.raceKey = key; NET.ghost = false; startOnlineRace(m); return; }
+  if (m.phase === 'race' && me && me.racing && NET.raceKey !== key && ['lobby', 'result', 'finish', 'watch', 'replay'].includes(state)) { if (state === 'replay') { RP.on = false; RP.match = false; $('replayBar').classList.add('hidden'); } watchEnd(); NET.raceKey = key; NET.ghost = false; startOnlineRace(m); return; }
   // ゴーストで参加: 自分だけ今からスタート
   if (me && me.ghost && me.ghost.fin == null && !NET.ghost && state === 'lobby') { NET.ghost = true; NET.raceKey = key; startGhostRace(m, me.ghost.start); return; }
   // 観戦: レース中の部屋をそのまま見る（次のレースから参加）
@@ -2230,6 +2230,7 @@ function step(dt) {
   const gs = goalS();
   for (const r of racers) {
     if (r.kind === 'net' || r.finished || r.car.prog < gs) continue;
+    if (r === player && state !== 'race') continue;   // 強制決着の後に線を越えても、もうゴール扱いにしない（結果画面のまま止まらないように）
     r.finished = true; r.finishTime = raceT;
     if (r === player) wantPreview = true;
     if (r === player) {
