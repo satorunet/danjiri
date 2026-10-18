@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=101';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=101';
-import { buildWorld } from './world.js?v=101';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=101';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=101';
-import { FX, SpeedShader } from './fx.js?v=101';
-import * as AU from './audio.js?v=101';
+import * as SIM from './sim.js?v=102';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=102';
+import { buildWorld } from './world.js?v=102';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=102';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=102';
+import { FX, SpeedShader } from './fx.js?v=102';
+import * as AU from './audio.js?v=102';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -255,7 +255,7 @@ function setFlagIcon(r, url) {
     g.drawImage(img, 20, 20, 216, 216);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
     // 交差旗: だんじりの後ろに 2 本、根元で交差させて左右へ開く（後ろ＝追いかける側から見える向き）
-    const flag = new THREE.Group(); flag.position.set(0, 3.35, -2.95); flag.scale.setScalar(0.72);   // 屋根より後ろ・手すりより上（後ろから × がよく見える）。少し小さめ
+    const flag = new THREE.Group(); flag.position.set(0, 2.3, -1.72); flag.rotation.x = -0.3; flag.scale.setScalar(0.72);   // だんじりの後ろの手すりの内側（床）から竿を立て、屋根の後ろを通るよう少し後ろへ倒す
     const clothMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true });
     const poleMat = new THREE.MeshBasicMaterial({ color: 0x2a1a0e }), knobMat = new THREE.MeshBasicMaterial({ color: 0xf0bc3c });
     for (const sx of [-1, 1]) {
@@ -264,10 +264,10 @@ function setFlagIcon(r, url) {
       // 交差旗（✕）: 竿 2 本が下のほうで交差し、それぞれの竿の先に旗。旗は外へ向かってなびく
       const lean = 0.5;
       const arm = new THREE.Group(); arm.position.set(-sx * 0.6, 0, sx * 0.06); arm.rotation.z = -sx * lean;
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 3.4, 6).translate(0, 1.7, 0), poleMat);
-      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), knobMat); knob.position.y = 3.45;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 5.2, 6).translate(0, 2.6, 0), poleMat);   // 長めの竿で旗を屋根より上へ
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), knobMat); knob.position.y = 5.25;
       const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.95), clothMat);
-      cloth.position.set(sx * 0.62, 2.85, 0); cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）   // 布はまっすぐ立つように傾きを戻す
+      cloth.position.set(sx * 0.62, 4.65, 0); cloth.rotation.set(0, Math.PI, 0);   // 竿の先から外へ（竿と同じ傾き）   // 布はまっすぐ立つように傾きを戻す
       arm.add(pole, knob, cloth); flag.add(arm);
     }
     flag.userData.cloth = { material: clothMat };
