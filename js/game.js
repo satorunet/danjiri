@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=106';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=106';
-import { buildWorld } from './world.js?v=106';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=106';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=106';
-import { FX, SpeedShader } from './fx.js?v=106';
-import * as AU from './audio.js?v=106';
+import * as SIM from './sim.js?v=107';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=107';
+import { buildWorld } from './world.js?v=107';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=107';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=107';
+import { FX, SpeedShader } from './fx.js?v=107';
+import * as AU from './audio.js?v=107';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -262,7 +262,7 @@ function setFlagIcon(r, url) {
       // 根元は左右に離し、内へ傾けて竿の途中（高さ 2.5 m あたり）で X に交差。上の旗どうしは近く
       // 持ち手（竿の下半分）が「×」になる: 根元を左右に離して内へ倒し、1.4 m あたりで交差
       // 交差旗（✕）: 竿 2 本が下のほうで交差し、それぞれの竿の先に旗。旗は外へ向かってなびく
-      const lean = 0.38;   // 竿の開き（外向き）。旗がだんじりの幅に収まる程度
+      const lean = 0.6;   // 竿の開き（外向き）。後ろの提灯に旗がかぶらない程度に倒す
       const arm = new THREE.Group(); arm.position.set(-sx * 0.65, 0, sx * 0.06); arm.rotation.z = -sx * lean;   // 根元の間隔＝×の広さ
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 3.4, 6).translate(0, 1.7, 0), poleMat);   // 旗が屋根のてっぺんより少し低くなる長さ
       const knob = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), knobMat); knob.position.y = 3.45;
