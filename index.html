@@ -155,6 +155,7 @@
   #custom .cu-fin { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 4px 0 6px; }
   #custom .cu-fin button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; }
   #custom .cu-fin button.sel { border-color: var(--gold); background: rgba(242,193,78,0.18); }
+  #custom .cu-sub { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 2px; }
   #custom .cu-text { width: 130px; font: inherit; font-size: 18px; text-align: center; padding: 5px 8px; border-radius: 8px; border: 1px solid rgba(242,193,78,0.5); background: rgba(0,0,0,0.3); color: var(--paper); }
   #custom .cu-note { font-size: 11px; color: var(--muted); margin: 2px 0 6px; }
   #custom #cuDone { margin: 2px 0 0; padding: 8px 28px; }
@@ -462,6 +463,13 @@
       <div class="cu-fin" id="cuForm"></div>
       <div class="cu-note" id="cuFormD"></div>
     </details>
+    <details class="cu-sec" name="cu"><summary><span data-en="Crew">引き手</span><span class="cu-val" id="cuValCrew"></span></summary>
+      <div class="cu-sub" data-en="Hair">髪型</div><div class="cu-fin" id="cuHair"></div>
+      <div class="cu-sub" data-en="Outfit">服装</div><div class="cu-fin" id="cuOutfit"></div>
+      <div class="cu-sub" data-en="Happi mark">はっぴのマーク</div><div class="cu-fin" id="cuMark"></div>
+      <div class="cu-icon hidden" id="cuMarkTx"><input id="cuMarkIn" class="cu-text" maxlength="4" placeholder="祭" autocomplete="off"><span class="cu-note" data-en="up to 2">2文字まで</span></div>
+      <div class="cu-note" id="cuMarkNote"></div>
+    </details>
     <details class="cu-sec" name="cu"><summary><span data-en="Town color">町（色）</span><span class="cu-val" id="cuValTeam"></span></summary>
       <div class="cu-teams" id="cuTeams"></div>
     </details>
@@ -506,6 +514,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=87"></script>
+<script type="module" src="js/game.js?v=88"></script>
 </body>
 </html>

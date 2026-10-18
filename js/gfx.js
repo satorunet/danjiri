@@ -145,7 +145,7 @@ export function bannerTex(team, text = '御祭禮') {
     g.font = `52px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText(team.kanji, w / 2, h - 86);
   });
 }
-export function happiTex(team, icon = null) {
+export function happiTex(team, icon = null, text = '') {
   // 左半分が前、右半分が背中
   return canvasTex(512, 256, (g, w, h) => {
     const base = team.happi || team.css;
@@ -166,10 +166,11 @@ export function happiTex(team, icon = null) {
     g.fillStyle = base; g.beginPath(); g.arc(cx, cy, 60, 0, Math.PI * 2); g.fill();
     if (icon) {   // カスタムのアイコンを背中の紋に
       g.save(); g.beginPath(); g.arc(cx, cy, 60, 0, Math.PI * 2); g.clip(); g.drawImage(icon, cx - 60, cy - 60, 120, 120); g.restore();
-    } else {
-      g.font = `bold 92px ${SERIF}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.lineWidth = 8; g.strokeStyle = '#f4efe2'; g.strokeText('祭', cx, cy + 4);
-      g.fillStyle = '#d42a1e'; g.fillText('祭', cx, cy + 4);
+    } else {   // 文字（カスタム 1〜2 文字）か、ふだんの「祭」
+      const t = [...(text || '祭')].slice(0, 2).join(''), sz = t.length > 1 ? 58 : 92;
+      g.font = `bold ${sz}px ${SERIF}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = 8; g.strokeStyle = '#f4efe2'; g.strokeText(t, cx, cy + 4, 112);
+      g.fillStyle = '#d42a1e'; g.fillText(t, cx, cy + 4, 112);
     }
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `26px ${FONT}`; g.fillStyle = '#f4efe2'; g.fillText(team.name, cx, h - 70);

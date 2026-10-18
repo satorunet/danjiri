@@ -337,7 +337,9 @@ wss.on('connection', (ws, req) => {
         if (d && (!d.startsWith('data:image/jpeg;base64,') || d.length > 28000)) d = '';
         if (d) { const buf = Buffer.from(d.slice(23), 'base64'); if (buf.length < 200 || buf[0] !== 0xff || buf[1] !== 0xd8) d = ''; }
         const txt = [...cleanText(m.txt, 8).replace(/[\s&"']/g, '')].slice(0, 4).join(''), dj = num(m.dj, 0, 4, 0) | 0, fm = num(m.fm, 0, 4, 0) | 0;
-        p.icon = d || txt || dj || fm ? { t: 'icon', id: p.id, data: d, txt, dj, fm } : null;
+        const c = m.cw && typeof m.cw === 'object' ? m.cw : {};
+        const cw = { hair: num(c.hair, 0, 4, 0) | 0, outfit: num(c.outfit, 0, 4, 0) | 0, mark: ['def', 'txt', 'img'].includes(c.mark) ? c.mark : 'def', mtext: [...cleanText(c.mtext, 4).replace(/[\s&"']/g, '')].slice(0, 2).join('') };
+        p.icon = { t: 'icon', id: p.id, data: d, txt, dj, fm, cw };
         if (room && p.icon) for (const q of room.players.values()) if (q !== p) send(q, p.icon);
         break;
       }

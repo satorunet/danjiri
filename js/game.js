@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=87';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=87';
-import { buildWorld } from './world.js?v=87';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=87';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=87';
-import { FX, SpeedShader } from './fx.js?v=87';
-import * as AU from './audio.js?v=87';
+import * as SIM from './sim.js?v=88';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=88';
+import { buildWorld } from './world.js?v=88';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=88';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS } from './models.js?v=88';
+import { FX, SpeedShader } from './fx.js?v=88';
+import * as AU from './audio.js?v=88';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -211,6 +211,7 @@ function makeRacer(teamIdx, slot, kind, extra = {}) {
   const fn = kind === 'me' ? myFinish : extra.id != null ? NET.finishes?.[extra.id] : 0;
   if (fn) setFinish(D, fn);
   r.form = kind === 'me' ? myForm : extra.id != null ? NET.forms?.[extra.id] || 0 : 0;
+  r.crew = kind === 'me' ? myCrew : extra.id != null ? NET.crews?.[extra.id] || null : null;
   if (kind === 'me') car.mod = SIM.FORMS[myForm].mod;
   return r;
 }
@@ -219,6 +220,16 @@ let myIcon = store.get('danjiri-icon', '') || '';
 let myText = store.get('danjiri-text', '') || '';
 let myFinish = +store.get('danjiri-finish', 0) || 0;
 let myForm = +store.get('danjiri-form', 0) || 0;
+// 引き手のカスタム: 髪型・服装・法被のマーク（def=祭 / txt=文字 / img=写真）
+const cleanCrew = c => ({ hair: clamp(c?.hair | 0, 0, HAIRS.length - 1), outfit: clamp(c?.outfit | 0, 0, OUTFITS.length - 1), mark: ['def', 'txt', 'img'].includes(c?.mark) ? c.mark : 'def', mtext: [...String(c?.mtext || '').replace(/[\s<>&"']/g, '')].slice(0, 2).join('') });
+let myCrew = cleanCrew((() => { try { return JSON.parse(store.get('danjiri-crew', '') || 'null') || { mark: 'img' }; } catch { return { mark: 'img' }; } })());
+const saveCrew = () => store.set('danjiri-crew', JSON.stringify(myCrew));
+// 法被のテクスチャ（このだんじりの引き手の分）
+function crewTex(r) {
+  if (r.slotIdx == null || r.slotIdx >= 8 || racers[r.slotIdx] !== r) return;
+  const c = r.crew || {}, img = c.mark === 'img' && r.iconUrl ? iconImgs.get(r.iconUrl) : null;
+  crowd.setTeamTexture(r.slotIdx, r.team, img || null, c.mark === 'txt' ? c.mtext : '');
+}
 const cleanBanner = s => [...String(s || '').replace(/[\s\u0000-\u001f<>&"']/g, '')].slice(0, 4).join('');
 // 幟の文字を差し替え（2 本の幟は同じ材質）
 function setBannerText(r, text) {
@@ -247,8 +258,7 @@ function setFlagIcon(r, url) {
     cloth.position.set(0.9, 3.95, 0); cloth.rotation.y = Math.PI;   // 後ろ（追いかける側）から見える向き
     flag.add(pole, knob, cloth); flag.userData.cloth = cloth;
     D.body.add(flag); D.iconFlag = flag;
-    // 引き手の法被の背中にも
-    if (r.slotIdx != null && r.slotIdx < 8 && racers[r.slotIdx] === r) crowd.setTeamTexture(r.slotIdx, r.team, img);
+    crewTex(r);   // 法被の背中（マークが「写真」の時）
   };
   const have = iconImgs.get(url);
   if (have) apply(have); else { const img = new Image(); img.onload = () => { iconImgs.set(url, img); if (racers.includes(r) || r.D.group.parent) apply(img); }; img.src = url; }
@@ -329,8 +339,11 @@ function cuSummary() {
   setT($('cuValForm'), L(SIM.FORMS[myForm].ja, SIM.FORMS[myForm].en));
   $('cuValTeam').innerHTML = `<span class="sw" style="background:${TEAMS[selTeam].css}"></span>${esc(teamName(TEAMS[selTeam]))}`;
   setT($('cuValText'), myText || L('御祭禮（標準）', 'Default'));
+  setT($('cuValCrew'), `${L(HAIRS[myCrew.hair].ja, HAIRS[myCrew.hair].en)}・${L(OUTFITS[myCrew.outfit].ja, OUTFITS[myCrew.outfit].en)}・${myCrew.mark === 'img' ? L('写真', 'Photo') : myCrew.mark === 'txt' ? (myCrew.mtext || '祭') : '祭'}`);
   $('cuValIcon').innerHTML = myIcon ? `<img src="${myIcon}" alt="">` : esc(L('なし', 'None'));
 }
+// 引き手を変えた時は、後ろの押し手の背中が見える向きに
+function crewView() { SC.auto = false; SC.yaw = Math.PI; SC.pitch = 0.32; SC.dist = 11; }
 function customOpen(on) {
   if (on && state !== 'title') return;
   SC.preview = on;
@@ -345,6 +358,19 @@ function customOpen(on) {
     $('cuForm').innerHTML = SIM.FORMS.map((f, i) => `<button data-f="${i}" class="${i === myForm ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
     $('cuForm').querySelectorAll('button').forEach(b => b.onclick = () => { myForm = +b.dataset.f; store.set('danjiri-form', myForm); $('cuForm').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); player.form = myForm; player.car.mod = SIM.FORMS[myForm].mod; formDesc(); cuSummary(); SC.dist = Math.max(SC.dist, 21); });
     formDesc();
+    // 引き手: 髪型・服装・法被のマーク
+    const pick = (id, list, key) => {
+      $(id).innerHTML = list.map((h, i) => `<button data-v="${i}" class="${i === myCrew[key] ? 'sel' : ''}">${esc(L(h.ja, h.en))}</button>`).join('');
+      $(id).querySelectorAll('button').forEach(b => b.onclick = () => { myCrew[key] = +b.dataset.v; saveCrew(); $(id).querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); cuSummary(); crewView(); });
+    };
+    pick('cuHair', HAIRS, 'hair'); pick('cuOutfit', OUTFITS, 'outfit');
+    const MARKS = [['def', '祭（標準）', 'Default'], ['txt', '文字', 'Text'], ['img', '写真', 'Photo']];
+    const markUI = () => { $('cuMark').querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.v === myCrew.mark)); $('cuMarkTx').classList.toggle('hidden', myCrew.mark !== 'txt'); };
+    $('cuMark').innerHTML = MARKS.map(([v, ja, en]) => `<button data-v="${v}">${esc(L(ja, en))}</button>`).join('');
+    $('cuMark').querySelectorAll('button').forEach(b => b.onclick = () => { myCrew.mark = b.dataset.v; saveCrew(); markUI(); crewTex(player); cuSummary(); crewView(); if (myCrew.mark === 'img' && !myIcon) setT($('cuMarkNote'), L('写真は「旗のアイコン」で選んだ画像を使います', 'Uses the image from "Flag icon"')); else setT($('cuMarkNote'), ''); });
+    $('cuMarkIn').value = myCrew.mtext;
+    $('cuMarkIn').oninput = () => { myCrew.mtext = cleanCrew({ mtext: $('cuMarkIn').value }).mtext; saveCrew(); crewTex(player); cuSummary(); };
+    markUI();
     $('cuTeams').querySelectorAll('button').forEach(b => b.onclick = () => { selTeam = +b.dataset.t; store.set('danjiri-team', selTeam); $('cuTeams').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); buildSolo(); soloOnlyMe(); showIconUI(); });
     showIconUI();
   } else {
@@ -361,7 +387,7 @@ function clearRacers() {
   racers = []; player = null;
 }
 function finishRoster() {
-  racers.forEach((r, i) => { r.slotIdx = Math.min(i, 7); if (i < 8) crowd.setTeamTexture(i, r.team, r.iconUrl ? iconImgs.get(r.iconUrl) : null); });
+  racers.forEach((r, i) => { r.slotIdx = Math.min(i, 7); if (i < 8) crewTex(r); });
   const n = rankOrder().length;
   $('rankOf').textContent = L(`位 / ${n}`, ` / ${n}`);
   for (const r of racers) updateVisual(r, 0, 0);
@@ -404,7 +430,7 @@ function updateCrew(r, dt, t) {
     const gy = air ? flyY + 0.2 : groundAt(x, z, c.si ?? -1);
     crewPose(pose, kind, r.phase + seed, sp, air, crash, t, seed);
     const bob = air ? 0 : Math.abs(Math.sin(r.phase + seed)) * 0.1 * Math.min(1, sp / 6);
-    crowd.add(personRoot(x, gy + HIP_Y + bob - (kind === 'push' ? 0.08 : 0), z, c.yaw), pose, r.slotIdx, r.team.color);
+    crowd.add(personRoot(x, gy + HIP_Y + bob - (kind === 'push' ? 0.08 : 0), z, c.yaw), pose, r.slotIdx, r.team.color, false, r.crew);
     seed += 7;
   }
   // 綱
@@ -446,7 +472,7 @@ function updateCrew(r, dt, t) {
       const yaw = Math.atan2(dx, dz);
       crewPose(pose, 'rope', r.phase + seed, sp, air, crash, t, seed);
       const bob = air ? 0 : Math.abs(Math.sin(r.phase + seed)) * 0.12 * Math.min(1, sp / 6);
-      crowd.add(personRoot(a.x + ox, a.y - 0.98 + HIP_Y + bob, a.z + oz, yaw), pose, r.slotIdx, r.team.color);
+      crowd.add(personRoot(a.x + ox, a.y - 0.98 + HIP_Y + bob, a.z + oz, yaw), pose, r.slotIdx, r.team.color, false, r.crew);
       seed += 5;
     }
   }
@@ -557,7 +583,7 @@ function addDaiku(r) {
   r.D.daiku.forEach((d, i) => {
     dkL.compose(tmpP.set(d.x, d.y + HIP_Y * d.s, d.z), tmpQ.identity(), new THREE.Vector3(d.s, d.s, d.s));
     dkM.multiplyMatrices(r.D.body.matrixWorld, dkL);
-    crowd.add(dkM, r.D.daikuPose[i], r.slotIdx, r.team.color, true);
+    crowd.add(dkM, r.D.daikuPose[i], r.slotIdx, r.team.color, true, r.crew);
   });
 }
 function carEffects(r, dt, camPos) {
@@ -1646,7 +1672,7 @@ function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (tex
 function netJoin(how, room) {
   NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   netSend({ t: 'join', name: myName, team: selTeam, v: 3, how, room }); netSend({ t: 'hold', on: holdWait });
-  if (myIcon || myText || myFinish || myForm) netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm });
+  netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew });
   renderLobby();
 }
 // 部屋えらび: 部屋番号・状況・人数を見て入る
@@ -1694,8 +1720,8 @@ function onNet(m) {
   else if (m.t === 'peek') onPeek(m);
   else if (m.t === 'rooms') renderRooms(m);
   else if (m.t === 'icon') {
-    (NET.icons ||= {})[m.id] = m.data; (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0;
-    const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; }
+    (NET.icons ||= {})[m.id] = m.data; (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null;
+    const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; r.crew = NET.crews[m.id]; crewTex(r); }
   }
   else if (m.t === 'chat') onChat(m);
   else if (m.t === 'pos') onPos(m);
@@ -2082,8 +2108,8 @@ function frame(nowMs) {
   if (state === 'race' || state === 'finish' || state === 'watch') { for (const r of racers) { if (r.ghost) continue; hitProps(r); grabReach(r); carEffects(r, sdt, camera.position); } }
   if (state === 'watch') updateWatchBar();
   updateCamera(dt, t);
-  // 自分の旗は走っている間は半透明（前が見えるように）
-  if (player && player.D.iconFlag) { const m = player.D.iconFlag.userData.cloth.material, want = (state === 'race' || state === 'countdown' || state === 'finish') && player.kind === 'me' && !SC.on ? 0.28 : 1; m.opacity += (want - m.opacity) * Math.min(1, dt * 6); m.depthWrite = m.opacity > 0.9; }
+  // 自分の旗はスタートの時だけ半透明（並んで出る時に前が見えるように）。走り出して 5 秒たったら元に戻す
+  if (player && player.D.iconFlag) { const m = player.D.iconFlag.userData.cloth.material, want = (state === 'countdown' || (state === 'race' && raceT < 5)) && player.kind === 'me' && !SC.on ? 0.28 : 1; m.opacity += (want - m.opacity) * Math.min(1, dt * 6); m.depthWrite = m.opacity > 0.9; }
   // 名札は遠いほど少し大きく（画面上で小さくなりすぎない）
   for (const r of racers) if (r.tag) { const k = clamp(camera.position.distanceTo(r.D.group.position) / 26, 1, 3.2); r.tag.scale.set(4.6 * k, 1.08 * k, 1); r.tag.position.y = 10.6 + (k - 1) * 0.8; }
   const p = player.vis;

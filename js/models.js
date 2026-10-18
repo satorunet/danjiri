@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=87';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=88';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -118,6 +118,25 @@ export const BODY = (() => {
   const shin = merge([col(box(0.15, 0.43, 0.16, 0, -0.21, 0), 0xf2efe8), col(box(0.14, 0.08, 0.27, 0, -0.46, 0.05), 0x1a1a1e)]);
   return { torso, belt, head, upperArm, foreArm, thigh, shin };
 })();
+// 引き手のカスタム: 髪型（頭の形）と服装（股引・袖の色）
+const SKIN = 0xf0c4a0, NECK = 0xe8b896;
+const face = () => [col(cyl(0.06, 0.07, 0.12, 8, 0, 0.04, 0), NECK), col(sph(0.145, 0, 0.21, 0.01).scale(1, 1.08, 1), SKIN), col(sph(0.02, 0.05, 0.22, 0.135), 0x1b1512), col(sph(0.02, -0.05, 0.22, 0.135), 0x1b1512)];
+const hairCap = c => col(sph(0.151, 0, 0.25, -0.012, 12, 6).scale(1, 0.75, 1).translate(0, 0.06, 0), c);
+const band = (c, r = 0.032) => col(T(new THREE.TorusGeometry(0.15, r, 6, 16).rotateX(Math.PI / 2), 0, 0.27, 0), c);
+export const HAIRS = [
+  { ja: '鉢巻', en: 'Headband', geo: () => BODY.head },
+  { ja: 'ねじり鉢巻', en: 'Twisted band', geo: () => merge([...face(), hairCap(0x5a3418), band(0xf6f2ea, 0.045), col(sph(0.07, 0, 0.29, 0.15), 0xf6f2ea), col(sph(0.05, 0.05, 0.31, 0.14), 0xd42a1e)]) },
+  { ja: '坊主', en: 'Shaved', geo: () => merge([...face(), col(sph(0.149, 0, 0.25, -0.012, 12, 6).scale(1, 0.72, 1).translate(0, 0.06, 0), 0xc89a7a), band(0x1d2f6b, 0.026)]) },
+  { ja: '金髪', en: 'Blond', geo: () => merge([...face(), col(sph(0.158, 0, 0.26, -0.015, 12, 6).scale(1, 0.85, 1).translate(0, 0.05, 0), 0xf0c84a), band(0xd42a1e)]) },
+  { ja: 'ちょんまげ', en: 'Topknot', geo: () => merge([...face(), hairCap(0x1b1512), col(cyl(0.035, 0.035, 0.16, 6, 0, 0.42, -0.02).rotateX(Math.PI / 2).translate(0, 0.4, 0.06), 0x1b1512), col(cyl(0.02, 0.02, 0.05, 6, 0, 0.39, -0.01), 0xf6f2ea)]) },
+];
+export const OUTFITS = [
+  { ja: '白股引', en: 'White', legs: 0xffffff, sleeve: null },
+  { ja: '黒股引', en: 'Black', legs: 0x2a2a30, sleeve: null },
+  { ja: '紺股引', en: 'Navy', legs: 0x34407a, sleeve: null },
+  { ja: '鯉口シャツ', en: 'Koikuchi', legs: 0xffffff, sleeve: 0xf4efe2 },
+  { ja: 'ジーンズ', en: 'Jeans', legs: 0x4a6aa8, sleeve: 0x2a2a30 },
+];
 
 const _m = new THREE.Matrix4(), _r = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1), _e = new THREE.Euler();
 // pose: { lean, twist, headPitch, arm:[ [pitch, out, elbow] x2 ], leg: [ [pitch, out, knee] x2 ] }
@@ -188,7 +207,8 @@ export class CrowdRig {
     };
     this.capacity = capacity;
     this.limbMat = toon({ vertexColors: true });
-    this.head = mk(BODY.head, toon({ vertexColors: true }), capacity);
+    this.heads = HAIRS.map(h => mk(h.geo(), toon({ vertexColors: true }), capacity));
+    this.hn = new Array(HAIRS.length).fill(0);
     this.belt = mk(BODY.belt, toon({ vertexColors: true }), capacity, false);
     this.ua = mk(BODY.upperArm, toon({ vertexColors: true }), capacity * 2);
     this.fa = mk(BODY.foreArm, this.limbMat, capacity * 2);
@@ -205,32 +225,37 @@ export class CrowdRig {
     this.out = newPoseOut();
     this.tmpC = new THREE.Color();
   }
-  setTeamTexture(i, team, icon = null) {
+  setTeamTexture(i, team, icon = null, text = '') {
     const t = this.torsos[i];
     if (t.material.map) t.material.map.dispose();
-    t.material.map = happiTex(team, icon); t.material.needsUpdate = true;
+    t.material.map = happiTex(team, icon, text); t.material.needsUpdate = true;
   }
-  begin() { this.n = 0; this.nf = 0; this.tn.fill(0); }
-  add(root, pose, slot, sleeveColor, fans = false) {
+  begin() { this.n = 0; this.nf = 0; this.tn.fill(0); this.hn.fill(0); }
+  // look: { hair, outfit }（引き手のカスタム）
+  add(root, pose, slot, sleeveColor, fans = false, look = null) {
     if (this.n >= this.capacity) return;
     poseMatrices(root, pose, this.out);
     const o = this.out, n = this.n, t = this.torsos[slot];
     t.setMatrixAt(this.tn[slot]++, o.torso);
     this.belt.setMatrixAt(n, o.torso);
-    this.head.setMatrixAt(n, o.head);
+    const hi = look && HAIRS[look.hair] ? look.hair : 0, of = (look && OUTFITS[look.outfit]) || OUTFITS[0];
+    this.heads[hi].setMatrixAt(this.hn[hi]++, o.head);
     for (let k = 0; k < 2; k++) {
       this.ua.setMatrixAt(n * 2 + k, o.ua[k]); this.fa.setMatrixAt(n * 2 + k, o.fa[k]);
       this.th.setMatrixAt(n * 2 + k, o.th[k]); this.sh.setMatrixAt(n * 2 + k, o.sh[k]);
-      this.ua.setColorAt(n * 2 + k, this.tmpC.setHex(sleeveColor));
+      this.ua.setColorAt(n * 2 + k, this.tmpC.setHex(of.sleeve ?? sleeveColor));
+      this.th.setColorAt(n * 2 + k, this.tmpC.setHex(of.legs)); this.sh.setColorAt(n * 2 + k, this.tmpC.setHex(of.legs));
+      this.fa.setColorAt(n * 2 + k, this.tmpC.setHex(0xffffff));
       if (fans) this.fans[k].setMatrixAt(this.nf, this.fm.copy(o.fa[k]).multiply(this.fanLocal));
     }
     if (fans) this.nf++;
     this.n++;
   }
   end() {
-    const all = [this.head, this.belt, this.ua, this.fa, this.th, this.sh];
-    for (const m of all) { m.count = this.n * (m === this.head || m === this.belt ? 1 : 2); m.instanceMatrix.needsUpdate = true; if (m.userData.outline) m.userData.outline.count = m.count; }
-    if (this.ua.instanceColor) this.ua.instanceColor.needsUpdate = true;
+    const all = [this.belt, this.ua, this.fa, this.th, this.sh];
+    for (const m of all) { m.count = this.n * (m === this.belt ? 1 : 2); m.instanceMatrix.needsUpdate = true; if (m.userData.outline) m.userData.outline.count = m.count; }
+    this.heads.forEach((h, i) => { h.count = this.hn[i]; h.instanceMatrix.needsUpdate = true; if (h.userData.outline) h.userData.outline.count = h.count; });
+    for (const m of [this.ua, this.fa, this.th, this.sh]) if (m.instanceColor) m.instanceColor.needsUpdate = true;
     this.torsos.forEach((t, i) => { t.count = this.tn[i]; t.instanceMatrix.needsUpdate = true; if (t.userData.outline) t.userData.outline.count = t.count; });
     for (const f of this.fans) { f.count = this.nf; f.instanceMatrix.needsUpdate = true; }
   }
