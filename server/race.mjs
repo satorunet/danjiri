@@ -275,7 +275,7 @@ wss.on('connection', (ws, req) => {
   const p = { id: nextId++, ws, name: '名無し', room: null, msgs: 0, msgT: Date.now(), ip: String(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim() };   // Cloudflare 越しでも本当の送り元
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
-  send(p, { t: 'hello', id: p.id, now: Date.now(), best: topBest(), v: 2 });
+  send(p, { t: 'hello', id: p.id, now: Date.now(), best: topBest(), v: 2, chat: 1 });
   ws.on('message', raw => {
     const now = Date.now();
     if (now - p.msgT > 1000) { p.msgT = now; p.msgs = 0; }

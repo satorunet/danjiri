@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=75';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=75';
-import { buildWorld } from './world.js?v=75';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=75';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=75';
-import { FX, SpeedShader } from './fx.js?v=75';
-import * as AU from './audio.js?v=75';
+import * as SIM from './sim.js?v=76';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=76';
+import { buildWorld } from './world.js?v=76';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=76';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=76';
+import { FX, SpeedShader } from './fx.js?v=76';
+import * as AU from './audio.js?v=76';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1413,7 +1413,7 @@ function renderChat() {
   const html = NET.chat.length ? NET.chat.map(c => `<div class="cm ${c.id === NET.id ? 'me' : ''}"><b style="color:${TEAMS[c.team]?.css || '#fff'}">${esc(c.name)}</b>${esc(c.text)}</div>`).join('') : `<div class="none">${L('ひとこと送ってみよう', 'Say hi!')}</div>`;
   for (const k of ['res', 'lobby']) { const el = $(k + 'ChatLog'); if (el) { el.innerHTML = html; el.scrollTop = el.scrollHeight; } }
 }
-function showChat(on) { for (const k of ['res', 'lobby']) $(k + 'Chat').classList.toggle('hidden', !on); if (on) renderChat(); }
+function showChat(on) { on = on && NET.hasChat; for (const k of ['res', 'lobby']) $(k + 'Chat').classList.toggle('hidden', !on); if (on) renderChat(); }
 const STAMP_EN = { 'おつかれ!': 'GG, well run!', 'ナイス!': 'Nice!', 'もう一回!': 'One more!', 'やりまわし最高!': 'Sweet drift!' };
 function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (text) netSend({ t: 'chat', text }); }
 function netJoin(how, room) {
@@ -1438,7 +1438,7 @@ function netSend(o) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.st
 function netPing() { netSend({ t: 'ping', c: Date.now() }); }
 function netLeave() { clearInterval(NET.pingTimer); if (NET.ws) { const w = NET.ws; NET.ws = null; try { w.close(); } catch { } } NET.room = null; NET.raceKey = null; }
 function onNet(m) {
-  if (m.t === 'hello') { NET.id = m.id; NET.offset = m.now - Date.now(); NET.best = m.best || []; }
+  if (m.t === 'hello') { NET.hasChat = !!m.chat; NET.id = m.id; NET.offset = m.now - Date.now(); NET.best = m.best || []; }
   else if (m.t === 'pong') { const n = Date.now(), rtt = n - m.c; if (rtt <= NET.bestRtt + 15) { NET.bestRtt = Math.min(NET.bestRtt, rtt); NET.offset = m.s - (m.c + rtt / 2); } }
   else if (m.t === 'room') onRoom(m);
   else if (m.t === 'peek') onPeek(m);
