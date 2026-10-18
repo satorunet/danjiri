@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=131';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=131';
-import { buildWorld } from './world.js?v=131';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=131';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=131';
-import { FX, SpeedShader } from './fx.js?v=131';
-import * as AU from './audio.js?v=131';
+import * as SIM from './sim.js?v=132';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=132';
+import { buildWorld } from './world.js?v=132';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=132';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=132';
+import { FX, SpeedShader } from './fx.js?v=132';
+import * as AU from './audio.js?v=132';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1705,6 +1705,7 @@ async function openShare(id) {
   $('scShareItems').classList.toggle('hidden', !it.length);
   shareScName();
   $('scMenu').classList.add('hidden'); $('scShare').classList.remove('hidden'); scBackIcon(true);
+  { const b = $('scShareInfo').querySelector('b'), w = Math.min(innerWidth - 32 - 112, 460), n = [...b.textContent].length; b.style.fontSize = Math.max(10, Math.min(18, Math.floor(w / (n * 1.02)))) + 'px'; }   // 名前が長い時は文字を小さく（1 文字ほぼ 1em）   // 名前が長い時は文字を小さく
   document.querySelector('#showcase .sc-hint').classList.add('hidden');   // 上の札とかぶるので操作の説明は出さない
   document.querySelector('#showcase .sc-bar').classList.add('hidden');   // 下の欄も出さない（トップへは ☰ から）
 }

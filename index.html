@@ -222,9 +222,10 @@
   #shareOut input { flex: 1 1 0; width: 0; min-width: 160px; font: inherit; font-size: 12px; padding: 5px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.3); color: var(--paper); }
   #shareOut .share-msg { width: 100%; text-align: center; }
   #showcase .sc-share { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 18px; padding: 10px 54px; pointer-events: auto; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
-  #showcase .sc-share b { font-family: 'Dela Gothic One', sans-serif; font-size: 18px; color: var(--gold); }
+  #showcase .sc-share b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Dela Gothic One', sans-serif; font-size: 18px; color: var(--gold); }
   #showcase .sc-share small { display: block; font-size: 12px; color: var(--paper); margin: 4px 0 8px; }
-  #showcase .sc-share .go { font-size: 14px; padding: 6px 14px; margin: 0 3px; }
+  #showcase .sc-share .go { font-size: 14px; padding: 6px 12px; margin: 0; white-space: nowrap; flex: none; }
+  @media (max-width: 480px) { #showcase .sc-share .go { font-size: 13px; padding: 6px 10px; } }
   .share-btn.x { background: #111; border-color: #555; }
   .share-msg { font-size: 12px; color: var(--gold); min-height: 1.2em; }
   .rk-card { width: min(720px, 100%); max-height: 92vh; overflow-y: auto; background: #150f2a; }
@@ -587,6 +588,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=131"></script>
+<script type="module" src="js/game.js?v=132"></script>
 </body>
 </html>
