@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=82';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=82';
-import { buildWorld } from './world.js?v=82';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=82';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=82';
-import { FX, SpeedShader } from './fx.js?v=82';
-import * as AU from './audio.js?v=82';
+import * as SIM from './sim.js?v=83';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=83';
+import { buildWorld } from './world.js?v=83';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=83';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=83';
+import { FX, SpeedShader } from './fx.js?v=83';
+import * as AU from './audio.js?v=83';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -296,6 +296,7 @@ function customOpen(on) {
     $('title').classList.remove('hidden'); buildSolo();
   }
   $('custom').classList.toggle('hidden', !on);
+  $('cuCard').classList.remove('hidden'); $('cuShow').classList.add('hidden'); SC.lift = 1;
 }
 function clearRacers() {
   for (const r of racers) { scene.remove(r.D.group); r.D.group.traverse(o => { if (o.isMesh && o.geometry && o.geometry !== undefined) o.geometry.dispose?.(); }); }
@@ -743,7 +744,7 @@ function updateCamera(dt, t) {
     const v = racers[SC.i].vis;
     if (SC.auto) SC.yaw += dt * 0.35;
     // 見る中心: ふつうはだんじり全体、ひっつけたものを押した時はその物がくっついている所
-    let tx = v.x, ty = v.y + 2.6 - (SC.preview ? 3 : 0), tz = v.z;   // カスタム中は下のパネルに隠れないよう、だんじりを画面の上寄りに
+    let tx = v.x, ty = v.y + 2.6 - (SC.preview ? 3 * (SC.lift ?? 1) : 0), tz = v.z;   // カスタム中は下のパネルに隠れないよう、だんじりを画面の上寄りに
     const f = SC.focus;
     if (f && f.st === 5 && f.who) {
       if (f.obj) { f.obj.getWorldPosition(tmpP); tx = tmpP.x; ty = tmpP.y + 1; tz = tmpP.z; }
@@ -752,6 +753,7 @@ function updateCamera(dt, t) {
     } else if (f && f.sp && f.sp.stk) { tmpM.multiplyMatrices(f.sp.stk.who.body.matrixWorld, f.sp.stk.L); tmpP.setFromMatrixPosition(tmpM); tx = tmpP.x; ty = tmpP.y + 1; tz = tmpP.z; }
     const a = SC.yaw + v.yaw, cy = Math.cos(SC.pitch);
     camera.position.set(tx + Math.sin(a) * SC.dist * cy, ty - 0.2 + Math.sin(SC.pitch) * SC.dist, tz + Math.cos(a) * SC.dist * cy);
+    if (SC.preview) clampCam(camera.position, 0);   // カスタム中: 家の壁の中に入らない
     camera.lookAt(tx, ty, tz);
     if (Math.abs(camera.fov - 45) > 0.1) { camera.fov = 45; camera.updateProjectionMatrix(); }
     cam.ready = false;
@@ -1914,6 +1916,9 @@ function setupTitle() {
   $('cuTextSet').onclick = setText; $('cuText').onchange = setText;
   $('cuText').oninput = () => { const t = cleanBanner($('cuText').value); if (player) setBannerText(player, t); };   // 打った端からその場で変わる
   $('customBtn').onclick = () => customOpen(true); $('cuDone').onclick = () => customOpen(false);
+  // 設定パネルはたたんで丸いボタンにできる（だんじりを大きく見たい時）
+  const cuFold = f => { $('cuCard').classList.toggle('hidden', f); $('cuShow').classList.toggle('hidden', !f); SC.lift = f ? 0 : 1; };
+  $('cuHide').onclick = () => cuFold(true); $('cuShow').onclick = () => cuFold(false);
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
   $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');

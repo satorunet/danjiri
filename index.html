@@ -126,6 +126,10 @@
   .icon-row .icon-img { width: 24px; height: 24px; border-width: 1px; border-radius: 5px; }
   #custom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; justify-content: center; padding: 0 10px 12px; pointer-events: none; }
   #custom .cu-card { pointer-events: auto; width: min(460px, 100%); max-height: 58vh; overflow-y: auto; background: rgba(18,12,36,0.92); border: 2px solid var(--gold-deep); border-radius: 16px; padding: 8px 12px; text-align: center; }
+  #custom .cu-card { position: relative; }
+  #custom .cu-min { position: sticky; top: 0; float: right; margin: -2px -4px 0 0; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(18,12,36,0.95); color: var(--paper); cursor: pointer; z-index: 1; }
+  #custom .cu-fab { pointer-events: auto; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); background: rgba(18,12,36,0.92); color: var(--paper); font-size: 26px; line-height: 1; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  #custom .cu-fab small { font-size: 11px; font-weight: 900; margin-top: 2px; }
   #custom .cu-label { font-size: 12px; font-weight: 900; color: var(--muted); letter-spacing: .1em; margin-top: 4px; }
   #custom .cu-teams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 4px 0 6px; }
   #custom .cu-teams button { font: inherit; font-size: 13px; padding: 5px 2px; border-radius: 8px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
@@ -433,7 +437,9 @@
 <div id="watchBar" class="hidden"><button class="go ghost" id="wbPrev">◀</button><span id="wbName"></span><button class="go ghost" id="wbNext">▶</button><button class="go ghost" id="wbQuit" data-en="Leave">やめる</button></div>
 <div id="replayBar" class="hidden"><span id="rpName"></span><button class="go ghost" id="rpStop" data-en="Stop">やめる</button></div>
 <div id="custom" class="hidden">
-  <div class="cu-card">
+  <button class="cu-fab hidden" id="cuShow" aria-label="設定を開く">🏮<small data-en="Edit">設定</small></button>
+  <div class="cu-card" id="cuCard">
+    <button class="cu-min" id="cuHide" aria-label="たたむ" data-en="▼ Hide">▼ たたむ</button>
     <div class="cu-label" data-en="DANJIRI">だんじり</div>
     <div class="cu-fin" id="cuFin"></div>
     <div class="cu-label" data-en="CREW FORMATION">引き手の配置</div>
@@ -470,6 +476,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=82"></script>
+<script type="module" src="js/game.js?v=83"></script>
 </body>
 </html>
