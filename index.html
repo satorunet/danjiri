@@ -460,7 +460,8 @@
   <div class="cu-card" id="cuCard">
     <div class="cu-head"><span class="cu-title" data-en="🏮 Customize">🏮 だんじりカスタム</span><button class="cu-min" id="cuHide" aria-label="たたむ" data-en="▼ Hide">▼ たたむ</button></div>
     <details class="cu-sec" name="cu"><summary><span data-en="Danjiri">だんじり</span><span class="cu-val" id="cuValFin"></span></summary>
-      <div class="cu-fin" id="cuFin"></div>
+      <div class="cu-sub" data-en="Type">型</div><div class="cu-fin" id="cuType"></div>
+      <div class="cu-sub" data-en="Finish">仕上げ</div><div class="cu-fin" id="cuFin"></div>
     </details>
     <details class="cu-sec" name="cu"><summary><span data-en="Crew formation">引き手の配置</span><span class="cu-val" id="cuValForm"></span></summary>
       <div class="cu-fin" id="cuForm"></div>
@@ -517,6 +518,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=90"></script>
+<script type="module" src="js/game.js?v=91"></script>
 </body>
 </html>

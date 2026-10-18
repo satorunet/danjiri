@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=90';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=90';
-import { buildWorld } from './world.js?v=90';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=90';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS } from './models.js?v=90';
-import { FX, SpeedShader } from './fx.js?v=90';
-import * as AU from './audio.js?v=90';
+import * as SIM from './sim.js?v=91';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=91';
+import { buildWorld } from './world.js?v=91';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=91';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=91';
+import { FX, SpeedShader } from './fx.js?v=91';
+import * as AU from './audio.js?v=91';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -198,7 +198,8 @@ function nameTag(text, css) {
 function makeRacer(teamIdx, slot, kind, extra = {}) {
   const team = TEAMS[teamIdx];
   const car = SIM.gridCar(course, slot);
-  const D = makeDanjiri(team);
+  const djType = kind === 'me' ? myType : extra.id != null ? NET.types?.[extra.id] || 0 : 0;
+  const D = makeDanjiri(team, djType);
   scene.add(D.group);
   const r = { team, teamIdx, slot, kind, car, D, vis: car, ai: kind === 'cpu' ? SIM.makeAI(slot) : null, phase: Math.random() * 6, finished: false, finishTime: 0, prevAir: false, prevCrash: 0, ...extra };
   r.stick = { body: D.body, list: [] };
@@ -220,6 +221,7 @@ let myIcon = store.get('danjiri-icon', '') || '';
 let myText = store.get('danjiri-text', '') || '';
 let myFinish = +store.get('danjiri-finish', 0) || 0;
 let myForm = +store.get('danjiri-form', 0) || 0;
+let myType = clamp(+store.get('danjiri-type', 0) || 0, 0, DJ_TYPES.length - 1);
 // 引き手のカスタム: 髪型・服装・法被のマーク（def=祭 / txt=文字 / img=写真）
 const cleanCrew = c => ({ hair: clamp(c?.hair | 0, 0, HAIRS.length - 1), outfit: clamp(c?.outfit | 0, 0, OUTFITS.length - 1), mark: ['def', 'txt', 'img'].includes(c?.mark) ? c.mark : 'def', mtext: [...String(c?.mtext || '').replace(/[\s<>&"']/g, '')].slice(0, 2).join('') });
 let myCrew = cleanCrew((() => { try { return JSON.parse(store.get('danjiri-crew', '') || 'null') || { mark: 'img' }; } catch { return { mark: 'img' }; } })());
@@ -335,7 +337,7 @@ function soloOnlyMe() { for (const r of racers) if (r !== player) { r.hidden = t
 // じゃばらの見出しに今の設定を出す
 function cuSummary() {
   if (!$('cuValFin')) return;
-  setT($('cuValFin'), L(FINISHES[myFinish].ja, FINISHES[myFinish].en));
+  setT($('cuValFin'), `${L(DJ_TYPES[myType].ja, DJ_TYPES[myType].en)}・${L(FINISHES[myFinish].ja, FINISHES[myFinish].en)}`);
   setT($('cuValForm'), L(SIM.FORMS[myForm].ja, SIM.FORMS[myForm].en));
   $('cuValTeam').innerHTML = `<span class="sw" style="background:${TEAMS[selTeam].css}"></span>${esc(teamName(TEAMS[selTeam]))}`;
   setT($('cuValText'), myText || L('御祭禮（標準）', 'Default'));
@@ -352,6 +354,8 @@ function customOpen(on) {
     showcaseOpen(true); $('result').classList.add('hidden'); SC.i = 0; SC.yaw = Math.PI * 0.85; SC.pitch = 0.5; SC.dist = 21;
     document.querySelector('#showcase .sc-bar').classList.add('hidden');
     $('cuTeams').innerHTML = TEAMS.map((t, i) => `<button data-t="${i}" class="${i === selTeam ? 'sel' : ''}"><span class="sw" style="background:${t.css}"></span>${esc(teamName(t))}</button>`).join('');
+    $('cuType').innerHTML = DJ_TYPES.map((f, i) => `<button data-f="${i}" class="${i === myType ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
+    $('cuType').querySelectorAll('button').forEach(b => b.onclick = () => { myType = +b.dataset.f; store.set('danjiri-type', myType); $('cuType').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); buildSolo(); soloOnlyMe(); cuSummary(); SC.auto = true; SC.dist = Math.max(SC.dist, 18); SC.pitch = 0.4; });
     $('cuFin').innerHTML = FINISHES.map((f, i) => `<button data-f="${i}" class="${i === myFinish ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
     $('cuFin').querySelectorAll('button').forEach(b => b.onclick = () => { myFinish = +b.dataset.f; store.set('danjiri-finish', myFinish); $('cuFin').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); setFinish(player.D, myFinish); cuSummary(); });
     const formDesc = () => setT($('cuFormD'), L(SIM.FORMS[myForm].dja, SIM.FORMS[myForm].den));
@@ -1683,7 +1687,7 @@ function sendChat(text) { text = String(text || '').trim().slice(0, 40); if (tex
 function netJoin(how, room) {
   NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   netSend({ t: 'join', name: myName, team: selTeam, v: 3, how, room }); netSend({ t: 'hold', on: holdWait });
-  netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew });
+  netSend({ t: 'icon', data: myIcon, txt: myText, dj: myFinish, fm: myForm, cw: myCrew, ty: myType });
   renderLobby();
 }
 // 部屋えらび: 部屋番号・状況・人数を見て入る
@@ -1731,7 +1735,7 @@ function onNet(m) {
   else if (m.t === 'peek') onPeek(m);
   else if (m.t === 'rooms') renderRooms(m);
   else if (m.t === 'icon') {
-    (NET.icons ||= {})[m.id] = m.data; if (NET.chat?.some(c => c.id === m.id)) renderChat(); (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null;
+    (NET.icons ||= {})[m.id] = m.data; if (NET.chat?.some(c => c.id === m.id)) renderChat(); (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null; (NET.types ||= {})[m.id] = clamp(m.ty | 0, 0, DJ_TYPES.length - 1);
     const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; r.crew = NET.crews[m.id]; crewTex(r); }
   }
   else if (m.t === 'chat') onChat(m);

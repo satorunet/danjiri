@@ -340,7 +340,7 @@ wss.on('connection', (ws, req) => {
         const txt = [...cleanText(m.txt, 8).replace(/[\s&"']/g, '')].slice(0, 4).join(''), dj = num(m.dj, 0, 4, 0) | 0, fm = num(m.fm, 0, 4, 0) | 0;
         const c = m.cw && typeof m.cw === 'object' ? m.cw : {};
         const cw = { hair: num(c.hair, 0, 4, 0) | 0, outfit: num(c.outfit, 0, 4, 0) | 0, mark: ['def', 'txt', 'img'].includes(c.mark) ? c.mark : 'def', mtext: [...cleanText(c.mtext, 4).replace(/[\s&"']/g, '')].slice(0, 2).join('') };
-        p.icon = { t: 'icon', id: p.id, data: d, txt, dj, fm, cw };
+        p.icon = { t: 'icon', id: p.id, data: d, txt, dj, fm, cw, ty: num(m.ty, 0, 4, 0) | 0 };
         if (room && p.icon) for (const q of room.players.values()) if (q !== p) send(q, p.icon);
         break;
       }

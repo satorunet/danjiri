@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=90';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=91';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -311,7 +311,15 @@ export function setFinish(D, k) {
 }
 export function setLanternGlow(v) { const S = shared(); S.lantern.emissiveIntensity = v; }
 
-export function makeDanjiri(team) {
+// だんじりの型（カスタム）: 形そのものが変わる
+export const DJ_TYPES = [
+  { ja: '岸和田型', en: 'Kishiwada' },
+  { ja: '布団太鼓', en: 'Futon drum' },
+  { ja: '提灯山', en: 'Lantern tower' },
+  { ja: '鳳凰神輿', en: 'Phoenix' },
+  { ja: '龍の曳山', en: 'Dragon' },
+];
+export function makeDanjiri(team, type = 0) {
   const S = shared();
   const group = new THREE.Group();
   const tilt = new THREE.Group(); group.add(tilt);           // ロール・ピッチ用
@@ -388,6 +396,9 @@ export function makeDanjiri(team) {
     const tail = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0, 3.7, 1.66), new THREE.Vector3(0.05, 3.3, 1.7), new THREE.Vector3(-0.06, 2.95, 1.72)]), 12, 0.07, 6);
     put(S.rope, tail);
   }
+  const extraLan = [];   // 型ごとに足す提灯 [x, y, z, 大きさ]
+  let daikuAt = null;   // 型ごとの大工方の立ち位置
+  if (type === 0 || type === 4) {
   // 小屋根（前）
   {
     const w = 2.5, d = 1.5, h = 0.62, y0 = 3.86, z0 = 1.42;
@@ -424,6 +435,60 @@ export function makeDanjiri(team) {
     const sg2 = shideGeo(0.8);
     for (const sx of [-1, 1]) put(S.shide, sg2.clone().rotateY(sx * Math.PI / 2).translate(sx * (w / 2 + 0.02), y0 + 0.05, z0 + d * 0.3));
   }
+  }
+  if (type === 4) {   // 龍の曳山: 前に龍の頭、屋根の背にたてがみ
+    const G = 0x2a8a4a, Gd = 0x1d5e33;
+    put(S.vc, col(box(1.0, 0.75, 1.3, 0, 5.05, 2.55), G));
+    put(S.vc, col(box(0.8, 0.45, 0.9, 0, 4.85, 3.4), G));                 // 鼻先
+    put(S.vc, col(box(0.82, 0.16, 0.95, 0, 4.58, 3.35), 0xd8d0b8));       // 下あご
+    for (const sx of [-1, 1]) {
+      put(S.vc, col(sph(0.13, sx * 0.42, 5.25, 3.0, 8, 6), 0xffd23a));    // 目
+      put(S.vc, col(sph(0.07, sx * 0.47, 5.27, 3.08, 6, 4), 0x1a0a00));
+      put(S.gold, rotX(new THREE.ConeGeometry(0.09, 0.9, 6), -0.9).translate(sx * 0.3, 5.75, 2.25));   // 角
+      put(S.vc, col(rotX(cyl(0.02, 0.02, 1.2, 4), 1.2).translate(sx * 0.45, 4.8, 4.0), 0xf0e0b0));     // ひげ
+    }
+    for (let i = 0; i < 6; i++) put(S.vc, col(rotX(new THREE.ConeGeometry(0.16, 0.5, 4), -0.3).translate(0, 5.35 + (i % 2) * 0.05, 1.7 - i * 0.55), Gd));   // たてがみ
+  }
+  if (type === 1 || type === 3) {   // 布団太鼓・神輿: 長い担ぎ棒（金の金具つき）
+    for (const sx of [-1, 1]) { put(S.wood, box(0.18, 0.18, 7.4, sx * 1.32, 1.6, 0)); for (const sz of [-1, 1]) put(S.gold, box(0.22, 0.22, 0.12, sx * 1.32, 1.6, sz * 3.7)); }
+    for (const sz of [-1, 1]) put(S.wood, box(2.84, 0.16, 0.16, 0, 1.6, sz * 3.2));
+  }
+  if (type === 1) {   // 布団太鼓: 赤と黒の布団を逆さ台形に積む
+    const y0 = 3.8;
+    for (let i = 0; i < 5; i++) {
+      const w = 2.3 + i * 0.32, d = 2.9 + i * 0.32, y = y0 + i * 0.3;
+      put(S.vc, col(box(w, 0.26, d, 0, y, -0.2), i % 2 ? 0x1a1414 : 0xc0201a));
+      put(S.gold, box(w + 0.04, 0.04, d + 0.04, 0, y + 0.14, -0.2));
+    }
+    const top = y0 + 4 * 0.3 + 0.16, tw = 2.3 + 4 * 0.32, td = 2.9 + 4 * 0.32;
+    put(S.gold, box(0.5, 0.3, 0.5, 0, top + 0.15, -0.2));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {   // 四隅の房
+      put(S.vc, col(cyl(0.05, 0.05, 0.4, 6, sx * tw / 2, top - 0.35, -0.2 + sz * td / 2), 0xf0bc3c));
+      put(S.vc, col(new THREE.ConeGeometry(0.22, 1.0, 10).translate(sx * tw / 2, top - 1.05, -0.2 + sz * td / 2), 0xd42a1e));
+    }
+    daikuAt = [{ x: 0, y: top + 0.02, z: 0.4, s: 1, base: top + 0.02 }, { x: 0, y: top + 0.02, z: -0.8, s: 0.92, base: top + 0.02 }];
+  } else if (type === 2) {   // 提灯山: 提灯をピラミッドに積む
+    put(S.woodD, cyl(0.06, 0.06, 4.2, 6, 0, 5.7, -0.1));
+    for (let k = 0; k < 5; k++) {
+      const n = 12 - k * 2, r = 1.35 - k * 0.27, y = 3.95 + k * 0.5;
+      put(S.black, new THREE.TorusGeometry(r, 0.025, 4, 24).rotateX(Math.PI / 2).translate(0, y + 0.26, -0.1));
+      for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + k * 0.3; extraLan.push([Math.cos(a) * r, y, -0.1 + Math.sin(a) * r * 1.15, 0.95]); }
+    }
+    extraLan.push([0, 6.5, -0.1, 2.0]);
+    daikuAt = [{ x: 0, y: 2.28, z: 1.65, s: 1, base: 2.28 }, { x: 0, y: 2.28, z: -1.65, s: 0.92, base: 2.28 }];
+  } else if (type === 3) {   // 鳳凰神輿: 金の四角錐の屋根に鳳凰
+    put(S.black, box(2.9, 0.16, 3.6, 0, 3.92, -0.1));
+    put(S.gold, new THREE.ConeGeometry(2.25, 1.5, 4, 1).rotateY(Math.PI / 4).scale(1, 1, 1.22).translate(0, 4.75, -0.1));
+    put(S.gold, cyl(0.12, 0.2, 0.45, 8, 0, 5.65, -0.1));
+    // 鳳凰
+    put(S.gold, sph(0.32, 0, 6.15, -0.1, 10, 8).scale(1, 0.8, 1.5));
+    put(S.gold, sph(0.16, 0, 6.45, 0.35, 8, 6));
+    put(S.vc, col(new THREE.ConeGeometry(0.06, 0.22, 5).rotateX(Math.PI / 2).translate(0, 6.45, 0.56), 0xd42a1e));
+    for (const sx of [-1, 1]) put(S.gold, new THREE.BoxGeometry(1.1, 0.05, 0.5).rotateZ(sx * 0.45).translate(sx * 0.6, 6.35, -0.15));
+    for (let i = -1; i <= 1; i++) put(S.vc, col(rotX(new THREE.ConeGeometry(0.08, 1.2, 5), -2.2).translate(i * 0.15, 6.35, -0.75), [0xd42a1e, 0xf0bc3c, 0x1d7a5a][i + 1]));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(S.vc, col(new THREE.ConeGeometry(0.12, 0.5, 8).translate(sx * 1.45, 3.6, -0.1 + sz * 1.78), 0xd42a1e));
+    daikuAt = [{ x: 0, y: 2.28, z: 1.65, s: 1, base: 2.28 }, { x: 0, y: 2.28, z: -1.65, s: 0.92, base: 2.28 }];
+  }
   // 提灯
   {
     const lan = [], caps = [];
@@ -436,6 +501,7 @@ export function makeDanjiri(team) {
     for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) L(sx * 1.5, 3.62, -1.7 + i * 0.52);
     for (let i = 0; i < 4; i++) L(-0.84 + i * 0.56, 3.45, 2.14, 0.95);
     for (let i = 0; i < 3; i++) L(-0.6 + i * 0.6, 3.6, -2.1);
+    for (const [x, y, z, sc] of extraLan) L(x, y, z, sc);
     put(S.lantern, merge(lan));
     put(S.black, merge(caps));
   }
@@ -474,7 +540,7 @@ export function makeDanjiri(team) {
     banners.push({ pole, cloth, sx, base: cloth.geometry.attributes.position.array.slice() });
   }
   // 大工方は CrowdRig でまとめて描く。ここでは立ち位置だけ持つ
-  const daiku = [{ x: 0, y: 5.18, z: 0.5, s: 1, base: 5.18 }, { x: 0, y: 4.5, z: 1.45, s: 0.92, base: 4.5 }];
+  const daiku = daikuAt || [{ x: 0, y: 5.18, z: 0.5, s: 1, base: 5.18 }, { x: 0, y: 4.5, z: 1.45, s: 0.92, base: 4.5 }];
   return { group, tilt, body, wheels, banners, daiku, daikuPose: [newPose(), newPose()] };
 }
 
