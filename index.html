@@ -96,6 +96,11 @@
   .ci { cursor: pointer; } .ci:hover { border-color: var(--gold); }
   #replayBar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px; background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 30px; padding: 6px 8px 6px 18px; font-family: 'Dela Gothic One', sans-serif; font-size: 17px; }
   #replayBar .go { font-size: 14px; padding: 6px 14px; margin: 0; }
+  #watchBar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 24px); background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 30px; padding: 6px 8px; font-family: 'Dela Gothic One', sans-serif; font-size: 15px; white-space: nowrap; }
+  #watchBar .go { font-size: 14px; padding: 6px 12px; margin: 0; }
+  #watchBar #wbName { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #lobbyChoice .lc-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0; }
+  #lobbyChoice .lc-note { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   #showcase { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
   #showcase .sc-hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(10,6,24,0.7); padding: 6px 14px; border-radius: 16px; font-size: 13px; font-weight: 700; }
   #showcase .sc-bar { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 30px; padding: 6px 12px; pointer-events: auto; max-width: 96vw; }
@@ -329,6 +334,10 @@
   <div class="card">
     <h2 data-en="Online Race">オンライン対戦</h2>
     <div id="lobbyStatus" class="best">接続中…</div>
+    <div id="lobbyChoice" class="hidden">
+      <div class="lc-btns"><button class="go online" id="lcGhost" data-en="👻 Run as a ghost">👻 ゴーストで走る</button><button class="go" id="lcWatch" data-en="👀 Watch">👀 観戦する</button><button class="go ghost" id="lcWait" data-en="⏳ Wait in the room">⏳ 待合室で待つ</button></div>
+      <div class="lc-note" data-en="Ghost: run the same course now, see-through, no bumping, not in the standings. Watch / Wait: you join from the next race.">ゴースト：今すぐ同じコースを走る（すり抜け・順位には入らない）。観戦・待つ：次のレースから参加。</div>
+    </div>
     <div class="lobbyCount" id="lobbyCount"></div>
     <ul class="lobbyList" id="lobbyList"></ul>
     <div class="best" data-en="Up to 4 danjiri. CPU fills empty slots. 2 laps. Town and time of day are drawn by lot.">最大4台。人が足りない分はCPUの町が参加。2周勝負。町と時間はくじ引き。</div>
@@ -377,6 +386,7 @@
     <button class="go ghost" id="mbClose" data-en="Close">とじる</button>
   </div>
 </div>
+<div id="watchBar" class="hidden"><button class="go ghost" id="wbPrev">◀</button><span id="wbName"></span><button class="go ghost" id="wbNext">▶</button><button class="go ghost" id="wbQuit" data-en="Leave">やめる</button></div>
 <div id="replayBar" class="hidden"><span id="rpName"></span><button class="go ghost" id="rpStop" data-en="Stop">やめる</button></div>
 <div id="showcase" class="hidden">
   <div class="sc-hint" data-en="Drag to rotate · scroll / pinch to zoom">ドラッグで回す・ホイール / 2本指でズーム</div>
@@ -399,6 +409,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=71"></script>
+<script type="module" src="js/game.js?v=72"></script>
 </body>
 </html>

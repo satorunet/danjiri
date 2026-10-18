@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=71';
-import { GLYPHS, FONT, setOutlines } from './gfx.js?v=71';
-import { buildWorld } from './world.js?v=71';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=71';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=71';
-import { FX, SpeedShader } from './fx.js?v=71';
-import * as AU from './audio.js?v=71';
+import * as SIM from './sim.js?v=72';
+import { GLYPHS, FONT, setOutlines } from './gfx.js?v=72';
+import { buildWorld } from './world.js?v=72';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=72';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow } from './models.js?v=72';
+import { FX, SpeedShader } from './fx.js?v=72';
+import * as AU from './audio.js?v=72';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -204,8 +204,9 @@ function clearRacers() {
   racers = []; player = null;
 }
 function finishRoster() {
-  racers.forEach((r, i) => { r.slotIdx = i; crowd.setTeamTexture(i, r.team); });
-  $('rankOf').textContent = L(`位 / ${racers.length}`, ` / ${racers.length}`);
+  racers.forEach((r, i) => { r.slotIdx = Math.min(i, 3); if (i < 4) crowd.setTeamTexture(i, r.team); });
+  const n = rankOrder().length;
+  $('rankOf').textContent = L(`位 / ${n}`, ` / ${n}`);
   for (const r of racers) updateVisual(r, 0, 0);
 }
 function buildSolo() {
@@ -816,7 +817,7 @@ function drawMini() {
 const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(2).padStart(5, '0')}`; };
 const setT = (el, v) => { v = String(v); if (el.textContent !== v) el.textContent = v; };
 function rankOrder() {
-  return [...racers].sort((a, b) => {
+  return racers.filter(r => !r.ghost || r === player).sort((a, b) => {
     if (a.finished && b.finished) return a.finishTime - b.finishTime;
     if (a.finished) return -1; if (b.finished) return 1;
     return (b.vis.prog || 0) - (a.vis.prog || 0);
@@ -920,7 +921,7 @@ function toTitle() {
   if (mode === 'online') netLeave();
   mode = 'solo'; soloStage();
   state = 'title'; AU.stopMusic();
-  ['hud', 'touch', 'result', 'pause', 'count', 'lobby'].forEach(id => $(id).classList.add('hidden'));
+  ['hud', 'touch', 'result', 'pause', 'count', 'lobby', 'watchBar'].forEach(id => $(id).classList.add('hidden'));
   $('title').classList.remove('hidden');
   if (AU.audio.ctx && AU.audio.ctx.state === 'suspended') AU.audio.ctx.resume();
   showBest();
@@ -1374,7 +1375,11 @@ function netConnect() {
   try { ws = new WebSocket(wsURL()); }
   catch { NET.failed = true; renderLobby(); return; }
   NET.ws = ws;
-  ws.onopen = () => { NET.retry = 0; netSend({ t: 'join', name: myName, team: selTeam, v: 2 }); netSend({ t: 'hold', on: holdWait }); netPing(); NET.pingTimer = setInterval(netPing, 4000); };
+  ws.onopen = () => {
+    NET.retry = 0; netPing(); NET.pingTimer = setInterval(netPing, 4000);
+    // 最初の 1 回はレース中の部屋があるか聞く（あれば ゴースト / 観戦 / 待つ を選んでもらう）
+    if (NET.how) netJoin(NET.how === 'pick' ? 'auto' : NET.how === 'ghost' ? 'auto' : NET.how, NET.joinRoom); else { NET.how = 'pick'; netSend({ t: 'peek' }); setTimeout(() => { if (NET.ws === ws && NET.how === 'pick' && !NET.choice) netJoin('auto'); }, 2500); }   // 返事がなければふつうに参加
+  };
   ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } onNet(m); };
   ws.onclose = () => {
     clearInterval(NET.pingTimer);
@@ -1383,7 +1388,7 @@ function netConnect() {
     if (mode !== 'online') return;
     // 切れたら待合室へ戻って自動でつなぎ直す（サーバーの入れ替え・電波の途切れ）
     NET.retry = (NET.retry || 0) + 1;
-    NET.room = null; NET.raceKey = null;
+    NET.room = null; NET.raceKey = null; NET.ghost = false; $('watchBar').classList.add('hidden');
     if (state !== 'lobby') {
       AU.stopMusic(); clearRacers(); buildSolo();
       ['hud', 'touch', 'result', 'pause', 'count'].forEach(id => $(id).classList.add('hidden'));
@@ -1394,6 +1399,24 @@ function netConnect() {
     setTimeout(() => { if (mode === 'online' && !NET.ws) netConnect(); }, 1200 * NET.retry);
   };
 }
+function netJoin(how, room) {
+  NET.how = how; NET.joinRoom = room; NET.choice = null; $('lobbyChoice').classList.add('hidden');
+  netSend({ t: 'join', name: myName, team: selTeam, v: 2, how, room }); netSend({ t: 'hold', on: holdWait });
+  renderLobby();
+}
+function onPeek(m) {
+  if (mode !== 'online' || NET.how !== 'pick') return;
+  const r = m.races && m.races[0];
+  if (!r) { netJoin('auto'); return; }
+  NET.choice = r;
+  const [mp, mt] = String(r.stage || '').split('-');
+  const sec = Math.max(0, Math.round((m.now - r.startAt) / 1000));
+  setT($('lobbyStatus'), L(`部屋 ${r.room} はレース中です（${r.n}人・${PLACES[mp] ? placeName(mp, mt === 'night') : ''}・${sec}秒経過）`, `Room ${r.room} is racing (${r.n} player${r.n > 1 ? 's' : ''}, ${PLACES[mp] ? placeName(mp, mt === 'night') : ''}, ${sec}s in)`));
+  $('lobbyChoice').classList.remove('hidden'); $('lobbyList').innerHTML = ''; setT($('lobbyCount'), '');
+  $('lcGhost').onclick = () => netJoin('ghost', r.room);
+  $('lcWatch').onclick = () => netJoin('watch', r.room);
+  $('lcWait').onclick = () => netJoin('wait', r.room);
+}
 function netSend(o) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
 function netPing() { netSend({ t: 'ping', c: Date.now() }); }
 function netLeave() { clearInterval(NET.pingTimer); if (NET.ws) { const w = NET.ws; NET.ws = null; try { w.close(); } catch { } } NET.room = null; NET.raceKey = null; }
@@ -1401,6 +1424,7 @@ function onNet(m) {
   if (m.t === 'hello') { NET.id = m.id; NET.offset = m.now - Date.now(); NET.best = m.best || []; }
   else if (m.t === 'pong') { const n = Date.now(), rtt = n - m.c; if (rtt <= NET.bestRtt + 15) { NET.bestRtt = Math.min(NET.bestRtt, rtt); NET.offset = m.s - (m.c + rtt / 2); } }
   else if (m.t === 'room') onRoom(m);
+  else if (m.t === 'peek') onPeek(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
 }
@@ -1412,16 +1436,106 @@ function onRoom(m) {
   NET.seen = ids; NET.seenRoom = m.room;
   NET.room = m; LAPS = m.laps;
   const me = m.players.find(p => p.id === NET.id);
-  if (m.phase === 'race' && me && me.racing) {
-    const key = m.room + ':' + m.startAt;
-    if (NET.raceKey !== key && (state === 'lobby' || state === 'result')) { NET.raceKey = key; startOnlineRace(m); return; }
-    if (NET.raceKey === key) {
-      for (const e of [...m.players, ...m.cpus]) { const r = racers.find(x => x.id === e.id); if (r && r.kind === 'net' && e.fin != null && !r.finished) { r.finished = true; r.finishTime = e.fin; } }
-      const gone = racers.filter(r => r.kind === 'net' && !r.cpu && !m.players.some(p => p.id === r.id && p.racing));
-      if (gone.length) { gone.forEach(r => { scene.remove(r.D.group); message(L(`${r.name} が抜けました`, `${r.name} left`)); }); racers = racers.filter(r => !gone.includes(r)); finishRoster(); }
-    }
-  }
+  const key = m.room + ':' + m.startAt;
+  if (m.phase === 'race' && me && me.racing && NET.raceKey !== key && ['lobby', 'result', 'watch'].includes(state)) { watchEnd(); NET.raceKey = key; NET.ghost = false; startOnlineRace(m); return; }
+  // ゴーストで参加: 自分だけ今からスタート
+  if (me && me.ghost && me.ghost.fin == null && !NET.ghost && state === 'lobby') { NET.ghost = true; NET.raceKey = key; startGhostRace(m, me.ghost.start); return; }
+  // 観戦: レース中の部屋をそのまま見る（次のレースから参加）
+  if (m.phase === 'race' && me && !me.racing && !me.ghost && NET.how === 'watch' && state === 'lobby' && NET.raceKey !== key) { NET.raceKey = key; startWatch(m); return; }
+  if (state === 'watch' && m.phase === 'wait') { watchEnd(); toLobby(); return; }   // みんな抜けて終わった
+  if (NET.raceKey && (NET.ghost || (NET.raceKey === key && m.phase === 'race'))) syncRoster(m);
   if (state === 'lobby') renderLobby();
+}
+// レース中の顔ぶれの変化（ゴール・抜けた・ゴーストが来た）
+function syncRoster(m) {
+  for (const e of [...m.players, ...m.cpus]) { const r = racers.find(x => x.id === e.id); if (r && r.kind === 'net' && e.fin != null && !r.finished) { r.finished = true; r.finishTime = e.fin; } }
+  for (const p of m.players) if (p.ghost && p.ghost.fin == null && p.id !== NET.id && !racers.some(r => r.id === p.id)) addNetRacer(p, true);
+  // 自分がゴーストの時は、本戦が終わっても部屋にいる人はそのまま走らせておく
+  const here = p => NET.ghost || p.racing || (p.ghost && p.ghost.fin == null);
+  const gone = racers.filter(r => r.kind === 'net' && !r.cpu && r !== player && !m.players.some(p => p.id === r.id && here(p)));
+  if (gone.length) { gone.forEach(r => { scene.remove(r.D.group); if (!r.ghost || NET.ghost) message(L(`${r.name} が抜けました`, `${r.name} left`)); }); racers = racers.filter(r => !gone.includes(r)); finishRoster(); }
+  if (state === 'watch' && !racers.includes(player) && racers.length) { player = racers[0]; cam.ready = false; }
+}
+function addNetRacer(e, ghost) {
+  const r = makeRacer(e.team, ghost ? 1 : e.slot, 'net', { id: e.id, cpu: !!e.cpu, ghostVisitor: !!e.ghost, name: e.cpu ? `CPU ${teamName(TEAMS[e.team])}` : (e.ghost ? '👻 ' : '') + e.name });
+  r.vis = netVis(); Object.assign(r.vis, { x: r.car.x, z: r.car.z, y: r.car.y, yaw: r.car.yaw }); r.buf = [];
+  r.slotIdx = 0;
+  if (ghost) ghostify(r);
+  racers.push(r); updateVisual(r, 0, 0);
+  return r;
+}
+// ゴースト: 半透明（ぶつからない・町も壊さない）
+function ghostify(r) {
+  r.ghost = true;
+  r.D.group.traverse(o => {
+    if (!o.isMesh || !o.material || o.userData.tag) return;
+    o.material = (Array.isArray(o.material) ? o.material : [o.material]).map(mt => { const c = mt.clone(); c.transparent = true; c.opacity = 0.35 * (mt.opacity ?? 1); c.depthWrite = false; return c; });
+    if (o.material.length === 1) o.material = o.material[0];
+    o.castShadow = false;
+  });
+}
+function toLobby() {
+  AU.stopMusic(); clearRacers(); buildSolo();
+  ['hud', 'touch', 'result', 'count', 'watchBar'].forEach(id => $(id).classList.add('hidden'));
+  $('lobby').classList.remove('hidden'); state = 'lobby'; renderLobby();
+}
+function startGhostRace(m, gStart) {
+  const [mp, mt] = String(m.stage || '').split('-');
+  if (PLACES[mp] && (mp !== place || (mt === 'night') !== night)) loadStage(mp, mt === 'night');
+  clearRacers();
+  const me = makeRacer(selTeam, 1, 'me', { id: NET.id, name: L('あなた', 'You') });
+  racers.push(me); player = me;
+  for (const e of [...m.players.filter(p => p.racing || (p.ghost && p.ghost.fin == null && p.id !== NET.id)), ...m.cpus]) addNetRacer(e, true);
+  finishRoster();
+  setTimeout(() => message(L('👻 ゴースト走行（すり抜け・順位外）', '👻 Ghost run (no bumping, unranked)'), 'gold', true), 600);
+  NET.lastSend = 0;
+  beginRace(AU.now() + Math.max(0.5, (gStart - serverNow()) / 1000));
+}
+// 観戦
+function startWatch(m) {
+  const [mp, mt] = String(m.stage || '').split('-');
+  if (PLACES[mp] && (mp !== place || (mt === 'night') !== night)) loadStage(mp, mt === 'night');
+  clearRacers();
+  for (const e of [...m.players.filter(p => p.racing), ...m.cpus]) addNetRacer(e, false);
+  for (const p of m.players) if (p.ghost && p.ghost.fin == null && p.id !== NET.id) addNetRacer(p, true);
+  if (!racers.length) { toLobby(); return; }
+  player = racers.find(r => !r.cpu && !r.ghost) || racers[0];
+  finishRoster();
+  for (const e of [...m.players, ...m.cpus]) { const r = racers.find(x => x.id === e.id); if (r && e.fin != null) { r.finished = true; r.finishTime = e.fin; } }
+  resetStats(); world.resetProps(); SIM.resetBreach(course); fx.clearSkids();
+  ['title', 'result', 'lobby', 'pause', 'hud', 'touch'].forEach(id => $(id).classList.add('hidden'));
+  raceStart = AU.now() - Math.max(0, (serverNow() - m.startAt) / 1000); cam.ready = false;
+  AU.startMusic(AU.now() + 0.2, 0, 'race', mp === 'jp' ? 'jp' : mp);
+  state = 'watch';
+  $('watchBar').classList.remove('hidden'); updateWatchBar();
+  message(L('👀 観戦中（次のレースから参加します）', '👀 Watching (you join the next race)'), 'gold', true);
+}
+function watchPick(d) {
+  const list = racers.filter(r => !r.ghost); if (!list.length) return;
+  player = list[(list.indexOf(player) + d + list.length) % list.length]; cam.ready = false; updateWatchBar();
+}
+function updateWatchBar() {
+  if (!player) return;
+  const ord = racers.filter(r => !r.ghost).sort((a, b) => (a.finished && b.finished) ? a.finishTime - b.finishTime : a.finished ? -1 : b.finished ? 1 : (b.vis.prog || 0) - (a.vis.prog || 0));
+  const i = ord.indexOf(player);
+  setT($('wbName'), `👀 ${player.name}${i >= 0 ? L(`（${i + 1}位）`, ` (#${i + 1})`) : ''}`);
+}
+function watchEnd() { $('watchBar').classList.add('hidden'); }
+// ゴースト走行のゴール: 本戦の記録と並べて「本戦なら何位」
+function showGhostResult() {
+  NET.ghost = false; NET.raceKey = null;
+  state = 'result'; AU.stopMusic();
+  ['hud', 'touch', 'count'].forEach(id => $(id).classList.add('hidden'));
+  const rows = racers.filter(r => r === player || !r.ghostVisitor).map(r => ({ r, t: r === player ? player.finishTime : r.finished ? r.finishTime : null }))
+    .sort((a, b) => (a.t == null) - (b.t == null) || a.t - b.t);
+  $('resTable').innerHTML = rows.map((e, i) => `<tr class="${e.r === player ? 'me' : ''}"><td>${e.t == null ? '—' : L(`${i + 1}位`, `#${i + 1}`)}</td><td>${swatch(e.r.team)}${e.r === player ? '👻 ' + esc(myName) + L('（あなた）', ' (you)') : esc(e.r.name)}</td><td>${e.t == null ? L('記録なし', 'DNF') : fmt(e.t)}</td></tr>`).join('');
+  const rank = rows.findIndex(e => e.r === player) + 1;
+  $('resTitle').textContent = L(`👻 ゴースト ${rank}位相当`, `👻 Ghost: would be #${rank}`);
+  $('resNew').textContent = L('本戦の記録とくらべた順位です（ゴーストは順位外）', 'Compared with the race times (ghost runs are unranked)');
+  $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
+  $('retryBtn').classList.add('hidden');
+  updateNextInfo();
+  $('result').classList.remove('hidden'); $('result').scrollTop = 0;
 }
 function netVis() { return { x: 0, y: 0, z: 0, yaw: 0, roll: 0, pitch: 0, vx: 0, vz: 0, speed: 0, vF: 0, air: false, crashT: 0, tipped: false, boosting: false, drift: false, slip: 0, steerIn: 0, w: 0, prog: SIM.START_S, si: -1 }; }
 function startOnlineRace(m) {
@@ -1483,6 +1597,7 @@ function rankingHTML() { return NET.best.length ? `<b>${L('オンライン最速
 function renderLobby() {
   const m = NET.room;
   $('lobbyRank').innerHTML = rankingHTML();
+  if (!m && NET.choice) return;
   if (!m) { setT($('lobbyStatus'), NET.failed ? L('接続できませんでした。時間をおいてもう一度どうぞ。', 'Could not connect. Please try again later.') : L('サーバーに接続中…', 'Connecting…')); $('lobbyList').innerHTML = ''; setT($('lobbyCount'), ''); return; }
   setT($('lobbyStatus'), m.phase === 'wait' ? L(`部屋 ${m.room}：ほかの人を待っています`, `Room ${m.room}: waiting for players`) : m.phase === 'race' ? L(`部屋 ${m.room}：レース中。次のレースから参加します`, `Room ${m.room}: race in progress, you join the next one`) : L(`部屋 ${m.room}：結果発表中…`, `Room ${m.room}: results…`));
   let html = m.players.map(p => `<li class="${p.id === NET.id ? 'me' : ''}">${swatch(TEAMS[p.team])}${esc(p.name)}${p.id === NET.id ? L('（あなた）', ' (you)') : ''}<span style="margin-left:auto;color:var(--muted)">${teamName(TEAMS[p.team])}</span></li>`).join('');
@@ -1499,11 +1614,13 @@ function updateNextInfo() {
   const m = NET.room;
   if (!m) { setT($('nextInfo'), NET.failed ? L('接続が切れました', 'Disconnected') : ''); return; }
   const sec = Math.max(0, Math.ceil((m.phaseEnd - serverNow()) / 1000));
-  setT($('nextInfo'), m.phase === 'wait' ? L(`次のレースは ${sec} 秒後に出発（そのまま自動で参加）`, `Next race in ${sec}s (you join automatically)`) : m.phase === 'result' ? L(`まもなく次のレースの受付… ${sec}`, `Next race opens soon… ${sec}`) : '');
+  setT($('nextInfo'), m.phase === 'wait' ? L(`次のレースは ${sec} 秒後に出発（そのまま自動で参加）`, `Next race in ${sec}s (you join automatically)`) : m.phase === 'result' ? L(`まもなく次のレースの受付… ${sec}`, `Next race opens soon… ${sec}`) : m.phase === 'race' ? L('部屋はレース中。次のレースから参加します', 'The room is racing. You join the next race') : '');
 }
 function showOnlineResult(m) {
-  if (mode !== 'online' || !NET.raceKey || !['countdown', 'race', 'finish'].includes(state)) return;
+  if (mode !== 'online' || !NET.raceKey || !['countdown', 'race', 'finish', 'watch'].includes(state)) return;
   NET.best = m.best || NET.best;
+  if (NET.ghost) { message(L('本戦のレースが終わりました', 'The main race has finished'), 'gold'); return; }   // ゴーストは自分のゴールまで走る
+  const watching = state === 'watch'; watchEnd();
   state = 'result'; AU.stopMusic();
   ['hud', 'touch', 'count'].forEach(id => $(id).classList.add('hidden'));
   $('resTable').innerHTML = m.list.map(e => `<tr class="${e.id === NET.id ? 'me' : ''}"><td>${L(`${e.rank}位`, `#${e.rank}`)}</td><td>${swatch(TEAMS[e.team])}${esc(e.cpu ? 'CPU ' + teamName(TEAMS[e.team]) : e.name)}${e.id === NET.id ? L('（あなた）', ' (you)') : ''}</td><td>${e.est ? '約 ' : ''}${fmt(e.time)}</td></tr>`).join('');
@@ -1511,7 +1628,8 @@ function showOnlineResult(m) {
   $('resTitle').textContent = !mine ? L('結果', 'Results') : mine.rank === 1 ? L('優勝! 町の誇りや!', 'VICTORY! Pride of the town!') : L(`${mine.rank}位`, `#${mine.rank}`);
   const bi = mine && !mine.est ? NET.best.findIndex(b => b.name === myName && b.time === mine.time) : -1;
   $('resNew').textContent = bi >= 0 ? L(`オンライン番付 ${bi + 1}位 に入りました!`, `Online ranking #${bi + 1}!`) : '';
-  $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest();
+  if (watching) { $('resNew').textContent = L('観戦したレースの結果。次のレースから参加します', 'Results of the race you watched. You join the next one'); $('resStats').innerHTML = ''; $('resColl').innerHTML = ''; $('rankForm').classList.add('hidden'); $('resBadge').classList.add('hidden'); }
+  else { $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player); bindCollected(); showRankForm(); updateMyBest(); }
   $('retryBtn').classList.add('hidden');
   updateNextInfo();
   $('result').classList.remove('hidden'); $('result').scrollTop = 0;
@@ -1521,6 +1639,7 @@ function startOnline() {
   myName = $('nameIn').value.trim().slice(0, 12) || L('名無し', 'Anonymous');
   store.set('danjiri-name', myName);
   AU.initAudio(); netLeave();
+  NET.how = null; NET.ghost = false; NET.choice = null; $('lobbyChoice').classList.add('hidden');
   mode = 'online'; state = 'lobby';
   $('title').classList.add('hidden'); $('lobby').classList.remove('hidden');
   renderLobby(); netConnect();
@@ -1549,6 +1668,7 @@ function setupTitle() {
   $('startBtn').onclick = startSolo; $('onlineBtn').onclick = startOnline;
   $('soloBtn').onclick = () => titleStep(2); $('stepBack').onclick = () => titleStep(1);
   $('lobbyQuit').onclick = toTitle;
+  $('wbPrev').onclick = () => watchPick(-1); $('wbNext').onclick = () => watchPick(1); $('wbQuit').onclick = toTitle;
   showHold(); $('lobbyHold').onclick = () => { holdWait = !holdWait; store.set('danjiri-hold', holdWait ? '1' : '0'); showHold(); netSend({ t: 'hold', on: holdWait }); }; $('retryBtn').onclick = startSolo; $('titleBtn').onclick = toTitle;
   $('resumeBtn').onclick = togglePause; $('quitBtn').onclick = () => { AU.audio.ctx?.resume(); toTitle(); };
   $('nameIn').value = myName;
@@ -1586,6 +1706,7 @@ function step(dt) {
   for (let i = 0; i < racers.length; i++) for (let j = i + 1; j < racers.length; j++) {
     const a = racers[i], b = racers[j];
     let imp = 0;
+    if (a.ghost || b.ghost) continue;   // ゴーストはすり抜け
     if (a.kind !== 'net' && b.kind !== 'net') imp = SIM.collideCars(a.car, b.car, true);
     else if (a.kind !== 'net') imp = SIM.collideCars(a.car, b.vis, false);
     else if (b.kind !== 'net') imp = SIM.collideCars(b.car, a.vis, false);
@@ -1601,8 +1722,9 @@ function step(dt) {
       const rank = rankOrder().indexOf(player) + 1;
       message(rank === 1 ? L('一番乗り!!', 'FIRST PLACE!!') : L(`${rank}位 ゴール!`, `Finished #${rank}!`), 'gold', true); AU.cheer(0.7, 3);
       fx.burst('confetti', r.car.x, r.car.y + 7, r.car.z, 120, { speed: 8, up: 8, life: 4 });
-      state = 'finish'; resultTimer = mode === 'solo' ? 3.5 : Infinity;
-      if (mode === 'online') { netTick(true); netSend({ t: 'fin' }); setTimeout(() => { if (state === 'finish') message(L('ほかの町の到着待ち…', 'Waiting for the others…')); }, 1600); }
+      state = 'finish'; resultTimer = mode === 'solo' || NET.ghost ? 3.5 : Infinity;
+      if (mode === 'online' && NET.ghost) { netTick(true); netSend({ t: 'fin' }); }
+      else if (mode === 'online') { netTick(true); netSend({ t: 'fin' }); setTimeout(() => { if (state === 'finish') message(L('ほかの町の到着待ち…', 'Waiting for the others…')); }, 1600); }
     }
   }
   const lap = Math.floor((player.car.prog - SIM.START_S) / course.L) + 1;
@@ -1634,20 +1756,21 @@ function frame(nowMs) {
     while (acc >= DT && n < 5) { step(DT); acc -= DT; n++; }
     if (n >= 5) acc = 0;
     if (mode === 'online' && state === 'race') netTick(false);
-    if (state === 'finish') { resultTimer -= dt; if (resultTimer <= 0 && mode === 'solo') showSoloResult(); }
+    if (state === 'finish') { resultTimer -= dt; if (resultTimer <= 0 && mode === 'solo') showSoloResult(); else if (resultTimer <= 0 && NET.ghost) showGhostResult(); }
     stats.topSpeed = Math.max(stats.topSpeed || 0, player.car.speed);
   }
   if (state === 'replay') replayTick(sdt);
-  else for (const r of racers) if (r.kind === 'net') { netInterp(r, dt); if (state === 'race' || state === 'finish') netBreach(r); }
+  else for (const r of racers) if (r.kind === 'net') { netInterp(r, dt); if ((state === 'race' || state === 'finish' || state === 'watch') && !r.ghost) netBreach(r); }
   if (state === 'race' || (state === 'finish' && player.finishTime && raceT - player.finishTime < 2)) recordTick(sdt);
-  if (state === 'race' || state === 'finish') for (const r of racers) snagSpans(r);
+  if (state === 'race' || state === 'finish' || state === 'watch') for (const r of racers) if (!r.ghost) snagSpans(r);
   // 見た目
   crowd.begin(); ropeIdx = 0; cordIdx = 0;
-  for (const r of racers) { updateVisual(r, sdt, t); updateCrew(r, sdt, t); addDaiku(r); updateTangle(r, sdt); }
+  for (const r of racers) { updateVisual(r, sdt, t); if (r.ghost) continue; updateCrew(r, sdt, t); addDaiku(r); updateTangle(r, sdt); }
   crowd.end();
   cordMesh.count = cordIdx; cordMesh.instanceMatrix.needsUpdate = true;
   ropeMesh.count = ropeIdx; ropeMesh.instanceMatrix.needsUpdate = true;
-  if (state === 'race' || state === 'finish') { for (const r of racers) { hitProps(r); grabReach(r); carEffects(r, sdt, camera.position); } }
+  if (state === 'race' || state === 'finish' || state === 'watch') { for (const r of racers) { if (r.ghost) continue; hitProps(r); grabReach(r); carEffects(r, sdt, camera.position); } }
+  if (state === 'watch') updateWatchBar();
   updateCamera(dt, t);
   const p = player.vis;
   if (state === 'race') updateHappenings(sdt);
@@ -1660,9 +1783,9 @@ function frame(nowMs) {
   carLight.position.set(p.x, p.y + 9.5, p.z);
   sky.position.copy(camera.position);
   // 音
-  const racing = state === 'race' || state === 'finish';
+  const racing = state === 'race' || state === 'finish' || state === 'watch';
   const crowdNear = racing ? 1 : 0.3;
-  AU.engine(player.car.speed, player.car.drift ? player.car.slip + 3 : player.car.slip, player.car.air, crowdNear, racing);
+  AU.engine(state === 'watch' ? player.vis.speed || 0 : player.car.speed, player.car.drift ? player.car.slip + 3 : player.car.slip, player.car.air, crowdNear, racing);
   AU.footsteps((player.vis.speed ?? player.car.speed) || 0, player.vis.air, racing || state === 'replay', place === 'venice');
   // 待合室・次のレース待ちはお囃子を流す
   if (mode === 'online' && (state === 'lobby' || state === 'result') && AU.audio.ctx && (!AU.audio.mus.on || AU.audio.mus.mode !== 'lobby')) AU.startMusic(AU.now() + 0.2, 0, 'lobby');

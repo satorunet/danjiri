@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=71';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=72';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
