@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=129';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=129';
-import { buildWorld } from './world.js?v=129';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=129';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=129';
-import { FX, SpeedShader } from './fx.js?v=129';
-import * as AU from './audio.js?v=129';
+import * as SIM from './sim.js?v=130';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=130';
+import { buildWorld } from './world.js?v=130';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=130';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=130';
+import { FX, SpeedShader } from './fx.js?v=130';
+import * as AU from './audio.js?v=130';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -2295,7 +2295,7 @@ function setupTitle() {
   $('rpPrev').onclick = () => rpPick(-1); $('rpNext').onclick = () => rpPick(1);
   $('scBack').onclick = () => { if (state === 'display') { const sv = !!shareView; shareClose(); showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); if (!sv) openRanking(rkPlace); } else showcaseOpen(false); };
   $('shareBtn').onclick = makeShare;
-  // ☰: 走りを再生・記録・ひっついたもの をまとめる
+  // ☰: 記録・ひっついたもの をまとめる（走りを再生はそのまま出す）
   $('scMenuBtn').onclick = () => $('scMenu').classList.toggle('hidden');
   $('scShareItems').onclick = () => { $('scMenu').classList.add('hidden'); openItemsWin(); }; $('scShareSum').onclick = () => { $('scMenu').classList.add('hidden'); openSummaryWin(); };
   $('itemsClose').onclick = () => $('itemsWin').classList.add('hidden');

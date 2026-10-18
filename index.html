@@ -572,7 +572,7 @@
     <button class="sc-arrow" id="scNext">▶</button>
     <button class="go ghost sc-icon" id="scBack" title="結果に戻る" aria-label="結果に戻る">↩</button>
   </div>
-  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><div class="sc-acts"><button class="go ghost sc-icon" id="scMenuBtn" title="メニュー" aria-label="メニュー">☰</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div><div class="sc-menu hidden" id="scMenu"><button id="scSharePlay" class="hidden" data-en="▶ Play the run">▶ 走りを再生</button><button id="scShareSum" data-en="📊 Record">📊 記録</button><button id="scShareItems" data-en="🧲 Stuck list">🧲 ひっついたもの</button></div></div>
+  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><div class="sc-acts"><button class="go ghost sc-icon" id="scMenuBtn" title="メニュー" aria-label="メニュー">☰</button><button class="go online hidden" id="scSharePlay" data-en="▶ Play the run">▶ 走りを再生</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div><div class="sc-menu hidden" id="scMenu"><button id="scShareSum" data-en="📊 Record">📊 記録</button><button id="scShareItems" data-en="🧲 Stuck list">🧲 ひっついたもの</button></div></div>
 </div>
 <div id="err"></div>
 
@@ -586,6 +586,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=129"></script>
+<script type="module" src="js/game.js?v=130"></script>
 </body>
 </html>
