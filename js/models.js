@@ -1,7 +1,7 @@
 // 3D モデル: だんじり・人（関節つき）・壊せる小物
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=85';
+import { toon, withOutline, outlineMat, colored, col, lanternTex, bannerTex, happiTex, carveTex, woodTex, stripeTex, ropeTex, shideGeo } from './gfx.js?v=86';
 
 // ---------------- 形の道具 ----------------
 export function merge(list) {
@@ -205,10 +205,10 @@ export class CrowdRig {
     this.out = newPoseOut();
     this.tmpC = new THREE.Color();
   }
-  setTeamTexture(i, team) {
+  setTeamTexture(i, team, icon = null) {
     const t = this.torsos[i];
     if (t.material.map) t.material.map.dispose();
-    t.material.map = happiTex(team); t.material.needsUpdate = true;
+    t.material.map = happiTex(team, icon); t.material.needsUpdate = true;
   }
   begin() { this.n = 0; this.nf = 0; this.tn.fill(0); }
   add(root, pose, slot, sleeveColor, fans = false) {

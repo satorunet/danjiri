@@ -132,6 +132,11 @@
   #custom .cu-min { display: block; margin: 0 0 0 auto; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(18,12,36,0.95); color: var(--paper); cursor: pointer; z-index: 1; }
   #custom .cu-fab { pointer-events: auto; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); background: rgba(18,12,36,0.92); color: var(--paper); font-size: 26px; line-height: 1; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
   #custom .cu-fab small { font-size: 11px; font-weight: 900; margin-top: 2px; }
+  #crop { z-index: 60; }
+  .cr-card { width: min(340px, 100%); }
+  .cr-frame { width: 260px; height: 260px; margin: 10px auto; border: 3px solid var(--gold); border-radius: 6px; overflow: hidden; touch-action: none; }
+  .cr-frame canvas { display: block; width: 260px; height: 260px; cursor: grab; touch-action: none; }
+  .cr-zoom { width: 240px; accent-color: #f2c14e; margin-bottom: 6px; }
   #custom .cu-sec { border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center; }
   #custom .cu-sec summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 9px 4px; font-size: 14px; font-weight: 900; text-align: left; }
   #custom .cu-sec summary::-webkit-details-marker { display: none; }
@@ -471,6 +476,15 @@
     <button class="go" id="cuDone" data-en="Done!">できた!</button>
   </div>
 </div>
+<div id="crop" class="overlay hidden">
+  <div class="card cr-card">
+    <h2 data-en="Crop your icon">アイコンの範囲</h2>
+    <div class="best" data-en="Drag to move · pinch / wheel / slider to zoom">ドラッグで移動・2本指 / ホイール / スライダーで拡大</div>
+    <div class="cr-frame"><canvas id="crCanvas" width="260" height="260"></canvas></div>
+    <input type="range" id="crZoom" min="0" max="100" value="0" class="cr-zoom">
+    <div><button class="go" id="crOk" data-en="Use this">これにする</button><button class="go ghost" id="crCancel" data-en="Cancel">やめる</button></div>
+  </div>
+</div>
 <div id="showcase" class="hidden">
   <div class="sc-hint" data-en="Drag to rotate · scroll / pinch to zoom">ドラッグで回す・ホイール / 2本指でズーム</div>
   <div class="sc-bar">
@@ -492,6 +506,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=85"></script>
+<script type="module" src="js/game.js?v=86"></script>
 </body>
 </html>

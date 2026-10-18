@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=85';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=85';
-import { buildWorld } from './world.js?v=85';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=85';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=85';
-import { FX, SpeedShader } from './fx.js?v=85';
-import * as AU from './audio.js?v=85';
+import * as SIM from './sim.js?v=86';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=86';
+import { buildWorld } from './world.js?v=86';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=86';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=86';
+import { FX, SpeedShader } from './fx.js?v=86';
+import * as AU from './audio.js?v=86';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -230,6 +230,7 @@ function setBannerText(r, text) {
 const iconImgs = new Map();   // dataURL → 読み込んだ画像
 function setFlagIcon(r, url) {
   const D = r.D;
+  r.iconUrl = url || null;
   if (D.iconFlag) { D.body.remove(D.iconFlag); D.iconFlag = null; }
   if (!url) return;
   const apply = img => {
@@ -242,28 +243,72 @@ function setFlagIcon(r, url) {
     const flag = new THREE.Group(); flag.position.set(0, 2.3, -2.25);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 4.9, 6).translate(0, 2.45, 0), new THREE.MeshBasicMaterial({ color: 0x2a1a0e }));
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf0bc3c })); knob.position.y = 4.95;
-    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true }));
     cloth.position.set(0.9, 3.95, 0); cloth.rotation.y = Math.PI;   // 後ろ（追いかける側）から見える向き
     flag.add(pole, knob, cloth); flag.userData.cloth = cloth;
     D.body.add(flag); D.iconFlag = flag;
+    // 引き手の法被の背中にも
+    if (r.slotIdx != null && r.slotIdx < 8 && racers[r.slotIdx] === r) crowd.setTeamTexture(r.slotIdx, r.team, img);
   };
   const have = iconImgs.get(url);
   if (have) apply(have); else { const img = new Image(); img.onload = () => { iconImgs.set(url, img); if (racers.includes(r) || r.D.group.parent) apply(img); }; img.src = url; }
 }
-// 画像を真ん中で正方形に切り抜いて 128px の JPEG に
+// 画像の切り抜き: 正方形の枠の中で、ドラッグで移動・ホイール / 2 本指 / スライダーで拡大。決めたら 128px の JPEG に
 function iconFromFile(file) {
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file), img = new Image();
-    img.onload = () => {
-      const s = Math.min(img.width, img.height), c = document.createElement('canvas'); c.width = c.height = 128;
-      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 128, 128);
-      URL.revokeObjectURL(url);
-      let q = 0.85, d = c.toDataURL('image/jpeg', q); while (d.length > 20000 && q > 0.3) { q -= 0.15; d = c.toDataURL('image/jpeg', q); }
-      res(d);
-    };
+    img.onload = () => { URL.revokeObjectURL(url); cropOpen(img, res, () => rej(new Error('cancel'))); };
     img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
     img.src = url;
   });
+}
+const CR = { img: null, x: 0, y: 0, z: 1, min: 1, ok: null, ng: null };
+function cropOpen(img, ok, ng) {
+  Object.assign(CR, { img, ok, ng });
+  const V = 260;   // 枠の大きさ (px)
+  CR.min = V / Math.min(img.width, img.height); CR.z = CR.min;
+  CR.x = (V - img.width * CR.z) / 2; CR.y = (V - img.height * CR.z) / 2;
+  $('crZoom').value = 0;
+  $('crop').classList.remove('hidden'); cropDraw();
+}
+function cropClamp() {
+  const V = 260, w = CR.img.width * CR.z, h = CR.img.height * CR.z;
+  CR.x = clamp(CR.x, V - w, 0); CR.y = clamp(CR.y, V - h, 0);
+}
+function cropZoom(z, cx = 130, cy = 130) {
+  z = clamp(z, CR.min, CR.min * 6);
+  CR.x = cx - (cx - CR.x) * z / CR.z; CR.y = cy - (cy - CR.y) * z / CR.z; CR.z = z;
+  $('crZoom').value = Math.round(Math.log(CR.z / CR.min) / Math.log(6) * 100);
+  cropDraw();
+}
+function cropDraw() {
+  cropClamp();
+  const g = $('crCanvas').getContext('2d');
+  g.fillStyle = '#222'; g.fillRect(0, 0, 260, 260);
+  g.drawImage(CR.img, CR.x, CR.y, CR.img.width * CR.z, CR.img.height * CR.z);
+}
+function cropDone(use) {
+  $('crop').classList.add('hidden');
+  if (!use) { CR.ng && CR.ng(); return; }
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const k = 128 / 260; c.getContext('2d').drawImage(CR.img, CR.x * k, CR.y * k, CR.img.width * CR.z * k, CR.img.height * CR.z * k);
+  let q = 0.85, d = c.toDataURL('image/jpeg', q); while (d.length > 20000 && q > 0.3) { q -= 0.15; d = c.toDataURL('image/jpeg', q); }
+  CR.ok && CR.ok(d);
+}
+{
+  const cv = () => $('crCanvas'), ptr = new Map();
+  const pos = e => { const r = cv().getBoundingClientRect(); return [(e.clientX - r.left) * 260 / r.width, (e.clientY - r.top) * 260 / r.height]; };
+  addEventListener('pointerdown', e => { if (e.target !== cv()) return; e.preventDefault(); cv().setPointerCapture(e.pointerId); ptr.set(e.pointerId, pos(e)); });
+  addEventListener('pointermove', e => {
+    if (!ptr.has(e.pointerId)) return;
+    const p = pos(e), o = ptr.get(e.pointerId);
+    if (ptr.size === 1) { CR.x += p[0] - o[0]; CR.y += p[1] - o[1]; cropDraw(); }
+    else { const [a, b] = [...ptr.values()], d0 = Math.hypot(a[0] - b[0], a[1] - b[1]); ptr.set(e.pointerId, p); const [c, d] = [...ptr.values()], d1 = Math.hypot(c[0] - d[0], c[1] - d[1]); cropZoom(CR.z * d1 / Math.max(1, d0), (c[0] + d[0]) / 2, (c[1] + d[1]) / 2); return; }
+    ptr.set(e.pointerId, p);
+  });
+  const up = e => ptr.delete(e.pointerId);
+  addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  addEventListener('wheel', e => { if (e.target !== cv()) return; e.preventDefault(); const p = pos(e); cropZoom(CR.z * (e.deltaY < 0 ? 1.1 : 1 / 1.1), p[0], p[1]); }, { passive: false });
 }
 function showIconUI() {
   cuSummary();
@@ -314,7 +359,7 @@ function clearRacers() {
   racers = []; player = null;
 }
 function finishRoster() {
-  racers.forEach((r, i) => { r.slotIdx = Math.min(i, 7); if (i < 8) crowd.setTeamTexture(i, r.team); });
+  racers.forEach((r, i) => { r.slotIdx = Math.min(i, 7); if (i < 8) crowd.setTeamTexture(i, r.team, r.iconUrl ? iconImgs.get(r.iconUrl) : null); });
   const n = rankOrder().length;
   $('rankOf').textContent = L(`位 / ${n}`, ` / ${n}`);
   for (const r of racers) updateVisual(r, 0, 0);
@@ -1919,13 +1964,15 @@ function setupTitle() {
   $('iconFile').onchange = async () => {
     const f = $('iconFile').files[0]; $('iconFile').value = ''; if (!f) return;
     try { myIcon = await iconFromFile(f); store.set('danjiri-icon', myIcon); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); SC.yaw = Math.PI * 0.85; SC.auto = true; }
-    catch { alert(L('画像を読み込めませんでした', 'Could not read that image')); }
+    catch (e) { if (e.message !== 'cancel') alert(L('画像を読み込めませんでした', 'Could not read that image')); }
   };
   $('iconDel').onclick = () => { myIcon = ''; store.set('danjiri-icon', ''); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); };
   $('cuText').value = myText;
   const setText = () => { myText = cleanBanner($('cuText').value); $('cuText').value = myText; store.set('danjiri-text', myText); if (player) setBannerText(player, myText); cuSummary(); SC.yaw = Math.PI * 0.6; };
   $('cuTextSet').onclick = setText; $('cuText').onchange = setText;
   $('cuText').oninput = () => { const t = cleanBanner($('cuText').value); if (player) setBannerText(player, t); };   // 打った端からその場で変わる
+  $('crZoom').oninput = () => cropZoom(CR.min * Math.pow(6, $('crZoom').value / 100));
+  $('crOk').onclick = () => cropDone(true); $('crCancel').onclick = () => cropDone(false);
   $('customBtn').onclick = () => customOpen(true); $('cuDone').onclick = () => customOpen(false);
   // 設定パネルはたたんで丸いボタンにできる（だんじりを大きく見たい時）
   const cuFold = f => { $('cuCard').classList.toggle('hidden', f); $('cuShow').classList.toggle('hidden', !f); SC.lift = f ? 0 : 1; };
@@ -2033,6 +2080,8 @@ function frame(nowMs) {
   if (state === 'race' || state === 'finish' || state === 'watch') { for (const r of racers) { if (r.ghost) continue; hitProps(r); grabReach(r); carEffects(r, sdt, camera.position); } }
   if (state === 'watch') updateWatchBar();
   updateCamera(dt, t);
+  // 自分の旗は走っている間は半透明（前が見えるように）
+  if (player && player.D.iconFlag) { const m = player.D.iconFlag.userData.cloth.material, want = (state === 'race' || state === 'countdown' || state === 'finish') && player.kind === 'me' && !SC.on ? 0.28 : 1; m.opacity += (want - m.opacity) * Math.min(1, dt * 6); m.depthWrite = m.opacity > 0.9; }
   // 名札は遠いほど少し大きく（画面上で小さくなりすぎない）
   for (const r of racers) if (r.tag) { const k = clamp(camera.position.distanceTo(r.D.group.position) / 26, 1, 3.2); r.tag.scale.set(4.6 * k, 1.08 * k, 1); r.tag.position.y = 10.6 + (k - 1) * 0.8; }
   const p = player.vis;
