@@ -102,7 +102,10 @@
   #lobbyChoice .lc-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0; }
   .chat { margin: 10px auto; max-width: 380px; text-align: left; }
   .chat-log { max-height: 140px; overflow-y: auto; padding: 6px 10px; border-radius: 10px; background: rgba(255,246,228,0.06); border: 1px solid rgba(242,193,78,0.3); font-size: 14px; line-height: 1.5; min-height: 28px; }
-  .chat-log .cm b { margin-right: 6px; }
+  .chat-log .cm { display: flex; align-items: center; gap: 0; word-break: break-word; }
+  .chat-log .cm b { margin-right: 6px; flex: none; }
+  .chat-log .cm-ic { flex: none; width: 20px; height: 20px; border-radius: 5px; margin-right: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.35); }
+  .chat-log .cm-none { display: inline-block; opacity: .8; }
   .chat-log .cm.me { opacity: .85; }
   .chat-log .none { color: var(--muted); font-size: 12px; }
   .chat-row .chat-stamp { flex: none; width: 84px; font: inherit; font-size: 14px; padding: 6px 4px; border-radius: 8px; border: 1px solid rgba(242,193,78,0.45); background: rgba(0,0,0,0.3); color: var(--paper); }
@@ -514,6 +517,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=89"></script>
+<script type="module" src="js/game.js?v=90"></script>
 </body>
 </html>

@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=89';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=89';
-import { buildWorld } from './world.js?v=89';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=89';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS } from './models.js?v=89';
-import { FX, SpeedShader } from './fx.js?v=89';
-import * as AU from './audio.js?v=89';
+import * as SIM from './sim.js?v=90';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=90';
+import { buildWorld } from './world.js?v=90';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=90';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS } from './models.js?v=90';
+import { FX, SpeedShader } from './fx.js?v=90';
+import * as AU from './audio.js?v=90';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1672,7 +1672,9 @@ function onChat(m) {
   if (m.id !== NET.id && (state === 'result' || state === 'lobby')) AU.sfx('join');
 }
 function renderChat() {
-  const html = NET.chat.length ? NET.chat.map(c => `<div class="cm ${c.id === NET.id ? 'me' : ''}"><b style="color:${TEAMS[c.team]?.css || '#fff'}">${esc(c.name)}</b>${esc(c.text)}</div>`).join('') : `<div class="none">${L('ひとこと送ってみよう', 'Say hi!')}</div>`;
+  // 発言者のアイコン（カスタムで設定した画像）を名前の前に小さく
+  const ic = c => { const u = c.id === NET.id ? myIcon : NET.icons?.[c.id]; return u && u.startsWith('data:image/') ? `<img class="cm-ic" src="${u}" alt="">` : `<span class="cm-ic cm-none" style="background:${TEAMS[c.team]?.css || '#888'}"></span>`; };
+  const html = NET.chat.length ? NET.chat.map(c => `<div class="cm ${c.id === NET.id ? 'me' : ''}">${ic(c)}<b style="color:${TEAMS[c.team]?.css || '#fff'}">${esc(c.name)}</b>${esc(c.text)}</div>`).join('') : `<div class="none">${L('ひとこと送ってみよう', 'Say hi!')}</div>`;
   for (const k of ['res', 'lobby']) { const el = $(k + 'ChatLog'); if (el) { el.innerHTML = html; el.scrollTop = el.scrollHeight; } }
 }
 function showChat(on) { on = on && NET.hasChat; for (const k of ['res', 'lobby']) $(k + 'Chat').classList.toggle('hidden', !on); if (on) renderChat(); }
@@ -1729,7 +1731,7 @@ function onNet(m) {
   else if (m.t === 'peek') onPeek(m);
   else if (m.t === 'rooms') renderRooms(m);
   else if (m.t === 'icon') {
-    (NET.icons ||= {})[m.id] = m.data; (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null;
+    (NET.icons ||= {})[m.id] = m.data; if (NET.chat?.some(c => c.id === m.id)) renderChat(); (NET.texts ||= {})[m.id] = m.txt || ''; (NET.finishes ||= {})[m.id] = m.dj | 0; (NET.forms ||= {})[m.id] = m.fm | 0; (NET.crews ||= {})[m.id] = m.cw ? cleanCrew(m.cw) : null;
     const r = racers.find(x => x.id === m.id && x.kind !== 'me'); if (r) { if (m.data) setFlagIcon(r, m.data); if (m.txt) setBannerText(r, m.txt); if (m.dj) setFinish(r.D, m.dj); r.form = m.fm | 0; r.crew = NET.crews[m.id]; crewTex(r); }
   }
   else if (m.t === 'chat') onChat(m);
@@ -2040,7 +2042,8 @@ function step(dt) {
     else if (r.kind === 'me' && state === 'race' && !r.finished && !debugAuto) { inp = readInput(dt); if (r.rushT > 0) inp.boost = true; }   // お神酒: しばらく自動でソーリャ
     else if (r.kind === 'me') inp = SIM.aiInput(r.car, course, r.autoAI || (r.autoAI = SIM.makeAI(2)), dt);
     else inp = SIM.aiInput(r.car, course, r.ai, dt);
-    if (r.finished && r.kind === 'cpu') { inp.throttle *= 0.4; inp.boost = false; }
+    // ゴール後の CPU: 線の先（スタートラインより先）まではそのまま進んでから、ゆっくりに
+    if (r.finished && r.kind === 'cpu') { const past = r.car.prog - goalS(); inp.throttle *= past < 60 ? 0.85 : 0.35; inp.boost = false; }
     const wasBoost = r.car.boosting;
     const ev = SIM.stepCar(r.car, inp, dt, course);
     handleEvents(r, ev);
@@ -2052,6 +2055,7 @@ function step(dt) {
     const a = racers[i], b = racers[j];
     let imp = 0;
     if (a.ghost || b.ghost) continue;   // ゴーストはすり抜け
+    if (a.finished || b.finished) continue;   // ゴールした車はすり抜け（ゴール前に列ができてふさがないように）
     if (a.kind !== 'net' && b.kind !== 'net') imp = SIM.collideCars(a.car, b.car, true);
     else if (a.kind !== 'net') imp = SIM.collideCars(a.car, b.vis, false);
     else if (b.kind !== 'net') imp = SIM.collideCars(b.car, a.vis, false);

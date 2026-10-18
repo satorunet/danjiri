@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import {
   toon, withOutline, atlasify, atlasAttr, canvasTex, col, colored, asphaltTex, stoneTex, tileWalkTex, gravelTex, grassTex, waterTex, plankTex,
   facadeAtlas, machiyaAtlas, roofTileTex, awningTex, signAtlas, noboriAtlas, lanternTex, shideGeo, stripeTex,
-} from './gfx.js?v=89';
-import { merge, PROP_TYPES, spectatorGeo } from './models.js?v=89';
-import * as ST from './stages.js?v=89';
-import { HALF_W, WALL, SIDE, BIN, heightS, sampleS, project, binOf, sideOf, kickAt } from './sim.js?v=89';
+} from './gfx.js?v=90';
+import { merge, PROP_TYPES, spectatorGeo } from './models.js?v=90';
+import * as ST from './stages.js?v=90';
+import { HALF_W, WALL, SIDE, BIN, heightS, sampleS, project, binOf, sideOf, kickAt } from './sim.js?v=90';
 
 // 毎回同じ町並みになるように種つき乱数
 let seed = 20261018;

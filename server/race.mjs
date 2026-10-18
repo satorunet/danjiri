@@ -219,7 +219,7 @@ class Room {
     for (let k = 0; k < steps; k++) {
       for (const c of this.cpus) {
         const inp = SIM.aiInput(c.car, this.course, c.ai, dt);
-        if (c.fin != null) { inp.throttle *= 0.4; inp.boost = false; }
+        if (c.fin != null) { inp.throttle *= c.car.prog - GOAL < 60 ? 0.85 : 0.35; inp.boost = false; }   // ゴール後は線の先まで進んでから
         // 人間の先頭から離れすぎないように少しだけ手加減・追い上げ
         const lead = humans.length ? Math.max(...humans.map(p => p.car.prog)) : c.car.prog;
         if (c.fin == null && c.car.prog - lead > 90) inp.throttle *= 0.7;
@@ -228,8 +228,9 @@ class Room {
         if (c.fin == null && c.car.prog >= GOAL) { c.fin = r2(raceT); changed = true; }
       }
       for (let i = 0; i < this.cpus.length; i++) {
-        for (let j = i + 1; j < this.cpus.length; j++) SIM.collideCars(this.cpus[i].car, this.cpus[j].car, true);
-        for (const p of humans) SIM.collideCars(this.cpus[i].car, p.car, false);
+        if (this.cpus[i].fin != null) continue;   // ゴールした CPU はすり抜け
+        for (let j = i + 1; j < this.cpus.length; j++) if (this.cpus[j].fin == null) SIM.collideCars(this.cpus[i].car, this.cpus[j].car, true);
+        for (const p of humans) if (p.fin == null) SIM.collideCars(this.cpus[i].car, p.car, false);
       }
     }
     if (changed) this.sync();
