@@ -490,7 +490,7 @@
       <div class="cu-icon"><input id="cuText" class="cu-text" maxlength="8" placeholder="御祭禮" autocomplete="off"><button class="go ghost" id="cuTextSet" data-en="Set">きめる</button></div>
       <div class="cu-note" data-en="Up to 4 characters">4文字まで</div>
     </details>
-    <details class="cu-sec" name="cu"><summary><span data-en="Flag icon">旗のアイコン</span><span class="cu-val" id="cuValIcon"></span></summary>
+    <details class="cu-sec" name="cu"><summary><span data-en="Flag icon (image)">旗アイコン（画像）</span><span class="cu-val" id="cuValIcon"></span></summary>
       <div class="cu-icon"><img id="iconImg" class="icon-img hidden" alt=""><button class="go ghost" id="iconBtn" data-en="🖼 Pick image">🖼 画像をえらぶ</button><button class="go ghost hidden" id="iconDel" data-en="Remove">はずす</button><input type="file" id="iconFile" accept="image/*" hidden></div>
       <div class="cu-note" data-en="Your icon flies on the flag behind your danjiri, for everyone in online races.">アイコンはだんじり後ろの旗に出て、オンラインでみんなに見えます</div>
     </details>
@@ -528,6 +528,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=94"></script>
+<script type="module" src="js/game.js?v=95"></script>
 </body>
 </html>
