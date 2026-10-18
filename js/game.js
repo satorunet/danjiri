@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=83';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=83';
-import { buildWorld } from './world.js?v=83';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=83';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=83';
-import { FX, SpeedShader } from './fx.js?v=83';
-import * as AU from './audio.js?v=83';
+import * as SIM from './sim.js?v=84';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=84';
+import { buildWorld } from './world.js?v=84';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=84';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish } from './models.js?v=84';
+import { FX, SpeedShader } from './fx.js?v=84';
+import * as AU from './audio.js?v=84';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -266,6 +266,7 @@ function iconFromFile(file) {
   });
 }
 function showIconUI() {
+  cuSummary();
   $('iconImg').classList.toggle('hidden', !myIcon); if (myIcon) $('iconImg').src = myIcon;
   $('iconDel').classList.toggle('hidden', !myIcon);
   $('customThumb').classList.toggle('hidden', !myIcon); if (myIcon) $('customThumb').src = myIcon;
@@ -274,6 +275,15 @@ function showIconUI() {
 // だんじりカスタム: 3D でくるくる回る自分のだんじりを見ながら、町（色）と旗のアイコンを選ぶ
 // カスタム中は自分のだんじりだけ（CPU は隠す）
 function soloOnlyMe() { for (const r of racers) if (r !== player) { r.hidden = true; r.D.group.visible = false; } }
+// じゃばらの見出しに今の設定を出す
+function cuSummary() {
+  if (!$('cuValFin')) return;
+  setT($('cuValFin'), L(FINISHES[myFinish].ja, FINISHES[myFinish].en));
+  setT($('cuValForm'), L(SIM.FORMS[myForm].ja, SIM.FORMS[myForm].en));
+  $('cuValTeam').innerHTML = `<span class="sw" style="background:${TEAMS[selTeam].css}"></span>${esc(teamName(TEAMS[selTeam]))}`;
+  setT($('cuValText'), myText || L('御祭禮（標準）', 'Default'));
+  $('cuValIcon').innerHTML = myIcon ? `<img src="${myIcon}" alt="">` : esc(L('なし', 'None'));
+}
 function customOpen(on) {
   if (on && state !== 'title') return;
   SC.preview = on;
@@ -283,10 +293,10 @@ function customOpen(on) {
     document.querySelector('#showcase .sc-bar').classList.add('hidden');
     $('cuTeams').innerHTML = TEAMS.map((t, i) => `<button data-t="${i}" class="${i === selTeam ? 'sel' : ''}"><span class="sw" style="background:${t.css}"></span>${esc(teamName(t))}</button>`).join('');
     $('cuFin').innerHTML = FINISHES.map((f, i) => `<button data-f="${i}" class="${i === myFinish ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
-    $('cuFin').querySelectorAll('button').forEach(b => b.onclick = () => { myFinish = +b.dataset.f; store.set('danjiri-finish', myFinish); $('cuFin').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); setFinish(player.D, myFinish); });
+    $('cuFin').querySelectorAll('button').forEach(b => b.onclick = () => { myFinish = +b.dataset.f; store.set('danjiri-finish', myFinish); $('cuFin').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); setFinish(player.D, myFinish); cuSummary(); });
     const formDesc = () => setT($('cuFormD'), L(SIM.FORMS[myForm].dja, SIM.FORMS[myForm].den));
     $('cuForm').innerHTML = SIM.FORMS.map((f, i) => `<button data-f="${i}" class="${i === myForm ? 'sel' : ''}">${esc(L(f.ja, f.en))}</button>`).join('');
-    $('cuForm').querySelectorAll('button').forEach(b => b.onclick = () => { myForm = +b.dataset.f; store.set('danjiri-form', myForm); $('cuForm').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); player.form = myForm; player.car.mod = SIM.FORMS[myForm].mod; formDesc(); SC.dist = Math.max(SC.dist, 21); });
+    $('cuForm').querySelectorAll('button').forEach(b => b.onclick = () => { myForm = +b.dataset.f; store.set('danjiri-form', myForm); $('cuForm').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); player.form = myForm; player.car.mod = SIM.FORMS[myForm].mod; formDesc(); cuSummary(); SC.dist = Math.max(SC.dist, 21); });
     formDesc();
     $('cuTeams').querySelectorAll('button').forEach(b => b.onclick = () => { selTeam = +b.dataset.t; store.set('danjiri-team', selTeam); $('cuTeams').querySelectorAll('button').forEach(c => c.classList.toggle('sel', c === b)); buildSolo(); soloOnlyMe(); showIconUI(); });
     showIconUI();
@@ -296,6 +306,7 @@ function customOpen(on) {
     $('title').classList.remove('hidden'); buildSolo();
   }
   $('custom').classList.toggle('hidden', !on);
+  document.querySelectorAll('#custom .cu-sec').forEach(d => (d.open = false));   // 最初は全部たたんだ状態
   $('cuCard').classList.remove('hidden'); $('cuShow').classList.add('hidden'); SC.lift = 1;
 }
 function clearRacers() {
@@ -1912,13 +1923,15 @@ function setupTitle() {
   };
   $('iconDel').onclick = () => { myIcon = ''; store.set('danjiri-icon', ''); showIconUI(); buildSolo(); if (SC.preview) soloOnlyMe(); };
   $('cuText').value = myText;
-  const setText = () => { myText = cleanBanner($('cuText').value); $('cuText').value = myText; store.set('danjiri-text', myText); if (player) setBannerText(player, myText); SC.yaw = Math.PI * 0.6; };
+  const setText = () => { myText = cleanBanner($('cuText').value); $('cuText').value = myText; store.set('danjiri-text', myText); if (player) setBannerText(player, myText); cuSummary(); SC.yaw = Math.PI * 0.6; };
   $('cuTextSet').onclick = setText; $('cuText').onchange = setText;
   $('cuText').oninput = () => { const t = cleanBanner($('cuText').value); if (player) setBannerText(player, t); };   // 打った端からその場で変わる
   $('customBtn').onclick = () => customOpen(true); $('cuDone').onclick = () => customOpen(false);
   // 設定パネルはたたんで丸いボタンにできる（だんじりを大きく見たい時）
   const cuFold = f => { $('cuCard').classList.toggle('hidden', f); $('cuShow').classList.toggle('hidden', !f); SC.lift = f ? 0 : 1; };
-  $('cuHide').onclick = () => cuFold(true); $('cuShow').onclick = () => cuFold(false);
+  $('cuHide').onclick = () => cuFold(true);
+  // ひとつ開いたら他は閉じる（name 属性に対応していないブラウザ向け）
+  document.querySelectorAll('#custom .cu-sec').forEach(d => d.addEventListener('toggle', () => { if (d.open) document.querySelectorAll('#custom .cu-sec').forEach(o => { if (o !== d) o.open = false; }); })); $('cuShow').onclick = () => cuFold(false);
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
   $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');

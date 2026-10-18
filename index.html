@@ -127,9 +127,17 @@
   #custom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; justify-content: center; padding: 0 10px 12px; pointer-events: none; }
   #custom .cu-card { pointer-events: auto; width: min(460px, 100%); max-height: 58vh; overflow-y: auto; background: rgba(18,12,36,0.92); border: 2px solid var(--gold-deep); border-radius: 16px; padding: 8px 12px; text-align: center; }
   #custom .cu-card { position: relative; }
-  #custom .cu-min { position: sticky; top: 0; float: right; margin: -2px -4px 0 0; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(18,12,36,0.95); color: var(--paper); cursor: pointer; z-index: 1; }
+  #custom .cu-min { display: block; margin: 0 0 0 auto; font: inherit; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(242,193,78,0.5); background: rgba(18,12,36,0.95); color: var(--paper); cursor: pointer; z-index: 1; }
   #custom .cu-fab { pointer-events: auto; width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); background: rgba(18,12,36,0.92); color: var(--paper); font-size: 26px; line-height: 1; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
   #custom .cu-fab small { font-size: 11px; font-weight: 900; margin-top: 2px; }
+  #custom .cu-sec { border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center; }
+  #custom .cu-sec summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 9px 4px; font-size: 14px; font-weight: 900; text-align: left; }
+  #custom .cu-sec summary::-webkit-details-marker { display: none; }
+  #custom .cu-sec summary::after { content: '▸'; margin-left: 4px; color: var(--gold); transition: transform .15s; }
+  #custom .cu-sec[open] summary::after { transform: rotate(90deg); }
+  #custom .cu-val { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--gold); display: inline-flex; align-items: center; gap: 4px; max-width: 60%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #custom .cu-val img { width: 20px; height: 20px; border-radius: 4px; }
+  #custom .cu-val .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
   #custom .cu-label { font-size: 12px; font-weight: 900; color: var(--muted); letter-spacing: .1em; margin-top: 4px; }
   #custom .cu-teams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 4px 0 6px; }
   #custom .cu-teams button { font: inherit; font-size: 13px; padding: 5px 2px; border-radius: 8px; border: 2px solid transparent; background: rgba(255,246,228,0.06); color: var(--paper); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
@@ -440,18 +448,24 @@
   <button class="cu-fab hidden" id="cuShow" aria-label="設定を開く">🏮<small data-en="Edit">設定</small></button>
   <div class="cu-card" id="cuCard">
     <button class="cu-min" id="cuHide" aria-label="たたむ" data-en="▼ Hide">▼ たたむ</button>
-    <div class="cu-label" data-en="DANJIRI">だんじり</div>
-    <div class="cu-fin" id="cuFin"></div>
-    <div class="cu-label" data-en="CREW FORMATION">引き手の配置</div>
-    <div class="cu-fin" id="cuForm"></div>
-    <div class="cu-note" id="cuFormD"></div>
-    <div class="cu-label" data-en="TOWN COLOR">町（色）</div>
-    <div class="cu-teams" id="cuTeams"></div>
-    <div class="cu-label" data-en="BANNER TEXT (up to 4)">幟（のぼり）の文字（4文字まで）</div>
-    <div class="cu-icon"><input id="cuText" class="cu-text" maxlength="8" placeholder="御祭禮" autocomplete="off"><button class="go ghost" id="cuTextSet" data-en="Set">きめる</button></div>
-    <div class="cu-label" data-en="FLAG ICON">旗のアイコン</div>
-    <div class="cu-icon"><img id="iconImg" class="icon-img hidden" alt=""><button class="go ghost" id="iconBtn" data-en="🖼 Pick image">🖼 画像をえらぶ</button><button class="go ghost hidden" id="iconDel" data-en="Remove">はずす</button><input type="file" id="iconFile" accept="image/*" hidden></div>
-    <div class="cu-note" data-en="Your icon flies on the flag behind your danjiri, for everyone in online races.">アイコンはだんじり後ろの旗に出て、オンラインでみんなに見えます</div>
+    <details class="cu-sec" name="cu"><summary><span data-en="Danjiri">だんじり</span><span class="cu-val" id="cuValFin"></span></summary>
+      <div class="cu-fin" id="cuFin"></div>
+    </details>
+    <details class="cu-sec" name="cu"><summary><span data-en="Crew formation">引き手の配置</span><span class="cu-val" id="cuValForm"></span></summary>
+      <div class="cu-fin" id="cuForm"></div>
+      <div class="cu-note" id="cuFormD"></div>
+    </details>
+    <details class="cu-sec" name="cu"><summary><span data-en="Town color">町（色）</span><span class="cu-val" id="cuValTeam"></span></summary>
+      <div class="cu-teams" id="cuTeams"></div>
+    </details>
+    <details class="cu-sec" name="cu"><summary><span data-en="Banner text">幟の文字</span><span class="cu-val" id="cuValText"></span></summary>
+      <div class="cu-icon"><input id="cuText" class="cu-text" maxlength="8" placeholder="御祭禮" autocomplete="off"><button class="go ghost" id="cuTextSet" data-en="Set">きめる</button></div>
+      <div class="cu-note" data-en="Up to 4 characters">4文字まで</div>
+    </details>
+    <details class="cu-sec" name="cu"><summary><span data-en="Flag icon">旗のアイコン</span><span class="cu-val" id="cuValIcon"></span></summary>
+      <div class="cu-icon"><img id="iconImg" class="icon-img hidden" alt=""><button class="go ghost" id="iconBtn" data-en="🖼 Pick image">🖼 画像をえらぶ</button><button class="go ghost hidden" id="iconDel" data-en="Remove">はずす</button><input type="file" id="iconFile" accept="image/*" hidden></div>
+      <div class="cu-note" data-en="Your icon flies on the flag behind your danjiri, for everyone in online races.">アイコンはだんじり後ろの旗に出て、オンラインでみんなに見えます</div>
+    </details>
     <button class="go" id="cuDone" data-en="Done!">できた!</button>
   </div>
 </div>
@@ -476,6 +490,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=83"></script>
+<script type="module" src="js/game.js?v=84"></script>
 </body>
 </html>
