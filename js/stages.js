@@ -1,8 +1,8 @@
 // ステージ: 日本の町（昼・夜）と、だんじりが絶対に来なさそうな場所（パリ・NY タイムズスクエア・ギザ）
 // ここには見た目の材料（空の色・壁の模様・看板・名所・小物の形）だけを置く。コースの形と物理はどのステージも同じ。
 import * as THREE from 'three';
-import { toon, withOutline, canvasTex, col, FONT, pick } from './gfx.js?v=104';
-import { merge } from './models.js?v=104';
+import { toon, withOutline, canvasTex, col, FONT, pick } from './gfx.js?v=105';
+import { merge } from './models.js?v=105';
 
 // ステージ（場所）と時間（昼・夜）は別々に選ぶ。ステージ ID は「場所-時間」（例: paris-night）
 export const PLACES = { jp: '日本：岸和田', paris: 'パリ：凱旋門', ny: 'NY：タイムズスクエア', giza: 'ギザ：ピラミッド', venice: 'ベネチア：大運河' };
