@@ -336,7 +336,9 @@ export function stepCar(c, inp, dt, course) {
   let wantDrift = !!inp.drift;
   if (inp.autoDrift && !c.air && c.v > 9) {
     sampleS(course, c.s + 4 + c.v * 0.15, SP);
-    if (Math.abs(SP.k) > 0.02 && st * Math.sign(SP.k) > -0.35) { wantDrift = true; c.driftK = SP.k; }
+    // soft: 自分で曲がる方へ切っている時だけ。full（元の動き）: 逆に切っていなければ角で勝手に始まる
+    const need = inp.soft ? 0.25 : -0.35;
+    if (Math.abs(SP.k) > 0.02 && st * Math.sign(SP.k) > need) { wantDrift = true; c.driftK = SP.k; }
   }
   const drifting = wantDrift && !c.air && c.v > 7 && c.crashT <= 0;
   // 跳ねて宙に浮いている間はやりまわしが続いている扱い（着地して角を抜けたら成功）
@@ -362,7 +364,9 @@ export function stepCar(c, inp, dt, course) {
   }
   // 横: 操縦で横へ寄せる力と、角で外へ振られる力
   const geo = Math.max(0.55, 1 + kap * c.u);           // 外側ほど回り道（道のりの進みが遅い）
-  const fling = c.air ? 0 : kap * v * Math.abs(v) / geo * CAR.FLING * (drifting ? 0.42 : 1) * (c.crashT > 0 ? 0.3 : 1);
+  // soft: ハンドルを切っていない時は、ほぼまっすぐ進もうとして角で外へふくらむ（道に沿う力は少しだけ残す）
+  const noSteer = inp.soft ? clamp(1 - Math.abs(st) / 0.3, 0, 1) : 0;
+  const fling = c.air ? 0 : kap * v * Math.abs(v) / geo * CAR.FLING * (drifting ? 0.42 : 1) * (c.crashT > 0 ? 0.3 : 1) * (1 + noSteer * 0.5);
   const steerA = (c.air ? 0.25 : 1) * (CAR.STEER_A + Math.min(Math.abs(v), 30) * CAR.STEER_V) * Math.min(1, Math.abs(v) / 4 + 0.15) * M.steer;
   const aU = -st * steerA * (v < -0.5 ? -1 : 1) + fling;
   c.vu += aU * dt;

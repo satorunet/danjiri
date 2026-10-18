@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=96';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=96';
-import { buildWorld } from './world.js?v=96';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=96';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=96';
-import { FX, SpeedShader } from './fx.js?v=96';
-import * as AU from './audio.js?v=96';
+import * as SIM from './sim.js?v=97';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=97';
+import { buildWorld } from './world.js?v=97';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=97';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=97';
+import { FX, SpeedShader } from './fx.js?v=97';
+import * as AU from './audio.js?v=97';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -929,6 +929,9 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
+// 曲がりの補助: 'soft' = 自分が曲がる操作をした時だけ補助（何もしなければまっすぐ・角で外へふくらむ）
+//               'full' = 元の動き（前を押しているだけで道なりに曲がり、角で勝手にやりまわし）。戻す時はここを 'full' に
+const STEER_ASSIST = 'soft';
 function readInput(dt) {
   const k = c => keys.has(c);
   let thr = k('ArrowUp') || k('KeyW') ? 1 : 0, brk = k('ArrowDown') || k('KeyS') ? 1 : 0;
@@ -954,7 +957,7 @@ function readInput(dt) {
     brk = Math.max(brk, touch.brake || touch.thr < -0.45 ? 1 : 0);
     drift = drift || touch.drift; boost = boost || touch.boost;
   }
-  input.throttle = thr; input.brake = brk; input.steer = clamp(steer, -1, 1); input.drift = drift; input.autoDrift = true; input.boost = boost;
+  input.throttle = thr; input.brake = brk; input.steer = clamp(steer, -1, 1); input.drift = drift; input.autoDrift = true; input.boost = boost; input.soft = STEER_ASSIST === 'soft';
   return input;
 }
 // スマホ: ボタンの連打やつまむ操作で画面が拡大しないようにする（iOS は user-scalable=no を無視するため）
@@ -1174,7 +1177,7 @@ function updateCatchup(dt, t) {
 function beginRace(start) {
   catchupReset();
   if (SC.on) showcaseOpen(false);
-  rec = { team: selTeam, f: [] }; recT = 0;
+  rec = { team: selTeam, f: [] }; recT = 0; match = null;
   resetStats(); lastPreview = null; sandT = 0; $('rankForm').classList.add('hidden');
   world.resetProps(); SIM.resetBreach(course); fx.clearSkids();
   ['title', 'result', 'lobby', 'pause'].forEach(id => $(id).classList.add('hidden'));
@@ -1469,7 +1472,51 @@ function recordTick(dt) {
   const c = player.car;
   rec.f.push(Math.round(c.x * 10), Math.round(c.z * 10), Math.round(c.y * 10), Math.round(c.yaw * 100), Math.round(c.roll * 100), Math.round(c.pitch * 100), (c.air ? 1 : 0) | (c.crashT > 0 ? 2 : 0) | (c.boosting ? 4 : 0) | (c.drift ? 8 : 0) | (c.tipped ? 16 : 0));
 }
-const RP = { on: false, f: null, t: 0, r: null, name: '' };
+// 試合リプレイ用: レース中の全員の動き（7 個の整数 × 0.1 秒ごと）
+let match = null, matchT = 0;
+const poseInts = c => [Math.round(c.x * 10), Math.round(c.z * 10), Math.round((c.y || 0) * 10), Math.round((c.yaw || 0) * 100), Math.round((c.roll || 0) * 100), Math.round((c.pitch || 0) * 100), (c.air ? 1 : 0) | (c.crashT > 0 ? 2 : 0) | (c.boosting ? 4 : 0) | (c.drift ? 8 : 0) | (c.tipped ? 16 : 0)];
+function matchStart() {
+  match = { place, night, tracks: racers.filter(r => !r.ghost && !r.hidden).map(r => ({ r, team: r.teamIdx, slot: r.slot, kind: r.kind, id: r.id, cpu: !!r.cpu, name: r.kind === 'me' ? (mode === 'online' ? myName : L('あなた', 'You')) : r.name, f: [] })) };
+  matchT = 0;
+}
+function matchTick(dt) {
+  if (!match) return;
+  matchT += dt; if (matchT < REC_DT) return; matchT -= REC_DT;
+  for (const tr of match.tracks) { if (tr.f.length >= 7 * 4000 || !racers.includes(tr.r)) continue; tr.f.push(...poseInts(tr.r.kind === 'net' ? tr.r.vis : tr.r.car)); }
+}
+const RP = { on: false, f: null, t: 0, r: null, name: '', list: [], match: false };
+// 試合リプレイ: 全員のだんじりを記録どおりに動かす。◀ ▶ で追いかける相手を切り替え
+function playMatch() {
+  if (!match || !match.tracks.some(t => t.f.length > 14)) return;
+  const M = match;
+  if (SC.on) showcaseOpen(false);
+  ['result', 'hud', 'touch', 'count', 'podium'].forEach(id => $(id).classList.add('hidden'));
+  withLoading(() => {
+    world.resetProps(); SIM.resetBreach(course); fx.clearSkids();
+    clearRacers();
+    RP.list = [];
+    for (const tr of M.tracks) {
+      if (tr.f.length < 14) continue;
+      const r = makeRacer(tr.team, tr.slot ?? 1, tr.kind === 'me' ? 'me' : 'net', { id: tr.kind === 'me' ? undefined : tr.id, cpu: tr.cpu, name: tr.name });
+      r.kind = 'net'; r.vis = netVis(); r.buf = []; r.replay = true; r.wasMe = tr.kind === 'me';
+      racers.push(r); RP.list.push({ r, f: tr.f });
+    }
+    if (!RP.list.length) return;
+    const me = RP.list.find(x => x.r.wasMe) || RP.list[0];
+    player = me.r; RP.r = me.r; RP.f = me.f; finishRoster();
+    RP.on = true; RP.match = true; RP.t = 0;
+    replayPose(0);
+    state = 'replay'; cam.ready = false;
+    $('replayBar').classList.remove('hidden'); $('rpPrev').classList.remove('hidden'); $('rpNext').classList.remove('hidden'); rpLabel();
+    AU.initAudio(); AU.startMusic(AU.now() + 0.2, 0, 'race', place === 'jp' ? 'jp' : place);
+  });
+}
+function rpLabel() { setT($('rpName'), `${L('試合リプレイ', 'Match replay')}: ${RP.r.name}`); }
+function rpPick(d) {
+  if (!RP.match || !RP.list.length) return;
+  const i = RP.list.findIndex(x => x.r === RP.r), n = RP.list[(i + d + RP.list.length) % RP.list.length];
+  RP.r = n.r; RP.f = n.f; player = n.r; cam.ready = false; rpLabel();
+}
 async function playReplay(e, pl, tod) {
   let m; try { m = await rankAsk({ t: 'rankrep', id: e.id }, 'rankrep'); } catch { return; }
   if (!m.rec || !m.rec.f) return;
@@ -1489,7 +1536,11 @@ async function playReplay(e, pl, tod) {
   });
 }
 function replayPose(t) {
-  const f = RP.f, n = f.length / 7, k = Math.min(n - 1.001, t / REC_DT), i = Math.floor(k), a = k - i, v = RP.r.vis;
+  if (RP.match) { let end = true; for (const x of RP.list) end = posePlay(x.f, x.r.vis, t) && end; return end; }
+  return posePlay(RP.f, RP.r.vis, t);
+}
+function posePlay(f, v, t) {
+  const n = f.length / 7, k = Math.min(n - 1.001, t / REC_DT), i = Math.floor(k), a = k - i;
   const g = (j, o) => f[(Math.min(n - 1, j)) * 7 + o];
   const lp = (o, s) => (g(i, o) + (g(i + 1, o) - g(i, o)) * a) / s;
   v.x = lp(0, 10); v.z = lp(1, 10); v.y = lp(2, 10);
@@ -1504,12 +1555,18 @@ function replayPose(t) {
 function replayTick(dt) {
   RP.t += dt;
   const end = replayPose(RP.t);
-  netBreach(RP.r); hitProps(RP.r); grabReach(RP.r); snagSpans(RP.r); carEffects(RP.r, dt, camera.position);
-  if (end && RP.t > (RP.f.length / 7) * REC_DT + 1.5) replayStop();
+  for (const r of RP.match ? RP.list.map(x => x.r) : [RP.r]) { netBreach(r); hitProps(r); grabReach(r); snagSpans(r); carEffects(r, dt, camera.position); }
+  const len = Math.max(...(RP.match ? RP.list.map(x => x.f.length) : [RP.f.length])) / 7;
+  if (end && RP.t > len * REC_DT + 1.5) replayStop();
 }
 function replayStop() {
   if (!RP.on) return;
   RP.on = false; $('replayBar').classList.add('hidden'); AU.stopMusic();
+  if (RP.match) {   // 試合リプレイは結果画面へ戻る
+    RP.match = false; $('rpPrev').classList.add('hidden'); $('rpNext').classList.add('hidden');
+    state = 'result'; $('result').classList.remove('hidden'); $('result').scrollTop = 0;
+    return;
+  }
   toTitle(); openRanking(rkPlace);
 }
 // ゴールの瞬間の写真（320×180 の JPEG）
@@ -1795,7 +1852,7 @@ function onRoom(m) {
   NET.room = m; LAPS = m.laps;
   const me = m.players.find(p => p.id === NET.id);
   const key = m.room + ':' + m.startAt;
-  if (m.phase === 'race' && me && me.racing && NET.raceKey !== key && ['lobby', 'result', 'watch'].includes(state)) { watchEnd(); NET.raceKey = key; NET.ghost = false; startOnlineRace(m); return; }
+  if (m.phase === 'race' && me && me.racing && NET.raceKey !== key && ['lobby', 'result', 'watch', 'replay'].includes(state)) { if (state === 'replay') { RP.on = false; RP.match = false; $('replayBar').classList.add('hidden'); } watchEnd(); NET.raceKey = key; NET.ghost = false; startOnlineRace(m); return; }
   // ゴーストで参加: 自分だけ今からスタート
   if (me && me.ghost && me.ghost.fin == null && !NET.ghost && state === 'lobby') { NET.ghost = true; NET.raceKey = key; startGhostRace(m, me.ghost.start); return; }
   // 観戦: レース中の部屋をそのまま見る（次のレースから参加）
@@ -2069,7 +2126,8 @@ function setupTitle() {
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
   $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');
-  $('showBtn').onclick = () => showcaseOpen(true); $('rpStop').onclick = replayStop;
+  $('showBtn').onclick = playMatch; $('rpStop').onclick = replayStop;
+  $('rpPrev').onclick = () => rpPick(-1); $('rpNext').onclick = () => rpPick(1);
   $('scBack').onclick = () => { if (state === 'display') { showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); openRanking(rkPlace); } else showcaseOpen(false); }; 
   $('scPrev').onclick = () => { SC.i = (SC.i + racers.length - 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
   $('scNext').onclick = () => { SC.i = (SC.i + 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
@@ -2167,6 +2225,7 @@ function frame(nowMs) {
   if (state === 'replay') replayTick(sdt);
   else for (const r of racers) if (r.kind === 'net') { netInterp(r, dt); if ((state === 'race' || state === 'finish' || state === 'watch') && !r.ghost) netBreach(r); }
   if (state === 'race' || (state === 'finish' && player.finishTime && raceT - player.finishTime < 2)) recordTick(sdt);
+  if (state === 'race' || state === 'finish') { if (!match) matchStart(); matchTick(sdt); }
   if (state === 'race' || state === 'finish' || state === 'watch') for (const r of racers) if (!r.ghost) snagSpans(r);
   // 見た目
   crowd.begin(); ropeIdx = 0; cordIdx = 0;
