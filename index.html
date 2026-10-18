@@ -217,6 +217,7 @@
   #showcase .sc-share { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 18px; padding: 10px 16px; pointer-events: auto; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
   #showcase .sc-share b { font-family: 'Dela Gothic One', sans-serif; font-size: 18px; color: var(--gold); }
   #showcase .sc-share small { display: block; font-size: 12px; color: var(--paper); margin: 4px 0 8px; }
+  #showcase .sc-items { max-height: 30vh; overflow-y: auto; margin-top: 8px; max-width: 520px; }
   #showcase .sc-share .go { font-size: 14px; padding: 6px 14px; margin: 0 3px; }
   .share-btn.x { background: #111; border-color: #555; }
   .share-msg { font-size: 12px; color: var(--gold); min-height: 1.2em; }
@@ -550,7 +551,7 @@
     <button class="sc-arrow" id="scNext">▶</button>
     <button class="go ghost" id="scBack" data-en="Back to results">結果に戻る</button>
   </div>
-  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><div><button class="go online hidden" id="scSharePlay" data-en="▶ Play the run">▶ 走りを再生</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div></div>
+  <div class="sc-share hidden" id="scShare"><div id="scShareInfo"></div><div><button class="go online hidden" id="scSharePlay" data-en="▶ Play the run">▶ 走りを再生</button><button class="go ghost" id="scShareItems" data-en="🧲 Stuck list">🧲 ひっついたもの</button><button class="go" id="scShareGo" data-en="🏮 Race too!">🏮 自分も走る</button></div><div class="mb-chips sc-items hidden" id="scShareList"></div></div>
 </div>
 <div id="err"></div>
 
@@ -564,6 +565,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=126"></script>
+<script type="module" src="js/game.js?v=127"></script>
 </body>
 </html>

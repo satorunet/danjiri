@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=126';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=126';
-import { buildWorld } from './world.js?v=126';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=126';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=126';
-import { FX, SpeedShader } from './fx.js?v=126';
-import * as AU from './audio.js?v=126';
+import * as SIM from './sim.js?v=127';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=127';
+import { buildWorld } from './world.js?v=127';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=127';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=127';
+import { FX, SpeedShader } from './fx.js?v=127';
+import * as AU from './audio.js?v=127';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1631,7 +1631,7 @@ function displayDj(dj, e, pl) {
     racers.push(r); player = r; finishRoster(); updateVisual(r, 0, 0);
     world.importStuck(r.stick, dj.stuck);
     state = 'display'; AU.stopMusic();
-    showcaseOpen(true);
+    showcaseOpen(true); shareScName();
   });
 }
 // ================= 試合後のシェア: だんじりの写真（カード用）と積んだ物・走りを預けて URL をもらう =================
@@ -1700,8 +1700,15 @@ async function openShare(id) {
   const s = sh.st, bits = [s.rank ? L(`${pName(sh.place)} ${s.rank}位`, `${pName(sh.place)} #${s.rank}`) : pName(sh.place), s.items ? L(`ひっつけた物 ${s.items}個（${fmtKg(s.kg)}）`, `Stuck ${s.items} (${fmtKg(s.kg)})`) : '', s.smash ? L(`壊した数 ${s.smash}`, `Smashed ${s.smash}`) : '', s.speed ? L(`最高 ${s.speed}km/h`, `Top ${s.speed} km/h`) : ''].filter(Boolean);
   $('scShareInfo').innerHTML = `<b>${esc(sh.name)}${L(' のだんじり', "'s danjiri")}</b><small>${esc(bits.join(' ・ '))}</small>`;
   $('scSharePlay').classList.toggle('hidden', !sh.rec);
+  const it = sh.dj?.items || [];
+  $('scShareItems').classList.toggle('hidden', !it.length);
+  $('scShareList').classList.add('hidden');
+  $('scShareList').innerHTML = `<div style="width:100%;font-weight:700">${L(`ひっついたもの ${s.items || it.reduce((a, x) => a + x[1], 0)}個`, `Stuck: ${s.items || it.reduce((a, x) => a + x[1], 0)}`)}${s.kg ? `（${fmtKg(s.kg)}）` : ''}</div>` + it.map(([n, c]) => `<span>${esc(tn(n))} ×${c}</span>`).join('');
+  shareScName();
   $('scShare').classList.remove('hidden'); setT($('scBack'), L('タイトルへ', 'Title'));
 }
+// 下の名前の欄は、預けた時の数を出す（組み直しただんじりには数の記録がないので）
+function shareScName() { const v = shareView; if (!v) return; const s = v.sh.st; $('scName').innerHTML = `${swatch(TEAMS[v.sh.dj.team | 0])}${esc(v.sh.name)}<small>${L('ひっつけたもの', 'Stuck')} ${s.items}${L('個', '')} · ${fmtKg(s.kg)}</small>`; }
 function shareClose() { if (!shareView) return; shareView = null; $('scShare').classList.add('hidden'); setT($('scBack'), L('結果に戻る', 'Back to results')); setURL(homeURL()); }
 // 結果画面の登録フォーム
 // ランクインできそうな時だけ登録フォームを出す（今のランキングと比べる。30 位以内か、表がまだ埋まっていない部門があれば）
@@ -2251,6 +2258,7 @@ function setupTitle() {
   $('rpPrev').onclick = () => rpPick(-1); $('rpNext').onclick = () => rpPick(1);
   $('scBack').onclick = () => { if (state === 'display') { const sv = !!shareView; shareClose(); showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); if (!sv) openRanking(rkPlace); } else showcaseOpen(false); };
   $('shareBtn').onclick = makeShare;
+  $('scShareItems').onclick = () => $('scShareList').classList.toggle('hidden');
   $('scShareGo').onclick = () => { shareClose(); showcaseOpen(false); toTitle(); };
   $('scSharePlay').onclick = () => { const v = shareView; if (!v) return; $('scShare').classList.add('hidden'); showcaseOpen(false); playReplay({ name: v.sh.name }, v.sh.place, v.sh.tod, v.sh.rec); };
   $('scPrev').onclick = () => { SC.i = (SC.i + racers.length - 1) % racers.length; SC.focus = null; SC.dist = 16; showcaseName(); };
