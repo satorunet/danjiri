@@ -50,7 +50,21 @@ const CATS = { lap: { asc: true, lo: 22, hi: 600 }, speed: { lo: 1, hi: 160 }, d
 const RANK_MAX = 30;
 let ranks = {};
 try { ranks = JSON.parse(fs.readFileSync(RANK_FILE, 'utf8')); } catch { ranks = {}; }
-for (const pl of PLACES) { ranks[pl] ||= {}; for (const c of Object.keys(CATS)) ranks[pl][c] ||= []; }
+// 同じ名前は 1 つだけ（並び順で上のもの = いちばん良い記録を残す）。全角半角・大文字小文字の違いは同じ名前とみなす
+const nameKey = n => String(n || '').normalize('NFKC').trim().toLowerCase();
+const uniqNames = list => { const seen = new Set(); return list.filter(e => { const k = nameKey(e.name); if (seen.has(k)) return false; seen.add(k); return true; }); };
+// 不正チェック: 走りの記録（0.1 秒ごとの位置）で瞬間移動や速すぎる移動を見る。
+// 普通に走れば 0.1 秒で 12.6m まで（吹っ飛んでも）、6m を超える区間もレース全体で 9 回まで。改造した記録はこれを大きく超える
+function cheatOf(f, time = 0) {
+  if (!Array.isArray(f) || f.length < 70) return 'norec';
+  const n = f.length / 7;
+  if (time > 0 && n / 10 < Math.min(time, 399) - 1) return 'short';   // 走った時間より記録が短い（記録は 400 秒まで）
+  let fast = 0, warp = 0;
+  for (let i = 1; i < n; i++) { const d = Math.hypot(f[i * 7] - f[i * 7 - 7], f[i * 7 + 1] - f[i * 7 - 6]) / 10; if (d > 6) fast++; if (d > 14) warp++; }
+  return fast > 12 || warp >= 3 ? 'warp' : '';
+}
+const repCheat = {};   // 起動時: 載っている記録を走りの記録で確かめ直す
+for (const pl of PLACES) { ranks[pl] ||= {}; for (const c of Object.keys(CATS)) ranks[pl][c] = uniqNames((ranks[pl][c] || []).filter(e => { repCheat[e.id] ??= cheatOf(e.rep ? readRep(e.id)?.f : null); if (repCheat[e.id]) console.log('rank: drop', pl, c, e.name, e.id, repCheat[e.id]); return !repCheat[e.id]; })); }
 let rankSaveT = 0;
 function saveRanks() {
   clearTimeout(rankSaveT);
@@ -69,6 +83,8 @@ function submitRank(p, m) {
   const vals = {
     lap: time > 0 ? time / laps : 0, speed: num(m.speed, 0, 999), drift: num(m.drift, 0, 99), stuck: num(m.stuck, 0, 1e9), smash: num(m.smash, 0, 1e5), air: num(m.air, 0, 99),
   };
+  const bad = cheatOf(m.rec && m.rec.f, time);
+  if (bad) { lastSubmit.set(ip, now); console.log('rank: cheat', bad, place, cleanName(m.name), ip); return { ok: false, err: 'cheat' }; }
   const id = (nextRankId++).toString(36);
   const e = { id, name: cleanName(m.name), comment: cleanText(m.comment, 60), country: /^[A-Z]{2}$/.test(m.country) ? m.country : 'ZZ', link: '' /* リンクは受け付けない（コメントのみ） */, tod: m.tod === 'night' ? 'night' : 'day', laps, at: Math.floor(now / 1000), img: false };
   // ゴールの瞬間の写真（JPEG、80 KB まで）
@@ -94,10 +110,9 @@ function submitRank(p, m) {
   for (const [c, def] of Object.entries(CATS)) {
     const v = vals[c];
     if (!(v >= def.lo && v <= def.hi)) continue;   // ありえない値・記録なしは載せない
-    const list = ranks[place][c];
-    list.push({ ...e, val: Math.round(v * 100) / 100 });
-    list.sort((a, b) => (def.asc ? a.val - b.val : b.val - a.val) || a.at - b.at);
-    if (list.length > RANK_MAX) list.length = RANK_MAX;
+    const all = [...ranks[place][c], { ...e, val: Math.round(v * 100) / 100 }];
+    all.sort((a, b) => (def.asc ? a.val - b.val : b.val - a.val) || a.at - b.at);
+    const list = ranks[place][c] = uniqNames(all).slice(0, RANK_MAX);
     const r = list.findIndex(x => x.id === id);
     if (r >= 0) got[c] = r + 1;
   }

@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=161';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=161';
-import { buildWorld } from './world.js?v=161';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=161';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=161';
-import { FX, SpeedShader } from './fx.js?v=161';
-import * as AU from './audio.js?v=161';
+import * as SIM from './sim.js?v=162';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=162';
+import { buildWorld } from './world.js?v=162';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=162';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=162';
+import { FX, SpeedShader } from './fx.js?v=162';
+import * as AU from './audio.js?v=162';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1960,7 +1960,7 @@ async function showRankForm() {
     btn.disabled = true; msg.textContent = L('送信中…', 'Sending…');
     try {
       const r = await rankAsk({ t: 'rank', ...st, name, country: myCountry, comment: $('rfComment').value.trim().slice(0, 60), img: lastPreview, rec: rec && rec.f.length >= 70 ? { team: player.teamIdx, f: rec.f } : null, dj: djData() }, 'rankres');
-      if (!r.ok) { msg.textContent = r.err === 'wait' ? L('少し待ってからもう一度どうぞ', 'Please wait a moment and try again') : L('登録できませんでした', 'Could not submit'); btn.disabled = false; return; }
+      if (!r.ok) { msg.textContent = r.err === 'wait' ? L('少し待ってからもう一度どうぞ', 'Please wait a moment and try again') : r.err === 'cheat' ? L('走りの記録に不自然な動きがあったため、登録できませんでした', 'The run looked tampered with, so it was not submitted') : L('登録できませんでした', 'Could not submit'); btn.disabled = false; return; }
       const got = Object.entries(r.got || {}).sort((a, b) => a[1] - b[1]).map(([k, n]) => `${esc(catTitle(k))} ${L(`${n}位`, `#${n}`)}`);
       msg.innerHTML = got.length ? `${L('ランクイン!', 'Ranked!')}<br>` + got.join('<br>') : L('登録しました（今回はランク外）', 'Submitted (not in the top 30 this time)');
       // 自分の記録を共有（いちばん良い順位の部門）
