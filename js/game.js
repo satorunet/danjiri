@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=162';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=162';
-import { buildWorld } from './world.js?v=162';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=162';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=162';
-import { FX, SpeedShader } from './fx.js?v=162';
-import * as AU from './audio.js?v=162';
+import * as SIM from './sim.js?v=176';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=176';
+import { buildWorld } from './world.js?v=176';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=176';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=176';
+import { FX, SpeedShader } from './fx.js?v=176';
+import * as AU from './audio.js?v=176';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1568,10 +1568,10 @@ document.addEventListener('click', () => document.querySelectorAll('.choices.dd.
 const RK_CATS = [
   ['lap', '1周タイム', 'Lap time', v => fmt(v), '韋駄天', 'Lightning Legs', '⚡'],
   ['speed', '最高速度', 'Top speed', v => `${Math.round(v)} km/h`, '爆走番長', 'Speed Boss', '🔥'],
-  ['drift', 'やりまわし', 'Drift', v => `${(+v).toFixed(1)} ${L('秒', 's')}`, 'やりまわし名人', 'Drift Master', '🌀'],
-  ['stuck', 'ひっつけた量', 'Stuck haul', v => fmtKg(v), 'ひっつけ大魔王', 'Lord of the Haul', '🧲'],
+  ['drift', 'やりまわし', 'Drift', v => `${(+v).toFixed(1)} ${L('秒', 's')}`, '回し名人', 'Drift Master', '🌀'],
+  ['stuck', 'ひっつけた量', 'Stuck haul', v => fmtKg(v), '吸着魔王', 'Lord of the Haul', '🧲'],
   ['smash', '壊した数', 'Smashed', v => `${v}`, '破壊王', 'Demolition King', '💥'],
-  ['air', '大ジャンプ', 'Big air', v => `${(+v).toFixed(2)} ${L('秒', 's')}`, '空飛ぶだんじり', 'Flying Danjiri', '🪽'],
+  ['air', '大ジャンプ', 'Big air', v => `${(+v).toFixed(2)} ${L('秒', 's')}`, '飛翔王', 'Flying Danjiri', '🪽'],
 ];
 const catTitle = k => { const c = RK_CATS.find(x => x[0] === k); return c ? `${c[6]} ${L(c[4], c[5])}` : k; };
 const COUNTRIES = [['JP', '日本', 'Japan'], ['US', 'アメリカ', 'USA'], ['GB', 'イギリス', 'UK'], ['FR', 'フランス', 'France'], ['IT', 'イタリア', 'Italy'], ['EG', 'エジプト', 'Egypt'], ['DE', 'ドイツ', 'Germany'], ['ES', 'スペイン', 'Spain'],
@@ -1777,7 +1777,7 @@ function replayStop() {
     return;
   }
   if (shareView) { const v = shareView; openShare(v.id); return; }
-  toTitle(); openRanking(rkPlace);
+  toTitle(); openRanking(rkPlace, rkMode);
 }
 // ゴールの瞬間の写真（320×180 の JPEG）
 let lastPreview = null, wantPreview = false;
@@ -1929,25 +1929,31 @@ function openSummaryWin() {
 function scBackIcon(home) { const b = $('scBack'), t = home ? L('タイトルへ', 'Title') : L('戻る', 'Back'); b.textContent = home ? '🏠' : '↩'; b.title = t; b.setAttribute('aria-label', t); }
 function shareClose() { if (!shareView) return; shareView = null; $('itemsWin').classList.add('hidden'); $('scShare').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.remove('hidden'); document.querySelector('#showcase .sc-bar').classList.remove('hidden'); scBackIcon(false); setURL(homeURL()); }
 // 結果画面の登録フォーム
-// ランクインできそうな時だけ登録フォームを出す（今のランキングと比べる。30 位以内か、表がまだ埋まっていない部門があれば）
+// ランクインできそうな時だけ登録フォームを出す（当日杯・歴代杯と比べて、どちらかで 100 位以内なら）
 const RK_LIMITS = { lap: [22, 600, true], speed: [1, 160], drift: [0.3, 15], stuck: [1, 2e7], smash: [1, 3000], air: [0.2, 5] };
 async function showRankForm() {
   const f = $('rankForm'); f.classList.add('hidden');
-  const st = { place, tod: night ? 'night' : 'day', laps: LAPS, time: player.finished ? player.finishTime : 0, speed: stats.topSpeed * 3.6, drift: stats.bestDrift, stuck: stuckKg(player), smash: stats.smash, air: stats.maxAir };
+  const st = { place, mode: mode === 'online' ? 'online' : 'solo', tod: night ? 'night' : 'day', laps: LAPS, time: player.finished ? player.finishTime : 0, speed: stats.topSpeed * 3.6, drift: stats.bestDrift, stuck: stuckKg(player), smash: stats.smash, air: stats.maxAir };
   const vals = { lap: st.time > 0 ? st.time / st.laps : 0, speed: st.speed, drift: st.drift, stuck: st.stuck, smash: st.smash, air: st.air };
   const shownFor = state;
-  let m; try { m = await rankAsk({ t: 'ranks', place: st.place }, 'ranks'); } catch { return; }
+  // 当日杯（直近 12 時間）と歴代杯の両方と比べる
+  let md, ma; try { [md, ma] = await Promise.all([rankAsk({ t: 'ranks', place: st.place, scope: 'day', mode: st.mode }, 'ranks'), rankAsk({ t: 'ranks', place: st.place, scope: 'all', mode: st.mode }, 'ranks')]); } catch { return; }
   if (state !== shownFor || $('result').classList.contains('hidden') && $('podium').classList.contains('hidden')) return;
-  const would = [];
-  for (const [k, [lo, hi, asc]] of Object.entries(RK_LIMITS)) {
-    const v = vals[k]; if (!(v >= lo && v <= hi)) continue;
-    const list = m.cats?.[k] || [], n = list.filter(e => (asc ? e.val <= v : e.val >= v)).length + 1;
-    if (n <= 30) would.push([k, n]);
-  }
-  if (!would.length) return;   // ランク外: フォームは出さない
-  would.sort((a, b) => a[1] - b[1]);
-  f.innerHTML = `<div class="rf-title">🏆 ${L('ランキングに登録', 'Submit to the rankings')}　<small>${esc(pName(place))}</small></div>
-    <div class="rf-would">${L('ランクイン見込み', 'You can rank')}: ${would.slice(0, 3).map(([k, n]) => `${esc(catTitle(k))} ${L(`${n}位`, `#${n}`)}`).join('・')}</div>
+  const wouldOf = m => {
+    const out = [];
+    for (const [k, [lo, hi, asc]] of Object.entries(RK_LIMITS)) {
+      const v = vals[k]; if (!(v >= lo && v <= hi)) continue;
+      const list = m.cats?.[k] || [], n = list.filter(e => (asc ? e.val <= v : e.val >= v)).length + 1;
+      if (n <= 100) out.push([k, n]);
+    }
+    return out.sort((a, b) => a[1] - b[1]);
+  };
+  const wd = wouldOf(md), wa = wouldOf(ma);
+  if (!wd.length && !wa.length) return;   // どちらもランク外: フォームは出さない
+  const cups = [st.mode === 'online' ? L('オンラインの部', 'Online') : L('シングルの部', 'Single'), wd.length && L('当日杯', "Today's Cup"), wa.length && L('歴代杯', 'All-time')].filter(Boolean).join(L('・', ' · '));
+  const line = (ic, name, w) => w.length ? `<div class="rf-would">${ic} <b>${name}</b>: ${w.slice(0, 3).map(([k, n]) => `${esc(catTitle(k))} ${L(`${n}位`, `#${n}`)}`).join('・')}</div>` : '';
+  f.innerHTML = `<div class="rf-title">🏆 ${L('ランキングに登録', 'Submit to the rankings')}（${cups}）　<small>${esc(pName(place))}</small></div>
+    ${line('🏁', L('当日杯', "Today's Cup"), wd)}${line('👑', L('歴代杯', 'All-time'), wa)}
     <img src="${lastPreview || ''}" alt="">
     <div class="rf-row"><input id="rfName" maxlength="12" value="${esc(myName || '')}" placeholder="${L('名前', 'Name')}"><select id="rfCountry">${COUNTRIES.map(c => `<option value="${c[0]}"${c[0] === myCountry ? ' selected' : ''}>${esc(L(c[1], c[2]))}</option>`).join('')}</select></div>
     <input id="rfComment" maxlength="60" placeholder="${L('ひとこと（60字まで）', 'Comment (up to 60 chars)')}">
@@ -1957,24 +1963,33 @@ async function showRankForm() {
     const btn = $('rfSend'), msg = $('rfMsg');
     const name = $('rfName').value.trim().slice(0, 12) || L('名無し', 'Anonymous');
     myName = name; myCountry = $('rfCountry').value; store.set('danjiri-name', name); store.set('danjiri-country', myCountry);
+    if (window.__dj) { msg.textContent = L('試験モード中は登録できません', 'Not available in test mode'); return; }
     btn.disabled = true; msg.textContent = L('送信中…', 'Sending…');
     try {
       const r = await rankAsk({ t: 'rank', ...st, name, country: myCountry, comment: $('rfComment').value.trim().slice(0, 60), img: lastPreview, rec: rec && rec.f.length >= 70 ? { team: player.teamIdx, f: rec.f } : null, dj: djData() }, 'rankres');
       if (!r.ok) { msg.textContent = r.err === 'wait' ? L('少し待ってからもう一度どうぞ', 'Please wait a moment and try again') : r.err === 'cheat' ? L('走りの記録に不自然な動きがあったため、登録できませんでした', 'The run looked tampered with, so it was not submitted') : L('登録できませんでした', 'Could not submit'); btn.disabled = false; return; }
-      const got = Object.entries(r.got || {}).sort((a, b) => a[1] - b[1]).map(([k, n]) => `${esc(catTitle(k))} ${L(`${n}位`, `#${n}`)}`);
-      msg.innerHTML = got.length ? `${L('ランクイン!', 'Ranked!')}<br>` + got.join('<br>') : L('登録しました（今回はランク外）', 'Submitted (not in the top 30 this time)');
+      const ga = r.gotAll || {}, got = Object.entries(r.got || {}).sort((a, b) => a[1] - b[1]).map(([k, n]) => `${esc(catTitle(k))} ${L(`当日杯 ${n}位`, `Today #${n}`)}${ga[k] ? `<b style="color:var(--gold)">・${L(`歴代杯 ${ga[k]}位!`, `All-time #${ga[k]}!`)}</b>` : ''}`);
+      msg.innerHTML = got.length ? `${L('ランクイン!', 'Ranked!')}<br>` + got.join('<br>') : L('登録しました（今回はランク外）', 'Submitted (not in the top 100 this time)');
       // 自分の記録を共有（いちばん良い順位の部門）
       const bestCat = Object.entries(r.got || {}).sort((a, b) => a[1] - b[1])[0];
-      if (bestCat) { const sh = document.createElement('div'); sh.className = 'rk-share'; sh.style.gridColumn = '1 / -1'; sh.innerHTML = shareButtons(recURL(r.id), L(`だんじり疾走「${pName(st.place)}」${catName(bestCat[0])}ランキングで ${bestCat[1]}位になった!`, `I placed #${bestCat[1]} in ${catName(bestCat[0])} at ${pName(st.place)} in Danjiri Dash!`)); $('rankForm').appendChild(sh); }
+      if (bestCat) { const sh = document.createElement('div'); sh.className = 'rk-share'; sh.style.gridColumn = '1 / -1'; sh.innerHTML = shareButtons(recURL(r.id), L(`だんじり疾走「${pName(st.place)}」${catName(bestCat[0])}当日杯で ${bestCat[1]}位になった!`, `I placed #${bestCat[1]} in today's ${catName(bestCat[0])} cup at ${pName(st.place)} in Danjiri Dash!`)); $('rankForm').appendChild(sh); }
       btn.textContent = L('登録済み', 'Done');
     } catch { msg.textContent = L('通信できませんでした', 'Network error'); btn.disabled = false; }
   };
 }
 // 共有: その記録（またはその町・部門の表）を開く URL
-const rankURL = (pl, cat, id) => `${location.origin}${BASE}?rank=${pl}&cat=${cat}${id ? '&id=' + id : ''}`;
+const rankURL = (pl, cat, id) => `${location.origin}${BASE}?rank=${pl}&cat=${cat}${rkMode === 'online' ? '&m=online' : ''}${rkScope === 'all' ? '&s=all' : ''}${id ? '&id=' + id : ''}`;
 // 見ているランキング/記録をアドレスバーにも反映（そのままコピーで共有できる）
 const setURL = u => { try { history.replaceState(null, '', u); } catch { } };
-const homeURL = () => BASE + (location.search.includes('debug') ? '?debug' : '');
+const homeURL = () => { const k = new URLSearchParams(location.search).get('debug'); return BASE + (k ? '?debug=' + encodeURIComponent(k) : ''); };
+// 開発用の試験モード（?debug=合言葉）。合言葉そのものはコードに置かず、ハッシュだけ照らし合わせる
+const DEBUG_HASH = '9d615c967c038d226c82f908d2cd3ff748ebf58d90e79584bb607a05bb962f48';
+async function debugOK() {
+  const k = new URLSearchParams(location.search).get('debug');
+  if (!k || !crypto.subtle) return false;
+  const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k)))].map(b => b.toString(16).padStart(2, '0')).join('');
+  return h === DEBUG_HASH;
+}
 const recURL = id => `${location.origin}${BASE}?r=${id}`;   // プレイ記録ごとの URL
 const catName = k => { const c = RK_CATS.find(x => x[0] === k); return c ? L(c[1], c[2]) : k; };
 const pName = p => (LANG === 'en' ? PLACE_EN[p] : PLACES[p]);
@@ -1993,10 +2008,15 @@ function shareButtons(url, text) {
   return `<button class="share-btn" id="${id}">🔗 ${L('共有', 'Share')}</button><a class="share-btn x" href="${x}" target="_blank" rel="noopener noreferrer">𝕏 ${L('ポスト', 'Post')}</a><div class="share-msg" id="${id}m"></div>`;
 }
 // ランキングを見る画面
-let rkPlace = 'jp', rkCat = 'lap', rkData = null, rkOpenId = null;
+let rkPlace = 'jp', rkCat = 'lap', rkData = null, rkOpenId = null, rkScope = 'day', rkMode = 'solo';   // rkMode: solo = シングルの部 / online = オンラインの部
+   // rkScope: day = 当日杯（直近 12 時間・基本） / all = 歴代
 const flagSvg = p => { const b = document.querySelector(`#placeSel button[data-p="${p}"] svg`); return b ? b.outerHTML : ''; };
-function openRanking(pl) { rkPlace = PLACES[pl] ? pl : 'jp'; $('rkDetail').classList.add('hidden'); $('ranking').classList.remove('hidden'); renderRkTabs(); loadRk(); }
+function openRanking(pl, md) { rkPlace = PLACES[pl] ? pl : 'jp'; rkMode = md || (mode === 'online' ? 'online' : 'solo'); $('rkDetail').classList.add('hidden'); $('ranking').classList.remove('hidden'); renderRkTabs(); loadRk(); }
 function renderRkTabs() {
+  $('rkMode').innerHTML = [['solo', '🎮 シングルの部', '🎮 Single'], ['online', '🌐 オンラインの部', '🌐 Online']].map(([k, j, en]) => `<button data-m="${k}" class="${k === rkMode ? 'sel' : ''}">${L(j, en)}</button>`).join('');
+  $('rkMode').querySelectorAll('button').forEach(b => b.onclick = () => { if (rkMode === b.dataset.m) return; rkMode = b.dataset.m; renderRkTabs(); loadRk(); });
+  $('rkScope').innerHTML = [['day', '🏁 当日杯', "🏁 Today's Cup", '直近12時間', 'Last 12 hours'], ['all', '👑 歴代', '👑 All-time', 'これまでの最高記録', 'Best ever']].map(([k, j, en, sj, se]) => `<button data-s="${k}" class="${k === rkScope ? 'sel' : ''}">${L(j, en)}<small>${L(sj, se)}</small></button>`).join('');
+  $('rkScope').querySelectorAll('button').forEach(b => b.onclick = () => { if (rkScope === b.dataset.s) return; rkScope = b.dataset.s; renderRkTabs(); loadRk(); });
   $('rkPlace').innerHTML = PLACE_IDS.map(p => `<button data-p="${p}" class="${p === rkPlace ? 'sel' : ''}">${flagSvg(p)}${esc(LANG === 'en' ? PLACE_EN[p] : PLACES[p])}</button>`).join('');
   $('rkCat').innerHTML = RK_CATS.map(([k, ja, en, , tj, te, ic]) => `<button data-c="${k}" class="${k === rkCat ? 'sel' : ''}">${ic} ${L(tj, te)}<small style="display:block;font-size:10px;opacity:.75">${L(ja, en)}</small></button>`).join('');
   $('rkPlace').querySelectorAll('button').forEach(b => b.onclick = () => { rkPlace = b.dataset.p; renderRkTabs(); loadRk(); });
@@ -2004,19 +2024,27 @@ function renderRkTabs() {
   $('rkCat').querySelectorAll('button').forEach(b => b.onclick = () => { rkCat = b.dataset.c; renderRkTabs(); renderRkList(); });
   const selTab = $('rkCat').querySelector('.sel'); if (selTab) selTab.scrollIntoView({ block: 'nearest', inline: 'center' });
   if (!rkOpenId) setURL(rankURL(rkPlace, rkCat));
-  $('rkShareBar').innerHTML = shareButtons(rankURL(rkPlace, rkCat), L(`だんじり疾走「${pName(rkPlace)}」${catName(rkCat)}ランキング`, `Danjiri Dash — ${pName(rkPlace)} ${catName(rkCat)} ranking`));
 }
 async function loadRk() {
   rkData = null; $('rkList').textContent = L('読み込み中…', 'Loading…');
-  const want = rkPlace;
-  try { const m = await rankAsk({ t: 'ranks', place: want }, 'ranks'); if (want === rkPlace) { rkData = m; renderRkList(); } }
+  const want = rkPlace, sc = rkScope, md = rkMode;
+  try { const m = await rankAsk({ t: 'ranks', place: want, scope: sc, mode: md }, 'ranks'); if (want === rkPlace && sc === rkScope && md === rkMode) { rkData = m; renderRkList(); } }
   catch { $('rkList').textContent = L('読み込めませんでした', 'Could not load the rankings'); }
+}
+// 記録した時刻を「n分前」で（1 時間以上は「n時間前」、1 日以上は「n日前」）
+function agoText(at) {
+  const m = Math.max(0, Math.floor((Date.now() / 1000 - at) / 60));
+  if (m < 1) return L('たった今', 'just now');
+  if (m < 60) return L(`${m}分前`, `${m}m ago`);
+  if (m < 1440) return L(`${Math.floor(m / 60)}時間前`, `${Math.floor(m / 60)}h ago`);
+  return L(`${Math.floor(m / 1440)}日前`, `${Math.floor(m / 1440)}d ago`);
 }
 function renderRkList() {
   if (!rkData) return;
   const list = rkData.cats?.[rkCat] || [], cat = RK_CATS.find(c => c[0] === rkCat);
-  if (!list.length) { $('rkList').innerHTML = `<div class="collNone" style="text-align:center;padding:30px 0">${L('まだ記録がありません。一番乗りを狙おう!', 'No records yet. Be the first!')}</div>`; return; }
-  $('rkList').innerHTML = list.map((e, i) => `<div class="rk-row" data-i="${i}"><span class="rk-n">${i + 1}</span>${cFlag(e.country)}<div><b>${esc(e.name)}</b>${e.img ? ' 📷' : ''}<small>${esc(e.comment || '')}</small></div><span class="rk-v">${cat[3](e.val)}</span></div>`).join('');
+  const hr = rkData.hours || 12, head = rkData.scope === 'day' ? `<div class="rk-day">${L(`当日杯: 直近 ${hr} 時間に走った記録のランキング`, `Today's Cup: runs from the last ${hr} hours`)}</div>` : '';
+  if (!list.length) { $('rkList').innerHTML = head + `<div class="collNone" style="text-align:center;padding:30px 0">${rkData.scope === 'day' ? L('直近の記録はまだありません。一番乗りを狙おう!', 'No recent records yet. Be the first!') : L('まだ記録がありません。一番乗りを狙おう!', 'No records yet. Be the first!')}</div>`; return; }
+  $('rkList').innerHTML = head + list.map((e, i) => `<div class="rk-row" data-i="${i}"><span class="rk-n">${i + 1}</span>${cFlag(e.country)}<div><b>${esc(e.name)}</b>${e.img ? ' 📷' : ''}<small>${esc(e.comment || '')}</small></div><span class="rk-v">${cat[3](e.val)}<small class="rk-ago">${agoText(e.at)}</small></span></div>`).join('');
   $('rkList').querySelectorAll('.rk-row').forEach(row => row.onclick = () => showRkDetail(list[+row.dataset.i], cat, +row.dataset.i + 1));
   // 共有 URL から開いた時は、その記録を見せる
   if (rkOpenId) { const i = list.findIndex(e => e.id === rkOpenId); rkOpenId = null; if (i >= 0) showRkDetail(list[i], cat, i + 1); }
@@ -2226,6 +2254,10 @@ function onNet(m) {
   else if (m.t === 'like') onLike(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
+  else if (m.t === 'dup') { // 同じ回線の別の画面（タブ・端末）で入ったので、こちらは抜ける（つなぎ直さない）
+    netLeave(); toTitle();
+    setTimeout(() => alert(L('同じ回線の別の画面から「みんなで」に入ったため、こちらは退出しました。（1 人 1 台まで）', 'You joined online from another screen on the same connection, so this one left. (One player per connection)')), 50);
+  }
 }
 function onRoom(m) {
   if (mode !== 'online') return;
@@ -2529,7 +2561,7 @@ function setupTitle() {
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');
   $('showBtn').onclick = playMatch; $('rpStop').onclick = replayStop;
   $('rpPrev').onclick = () => rpPick(-1); $('rpNext').onclick = () => rpPick(1);
-  $('scBack').onclick = () => { if (state === 'display') { const sv = !!shareView; shareClose(); showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); if (!sv) openRanking(rkPlace); } else showcaseOpen(false); };
+  $('scBack').onclick = () => { if (state === 'display') { const sv = !!shareView; shareClose(); showcaseOpen(false); $('result').classList.add('hidden'); toTitle(); if (!sv) openRanking(rkPlace, rkMode); } else showcaseOpen(false); };
   $('shareBtn').onclick = makeShare;
   // ☰: 記録・ひっついたもの をまとめる（走りを再生はそのまま出す）
   $('scMenuBtn').onclick = () => $('scMenu').classList.toggle('hidden');
@@ -2726,15 +2758,15 @@ async function boot() {
   { const r = new URLSearchParams(location.search).get('r');
     if (r && /^[0-9a-z]{1,12}$/.test(r)) rankAsk({ t: 'rankfind', id: r }, 'rankfind').then(m => {
       if (!m.place) { openRanking('jp'); return; }   // 圏外に落ちた記録
-      const cs = Object.keys(m.at).sort((a, b) => m.at[a] - m.at[b]); rkCat = cs[0] || 'lap'; rkOpenId = r; openRanking(m.place);
+      const cs = Object.keys(m.at).sort((a, b) => m.at[a] - m.at[b]); rkCat = cs[0] || 'lap'; rkOpenId = r; rkScope = m.scope === 'day' ? 'day' : 'all'; openRanking(m.place, m.mode === 'online' ? 'online' : 'solo');
     }).catch(() => { }); }
-  { const q = new URLSearchParams(location.search), rp = q.get('rank'); if (rp && PLACES[rp]) { const c = q.get('cat'); if (RK_CATS.some(x => x[0] === c)) rkCat = c; rkOpenId = q.get('id') || null; openRanking(rp); } }
-  if (new URLSearchParams(location.search).has('debug')) {
+  { const q = new URLSearchParams(location.search), rp = q.get('rank'); if (rp && PLACES[rp]) { const c = q.get('cat'); if (RK_CATS.some(x => x[0] === c)) rkCat = c; rkOpenId = q.get('id') || null; rkScope = q.get('s') === 'all' ? 'all' : 'day'; openRanking(rp, q.get('m') === 'online' ? 'online' : 'solo'); } }
+  debugOK().then(ok => { if (!ok) return;
     window.__dj = {
       placeAt(s, lane = 0, mode = 0) { SIM.placeCar(player.car, course, s, lane); player.car.prog = s; camMode = mode; cam.ready = false; for (const r of racers) r.ropes.forEach(o => (o.init = false)); },
       breakdown() { const out = {}; const tally = (o, k) => o.traverse(x => { if ((x.isMesh || x.isPoints || x.isLine) && x.visible && x.material && x.material.visible !== false) out[k] = (out[k] || 0) + 1; }); racers.forEach(r => tally(r.D.group, 'danjiri')); scene.children.forEach(c => { if (!racers.some(r => r.D.group === c)) tally(c, c.isInstancedMesh ? 'instanced' : c.type); }); return out; },
       SIM, course, get world() { return world; },
       run(n, inp) { debugInp = inp; for (let i = 0; i < n; i++) { step(DT); if (state === 'race') updateHappenings(DT); gameTime += DT; cordIdx = 0; for (const r of racers) { updateVisual(r, DT, gameTime); hitProps(r); snagSpans(r); updateTangle(r, DT); } cordMesh.count = cordIdx; cordMesh.instanceMatrix.needsUpdate = true; world.update(DT, gameTime, camera.position, racers.map(r => r.vis)); } debugInp = null; const c = player.car; return { s: c.s | 0, u: +c.u.toFixed(1), v: +c.v.toFixed(1), roll: +c.roll.toFixed(2), stuck: player.stick.list.length, smash: stats.smash, crash: c.crashT > 0 }; }, auto(v) { debugAuto = v; }, info() { renderer.info.autoReset = true; return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r({ ...renderer.info.render, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures })))); }, get state() { return state; }, get player() { return player; }, get racers() { return racers; }, get stats() { return stats; }, get night() { return night; }, startSolo, showSoloResult, input, keys, setCam: m => { camMode = m; }, setNight: v => { night = v; applyTimeOfDay(); }, loadStage, get place() { return place; }, displayDj, djData, get cu() { return CU; } };
-  }
+  });
 }
 boot();
