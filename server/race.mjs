@@ -61,38 +61,47 @@ const nameKey = n => String(n || '').normalize('NFKC').trim().toLowerCase();
 // ただし名前を付けていない記録（名無し）は自動で登録されるので、名無しどうしはまとめない
 const ANON = new Set(['名無し', 'anonymous']);
 const uniqNames = list => { const seen = new Set(); return list.filter(e => { const k = nameKey(e.name); if (ANON.has(k)) return true; if (seen.has(k)) return false; seen.add(k); return true; }); };
-// 不正チェック: 走りの記録（0.1 秒ごとの位置）で瞬間移動や速すぎる移動を見る。
-// 普通に走れば 0.1 秒で 12.6m まで（吹っ飛んでも）、6m を超える区間もレース全体で 9 回まで。改造した記録はこれを大きく超える
-function cheatOf(f, time = 0, laps = 2) {
-  if (!Array.isArray(f) || f.length < 70) return 'norec';
-  const n = f.length / 7;
-  // 記録はゲーム内の時間（スローモーションや重い端末では実時間より遅れる）なので、記録が短いだけでは不正にしない
-  let fast = 0, warp = 0;
-  for (let i = 1; i < n; i++) { const d = Math.hypot(f[i * 7] - f[i * 7 - 7], f[i * 7 + 1] - f[i * 7 - 6]) / 10; if (d > 6) fast++; if (d > 14) warp++; }
-  if (fast > 12 || warp >= 3) return 'warp';
-  // ゴールタイムの書き換え: 記録の上で周回の 8 割を走り終えた時刻より、言ってきたタイムがずっと速い
-  if (time > 0 && time < 390) {
-    const need = course.L * laps * 0.8; let d = 0, at = 0;
-    for (let i = 1; i < n && !at; i++) { d += Math.hypot(f[i * 7] - f[i * 7 - 7], f[i * 7 + 1] - f[i * 7 - 6]) / 10; if (d >= need) at = i / 10; }
-    if (!at || time < at - 3) return 'time';
-  }
-  return '';
+// 不正対策は非公開の server/guard/（無い時は素通し）。ランキング登録の最終チェック・締め出し・切断の判断はすべてそちら
+let G = { checkRun: () => '', bannedIp: () => false, bannedName: () => false, badTalk: () => false, shut: () => { }, onReject: () => { }, onlineHold: () => 0 };
+try { G = { ...G, ...(await import('./guard/index.mjs')).default({ SIM, course, nameKey, dataDir: path.dirname(RANK_FILE) }) }; }
+catch (err) { if (err.code !== 'ERR_MODULE_NOT_FOUND') console.error(err); console.log('guard: none'); }
+const cheatOf = (...a) => G.checkRun(...a);
+const banned = (ip, name, comment = '') => G.bannedIp(ip) || G.bannedName(name, comment);
+// 締め出した人も遊べる（切断・よそへ飛ばすことはしない）。そのランキング登録は改造へ回す
+function mark(p, why, said = []) {
+  console.log('conn: mark', why, JSON.stringify(said.filter(Boolean)), p.ip);
+  G.shut(p.ip);
 }
-// ランキングから締め出す送り元（IP）と名前（data/ban.json。書き換えたらサーバーを再起動）
-const BAN_FILE = path.join(path.dirname(RANK_FILE), 'ban.json');
-let BAN = { ips: [], names: [], prefixes: [] };
-try { BAN = { ...BAN, ...JSON.parse(fs.readFileSync(BAN_FILE, 'utf8')) }; } catch { }
-const banned = (ip, name) => (ip && BAN.ips.includes(ip)) || BAN.names.some(n => nameKey(n) === nameKey(name)) || BAN.prefixes.some(n => nameKey(name).startsWith(nameKey(n)));
 const repCheat = {};   // 起動時: 載っている記録を走りの記録で確かめ直す
-const recTime = {}; for (const md of MODES) for (const pl of PLACES) for (const e of RANKS[md][pl]?.lap || []) recTime[e.id] = [e.val * (e.laps || 2), e.laps || 2];   // 1 周タイム × 周回 = ゴールタイム
-const cleanRanks = (R, uniq = true) => { for (const pl of PLACES) { R[pl] ||= {}; for (const c of Object.keys(CATS)) R[pl][c] = (uniq ? uniqNames : x => x)((R[pl][c] || []).filter(e => { repCheat[e.id] ??= cheatOf(e.rep ? readRep(e.id)?.f : null, ...(recTime[e.id] || [0])); if (repCheat[e.id]) console.log('rank: drop', pl, c, e.name, e.id, repCheat[e.id]); if (!repCheat[e.id] && banned(e.ip, e.name)) { console.log('rank: ban', pl, c, e.name, e.id); return false; } return !repCheat[e.id]; })); } return R; };
+const recTime = {}, recVals = {};   // 1 周タイム × 周回 = ゴールタイム / 申告された 1 周タイム・最高速度・最長ジャンプと周回数（歴代と当日杯の両方から）
+const RECENT_RAW = {}; for (const md of MODES) { try { RECENT_RAW[md] = JSON.parse(fs.readFileSync(modeFile(path.join(path.dirname(RANK_FILE), 'recent.json'), md), 'utf8')); } catch { RECENT_RAW[md] = null; } }
+for (const md of MODES) for (const R of [RANKS[md], RECENT_RAW[md]]) for (const pl of PLACES) {
+  if (md === 'solo') for (const e of R?.[pl]?.lap || []) recTime[e.id] = [e.val * (e.laps || 2), e.laps || 2];   // オンラインのタイムはサーバーの計測
+  for (const c of ['lap', 'speed', 'air']) for (const e of R?.[pl]?.[c] || []) { (recVals[e.id] ||= {})[c] = e.val; recVals[e.id].laps = e.laps || 2; }
+}
+// 改造: 弾いた記録（走りの記録・写真・だんじりは残して見られるようにする）。弾いた理由（why）は配らない
+const CHEAT_FILE = path.join(path.dirname(RANK_FILE), 'cheat.json'), CHEAT_MAX = 500;
+let CHEATS = {}; try { CHEATS = JSON.parse(fs.readFileSync(CHEAT_FILE, 'utf8')); } catch { }
+for (const pl of PLACES) CHEATS[pl] ||= [];
+function addCheat(pl, e, vals, why) {
+  let x = CHEATS[pl].find(y => y.id === e.id);
+  if (!x) { const { val, ...rest } = e; x = { ...rest, vals: {}, why }; CHEATS[pl].push(x); if (CHEATS[pl].length > CHEAT_MAX) CHEATS[pl].splice(0, CHEATS[pl].length - CHEAT_MAX); }
+  Object.assign(x.vals, vals);
+}
+const cheatView = (pl, day) => {
+  const t = day ? (Date.now() - RECENT_MS) / 1000 : 0, list = CHEATS[pl].filter(e => e.at >= t);
+  const strip = ({ vals, why, ip, key, ...e }) => e;
+  const bare = list.filter(e => !Object.keys(e.vals).length).sort((a, b) => b.at - a.at).map(e => ({ ...strip(e), val: null }));   // 値の残っていない記録（登録の時点で弾いて走りを残していなかった分）は 1 周タイムの末尾に
+  return Object.fromEntries(Object.entries(CATS).map(([c, def]) => [c, [...list.filter(e => e.vals[c] > 0).map(e => ({ ...strip(e), val: Math.round(e.vals[c] * 100) / 100 })).sort((a, b) => (def.asc ? a.val - b.val : b.val - a.val) || a.at - b.at), ...(c === 'lap' ? bare : [])].slice(0, RANK_MAX)]));
+};
+const cleanRanks = (R, uniq = true) => { for (const pl of PLACES) { R[pl] ||= {}; for (const c of Object.keys(CATS)) R[pl][c] = (uniq ? uniqNames : x => x)((R[pl][c] || []).filter(e => { repCheat[e.id] ??= cheatOf(e.rep ? readRep(e.id)?.f : null, recTime[e.id]?.[0] || 0, recVals[e.id]?.laps || 2, recVals[e.id]); if (repCheat[e.id]) { console.log('rank: drop', pl, c, e.name, e.id, repCheat[e.id]); addCheat(pl, e, { [c]: e.val }, repCheat[e.id]); } if (!repCheat[e.id] && banned(e.ip, e.name, e.comment)) { console.log('rank: ban', pl, c, e.name, e.id); addCheat(pl, e, { [c]: e.val }, 'ban'); return false; } return !repCheat[e.id]; })); } return R; };
 for (const md of MODES) cleanRanks(RANKS[md]);
 // ================= 当日杯: 直近 12 時間の記録だけのランキング（歴代は RANKS） =================
 // 12 時間ぶんの記録はそのまま（同じ名前の重なりも含めて）持っておき、見せる時に古いものを外して並べ直す
 const RECENT_FILE = path.join(path.dirname(RANK_FILE), 'recent.json'), RECENT_MS = 12 * 3600e3;
 const RECENT = {};
 for (const md of MODES) {
-  let R = null; try { R = JSON.parse(fs.readFileSync(modeFile(RECENT_FILE, md), 'utf8')); } catch { }
+  let R = RECENT_RAW[md];
   if (!R) { R = {}; for (const pl of PLACES) { R[pl] = {}; for (const c of Object.keys(CATS)) R[pl][c] = [...(RANKS[md][pl]?.[c] || [])]; } }   // 初回: 歴代の中の新しい記録から
   RECENT[md] = cleanRanks(R, false);
 }
@@ -111,7 +120,7 @@ for (const md of MODES) pruneRecent(md);
 let rankSaveT = 0;
 function saveRanks() {
   clearTimeout(rankSaveT);
-  rankSaveT = setTimeout(() => { try { for (const [f, d] of MODES.flatMap(md => [[modeFile(RANK_FILE, md), RANKS[md]], [modeFile(RECENT_FILE, md), RECENT[md]]])) { fs.writeFileSync(f + '.tmp', JSON.stringify(d)); fs.renameSync(f + '.tmp', f); } } catch (e) { console.error(e); } }, 500);
+  rankSaveT = setTimeout(() => { try { for (const [f, d] of [...MODES.flatMap(md => [[modeFile(RANK_FILE, md), RANKS[md]], [modeFile(RECENT_FILE, md), RECENT[md]]]), [CHEAT_FILE, CHEATS]]) { fs.writeFileSync(f + '.tmp', JSON.stringify(d)); fs.renameSync(f + '.tmp', f); } } catch (e) { console.error(e); } }, 500);
 }
 const cleanText = (s, n) => [...String(s || '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim()].slice(0, n).join('');
 const cleanLink = s => { s = String(s || '').trim(); if (!s) return ''; if (s.length > 200 || /\s/.test(s) || !/^https?:\/\/[^/\s]+\.[^\s]+/i.test(s)) return ''; try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : ''; } catch { return ''; } };
@@ -132,9 +141,7 @@ function submitRank(p, m) {
   const vals = {
     lap: time > 0 ? time / laps : 0, speed: num(m.speed, 0, 999), drift: num(m.drift, 0, 99), stuck: num(m.stuck, 0, 1e9), smash: num(m.smash, 0, 1e5), air: num(m.air, 0, 99),
   };
-  if (banned(ip, cleanName(m.name))) { lastSubmit.set(ip, now); console.log('rank: banned', place, cleanName(m.name), ip); return { ok: false, err: 'ban' }; }
-  const bad = cheatOf(m.rec && m.rec.f, mode === 'online' ? 0 : time, laps);   // オンラインのタイムはサーバーの計測なので書き換えようがない
-  if (bad) { lastSubmit.set(ip, now); console.log('rank: cheat', bad, place, cleanName(m.name), ip); return { ok: false, err: 'cheat' }; }
+  const bad = banned(ip, cleanName(m.name), cleanText(m.comment, 60)) ? 'ban' : cheatOf(m.rec && m.rec.f, mode === 'online' ? 0 : time, laps, vals);
   const id = (nextRankId++).toString(36);
   const e = { id, name: cleanName(m.name), comment: cleanText(m.comment, 60), country: /^[A-Z]{2}$/.test(m.country) ? m.country : 'ZZ', link: '' /* リンクは受け付けない（コメントのみ） */, tod: m.tod === 'night' ? 'night' : 'day', laps, mode, at: Math.floor(now / 1000), img: false, ip, key: Math.random().toString(36).slice(2, 12) };   // key: あとから名前・ひとことを付ける時の合言葉（配らない）   // ip は配らない（ranks を送る時に外す）
   // ゴールの瞬間の写真（JPEG、80 KB まで）
@@ -155,6 +162,14 @@ function submitRank(p, m) {
     if (okS && okI) {
       try { fs.mkdirSync(DJ_DIR, { recursive: true }); fs.writeFileSync(path.join(DJ_DIR, id + '.json'), JSON.stringify({ team: num(dj.team, 0, 7, 0) | 0, stuck: dj.stuck.map(e => ({ k: e.k, i: e.i, L: e.L })), items: dj.items.map(it => [cleanText(it[0], 24), it[1]]) })); e.dj = true; } catch (err) { console.error(err); }
     }
+  }
+  if (bad) {   // 弾いた記録は改造へ（本人には理由を言わない）
+    console.log('rank: cheat', bad, place, e.name, ip, id);
+    addCheat(place, e, Object.fromEntries(Object.entries(vals).filter(([, v]) => v > 0).map(([c, v]) => [c, v])), bad);
+    G.onReject({ ip, name: e.name, mode, why: bad });
+    holdOut(ip);
+    lastSubmit.set(ip, now); saveRanks();
+    return { ok: false, err: 'ng' };
   }
   const got = {}, gotAll = {};   // got: 当日杯（直近 12 時間）の順位 / gotAll: 歴代の順位
   const put = (R, c, def, row) => {
@@ -184,7 +199,7 @@ function editRank(p, m) {
   if (now - (lastEdit.get(p.ip) || 0) < 2000) return { ok: false, err: 'wait' };
   lastEdit.set(p.ip, now);
   const name = cleanName(m.name), comment = cleanText(m.comment, 60), country = /^[A-Z]{2}$/.test(m.country) ? m.country : 'ZZ';
-  if (banned(p.ip, name)) return { ok: false, err: 'ban' };
+  if (banned(p.ip, name, comment)) return { ok: false, err: 'ng' };
   const hit = [];
   for (const md of MODES) for (const R of [RANKS[md], RECENT[md]]) for (const pl of PLACES) for (const list of Object.values(R[pl] || {})) for (const e of list) if (e.id === id) hit.push([md, pl, e]);
   if (!hit.length) return { ok: false, err: 'gone' };
@@ -386,6 +401,7 @@ const okDj = dj => dj && Array.isArray(dj.stuck) && dj.stuck.length <= 80 && Arr
 function makeShare(p, m) {
   const now = Date.now(), ip = p.ip || '?';
   if (now - (lastShare.get(ip) || 0) < 8000) return { ok: false, err: 'wait' };
+  if (banned(ip, cleanName(m.name))) return { ok: false, err: 'ng' };
   const place = PLACES.includes(m.place) ? m.place : null;
   if (!place || typeof m.img !== 'string' || !m.img.startsWith('data:image/jpeg;base64,') || !okDj(m.dj)) return { ok: false, err: 'bad' };
   const buf = Buffer.from(m.img.slice(23), 'base64');
@@ -455,6 +471,14 @@ httpServer.listen(PORT, '127.0.0.1');
 const wss = new WebSocketServer({ server: httpServer, maxPayload: 480000 });
 const ipConns = new Map(), tooManyLog = new Map();   // 送り元 → つないでいる本数 / 断ったログ（1 分に 1 回だけ）
 // 1 人 1 台: 同じ送り元（IP）で部屋に入れるのは 1 人だけ。後から入った方を残し、前の人には知らせて部屋から出す
+// オンラインに入れない送り元（不正対策が決める）: 部屋から出して、残り時間を知らせる
+function holdOut(ip, p = null) {
+  const ms = G.onlineHold(ip); if (!ms) return false;
+  const msg = { t: 'hold', min: Math.ceil(ms / 60e3) };
+  for (const r of rooms) for (const q of [...r.players.values()]) if (q.ip === ip) { send(q, msg); r.remove(q); }
+  if (p) send(p, msg);
+  return true;
+}
 function kickSameIp(p) {
   if (!p.ip) return;
   for (const r of rooms) for (const q of [...r.players.values()]) if (q !== p && q.ip === p.ip) { console.log('join: dup ip', p.ip, q.name, '->', p.name); send(q, { t: 'dup' }); r.remove(q); }
@@ -476,10 +500,12 @@ wss.on('connection', (ws, req) => {
     let m; try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m !== 'object') return;
     const room = p.room;
+    if (['join', 'chat', 'rank', 'rankedit', 'share'].includes(m.t) && G.badTalk(m.name, m.comment, m.text)) { mark(p, m.t, [m.name, m.comment, m.text].map(t => cleanText(t, 60))); if (m.t === 'chat') return; }   // そのチャットは流さない
     switch (m.t) {
       case 'ping': send(p, { t: 'pong', c: Number(m.c) || 0, s: now }); break;
       case 'join':
         if (m.v !== 2 && m.v !== 3) { send(p, { t: 'old' }); break; }
+        if (holdOut(p.ip, p)) break;
         const legacy = m.v === 2;
         if (room) room.remove(p);
         p.name = cleanName(m.name);
@@ -499,6 +525,7 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'peek': { // みんなで を押した時: レース中の部屋があれば、どうするか選んでもらう
+        if (holdOut(p.ip, p)) break;
         const waiting = [...rooms].some(r => !r.legacy && r.phase !== 'race' && r.players.size > 0 && r.players.size < r.max);
         send(p, { t: 'peek', races: waiting ? [] : racingRooms(), now });
         break;
@@ -508,13 +535,14 @@ wss.on('connection', (ws, req) => {
       case 'rankedit': { const res = editRank(p, m); send(p, { t: 'rankeditres', ...res }); break; }
       case 'share': { const res = makeShare(p, m); send(p, { t: 'shareres', ...res }); break; }
       case 'shareget': { const sh = readShare(m.id); send(p, { t: 'shareget', id: shareId(m.id), sh }); break; }
-      case 'ranks': { // scope: day = 当日杯（直近 12 時間） / それ以外 = 歴代。mode: online = オンライン / それ以外 = 1P
-        const pl = PLACES.includes(m.place) ? m.place : 'jp', day = m.scope === 'day', md = m.mode === 'online' ? 'online' : 'solo', R = day ? recentView(md, pl) : RANKS[md][pl];
+      case 'ranks': { // scope: day = 当日杯（直近 12 時間） / それ以外 = 歴代。mode: online = オンライン / cheat = 改造 / それ以外 = 1P
+        const pl = PLACES.includes(m.place) ? m.place : 'jp', day = m.scope === 'day', md = ['online', 'cheat'].includes(m.mode) ? m.mode : 'solo', R = md === 'cheat' ? cheatView(pl, day) : day ? recentView(md, pl) : RANKS[md][pl];
         send(p, { t: 'ranks', place: pl, scope: day ? 'day' : 'all', mode: md, hours: RECENT_MS / 3600e3, cats: Object.fromEntries(Object.entries(R).map(([c, l]) => [c, l.map(({ ip, key, ...e }) => e)])) }); break; }
       case 'rankfind': { // 記録ごとの URL (?r=ID): その記録の町と、載っている部門・順位
         const id = String(m.id || ''); let place = null, scope = 'all', mode = 'solo'; const at = {};
         for (const md of MODES) if (!place) for (const pl of PLACES) for (const [c, list] of Object.entries(RANKS[md][pl] || {})) { const i = list.findIndex(x => x.id === id); if (i >= 0) { place = pl; mode = md; at[c] = i + 1; } }
         for (const md of MODES) if (!place) for (const pl of PLACES) for (const [c, list] of Object.entries(recentView(md, pl))) { const i = list.findIndex(x => x.id === id); if (i >= 0) { place = pl; mode = md; scope = 'day'; at[c] = i + 1; } }   // 歴代に入らなかった直近の記録
+        if (!place) for (const pl of PLACES) if (CHEATS[pl].some(x => x.id === id)) { place = pl; mode = 'cheat'; for (const [c, list] of Object.entries(cheatView(pl, false))) { const i = list.findIndex(x => x.id === id); if (i >= 0) at[c] = i + 1; } }   // 改造
         send(p, { t: 'rankfind', id, place, scope, mode, at }); break;
       }
       case 'rankimg': send(p, { t: 'rankimg', id: String(m.id || ''), data: readImg(m.id) }); break;
@@ -600,4 +628,5 @@ setInterval(() => {
 }, 1000 / 30);
 setInterval(() => { for (const ws of wss.clients) { if (!ws.isAlive) { ws.terminate(); continue; } ws.isAlive = false; ws.ping(); } }, 30000);
 
+saveRanks();   // 起動時に弾いた記録（改造へ移したもの）を書き残す
 console.log(`danjiri race server v2 on 127.0.0.1:${PORT} (L=${course.L.toFixed(1)}m, goal=${GOAL.toFixed(1)}m)`);

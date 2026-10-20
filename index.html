@@ -275,6 +275,10 @@
   .share-btn.x { background: #111; border-color: #555; }
   .share-msg { font-size: 12px; color: var(--gold); min-height: 1.2em; }
   .rk-card { width: min(720px, 100%); max-height: 92vh; overflow-y: auto; background: #150f2a; }
+  /* 右上のバツ（中身をスクロールしても上に残る） */
+  .rk-xbar { position: sticky; top: 14px; height: 0; z-index: 5; }
+  .rk-x { position: absolute; top: -14px; right: -14px; width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--gold-deep); background: #150f2a; color: #f2c14e; font-size: 22px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .rk-x:hover { background: #2a1f4a; }
   #itemsWin { background: rgba(6,4,14,0.82); z-index: 45; }
   #itemsWin .collGrid { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; max-height: 58vh; margin: 8px 0; }
   #itemsWin .ci { font-size: 11px; padding: 4px 2px 5px; }
@@ -293,10 +297,20 @@
   .rk-scope { display: flex; gap: 0; margin: 4px auto 8px; max-width: 360px; border: 2px solid var(--gold); border-radius: 22px; overflow: hidden; }
   .rk-scope button { flex: 1; padding: 8px 6px; font-size: 14px; font-weight: 700; background: transparent; color: var(--gold); border: 0; border-radius: 0; cursor: pointer; }
   .rk-scope button.sel { background: var(--gold); color: #2a1a08; }
-  .rk-mode { max-width: 300px; margin-bottom: 6px; border-width: 1px; }
+  .rk-mode { max-width: 440px; margin-bottom: 6px; border-width: 1px; }
   .rk-mode button { padding: 5px 6px; font-size: 13px; }
   .rk-scope button small { display: block; font-size: 10px; font-weight: 400; opacity: .8; }
   .rk-day { text-align: center; font-size: 12px; opacity: .8; margin: 2px 0 6px; }
+  .rk-cheat { color: #ff8a8a; opacity: 1; }
+  /* 町のプルダウンの左右: ‹ › で前後の町へ */
+  .rk-placebar { display: flex; justify-content: center; align-items: flex-start; gap: 12px; }
+  .rk-placebar .choices { margin-left: 0; margin-right: 0; }
+  .rk-placebar .choices.dd { min-width: 0; flex: 1 1 0; max-width: 230px; }
+  .rk-placebar .choices.dd button { white-space: nowrap; min-width: 0; width: 100%; max-width: 100%; overflow: hidden; box-sizing: border-box; }
+  .rk-placebar .dd-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rk-step { flex: none; width: 52px; height: 44px; margin-top: 0; border-radius: 12px; border: 2px solid var(--gold-deep); background: rgba(255,255,255,0.06); color: #f2c14e; font-size: 26px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 0 3px; }
+  .rk-step:hover:not(:disabled) { background: #2a1f4a; }
+  .rk-step:disabled { opacity: .3; cursor: default; }
   .rk-row { display: grid; grid-template-columns: 30px 14px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer; font-size: 14px; }
   .rk-row:hover { background: rgba(242,193,78,0.1); }
   .rk-row .rk-n { font-family: 'Dela Gothic One', sans-serif; color: var(--gold); }
@@ -545,7 +559,7 @@
       <div class="mode-row">
         <button class="go" id="soloBtn" data-en="Solo">ひとりで</button><button class="go online" id="onlineBtn"><span data-en="Online">みんなで</span><small class="online-now" id="onlineNow"></small></button>
       </div>
-      <div><button class="go ghost" id="rankBtn" data-en="🏆 Rankings">🏆 ランキング</button><button class="go ghost" id="mbBtn" data-en="⭐ My Best">⭐ マイベスト</button></div>
+      <div><button class="go ghost" id="rankBtn" data-en="🏆 Rankings">🏆 ランキング</button><button class="go ghost" id="mbBtn" data-en="⭐ My Best">⭐ マイベスト</button><button class="go ghost hidden" id="appExitBtn" data-en="Quit">終了</button></div>
     </div>
     <div id="step2" class="hidden">
       <div class="grid2">
@@ -613,10 +627,11 @@
 </div>
 <div id="ranking" class="overlay hidden">
   <div class="card rk-card">
+    <div class="rk-xbar"><button class="rk-x" id="rkX" aria-label="Close">✕</button></div>
     <h2 data-en="🏆 Rankings">🏆 ランキング</h2>
     <div class="rk-scope rk-mode" id="rkMode"></div>
     <div class="rk-scope" id="rkScope"></div>
-    <div class="choices" id="rkPlace"></div>
+    <div class="rk-placebar"><button class="rk-step" id="rkPrev" aria-label="Previous">‹</button><div class="choices" id="rkPlace"></div><button class="rk-step" id="rkNext" aria-label="Next">›</button></div>
     <div class="choices rk-cats" id="rkCat"></div>
     <div id="rkList" class="rk-list"></div>
     <button class="go ghost" id="rkClose" data-en="Close">とじる</button>
@@ -633,6 +648,7 @@
 </div>
 <div id="mybest" class="overlay hidden">
   <div class="card rk-card">
+    <div class="rk-xbar"><button class="rk-x" id="mbX" aria-label="Close">✕</button></div>
     <h2 data-en="⭐ My Best">⭐ マイベスト</h2>
     <div class="choices" id="mbPlace"></div>
     <div id="mbBody"></div>
@@ -709,6 +725,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=198"></script>
+<script type="module" src="js/game.js?v=218"></script>
 </body>
 </html>

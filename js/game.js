@@ -5,13 +5,14 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=198';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=198';
-import { buildWorld } from './world.js?v=198';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=198';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=198';
-import { FX, SpeedShader } from './fx.js?v=198';
-import * as AU from './audio.js?v=198';
+import * as SIM from './sim.js?v=218';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=218';
+import { buildWorld } from './world.js?v=218';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=218';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=218';
+import { FX, SpeedShader } from './fx.js?v=218';
+import { makeNavLine } from './nav.js?v=218';
+import * as AU from './audio.js?v=218';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -34,7 +35,10 @@ if (isTouch) document.body.classList.add('touch');
 const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { } } };
 // オンラインの接続先: ページのある場所の ws（satoru.net/danjiri/ws でも danjiri.satoru.net/ws でも動く）
 const BASE = location.pathname.replace(/\/p\/[^/]*$/, '/').replace(/[^/]*$/, '');   // シェアの URL（/p/ID）から開いた時もゲームの置き場所を指す
-const wsURL = () => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + BASE + 'ws';
+// Steam 版（Electron の app:// で開く）は本番のサーバにつなぎ、シェアの URL も本番のサイトにする
+const DESKTOP = location.protocol === 'app:';
+const SITE = DESKTOP ? 'https://danjiri.satoru.net/' : location.origin + BASE;
+const wsURL = () => DESKTOP ? 'wss://danjiri.satoru.net/ws' : (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + BASE + 'ws';
 // ================= 言語（日本語 / 英語）。日本語以外のブラウザは最初から英語 =================
 let LANG = store.get('danjiri-lang', /^ja\b/i.test(navigator.language || '') ? 'ja' : 'en');
 const L = (ja, en) => (LANG === 'en' ? en : ja);
@@ -1165,6 +1169,7 @@ function backToCourse() {
   message(L('コースに戻った!', 'Back on course!'), 'good');
 }
 // 次の角の案内（次は右! / 左!）
+let navLine = null;   // 曲がり角のナビ（nav.js）
 const turnUI = { el: null, key: '', said: -1 };
 function updateTurnCall(c) {
   const el = turnUI.el || (turnUI.el = $('turn'));
@@ -1601,10 +1606,11 @@ const cFlag = cc => (cc && cc !== 'ZZ' ? `<img class="cf" src="https://flagcdn.c
 const guessCountry = () => { const n = (navigator.language || '').split('-'); if (n[1] && /^[A-Za-z]{2}$/.test(n[1]) && COUNTRIES.some(c => c[0] === n[1].toUpperCase())) return n[1].toUpperCase(); return ({ ja: 'JP', fr: 'FR', it: 'IT', de: 'DE', es: 'ES', ko: 'KR', zh: 'CN', ar: 'EG', pt: 'BR', ru: 'RU', th: 'TH', vi: 'VN', id: 'ID', tr: 'TR', nl: 'NL', pl: 'PL', sv: 'SE', en: 'US' })[n[0]] || 'ZZ'; };
 let myCountry = store.get('danjiri-country', '') || guessCountry();
 
+const openWS = () => new WebSocket(wsURL());
 // 問い合わせ 1 回ごとにつなぐ
 function rankAsk(msg, want) {
   return new Promise((res, rej) => {
-    let ws; try { ws = new WebSocket(wsURL()); } catch (e) { rej(e); return; }
+    let ws; try { ws = openWS(); } catch (e) { rej(e); return; }
     const to = setTimeout(() => { try { ws.close(); } catch { } rej(new Error('timeout')); }, 9000);
     ws.onopen = () => ws.send(JSON.stringify(msg));
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.t === want) { clearTimeout(to); res(m); try { ws.close(); } catch { } } };
@@ -1880,7 +1886,7 @@ async function makeShare() {
       st: { rank: resInfo.rank, n: resInfo.n, time: player.finished ? player.finishTime : 0, kg, items, smash: stats.smash, speed: stats.topSpeed * 3.6, drift: stats.bestDrift, air: stats.maxAir } }, 'shareres');
   } catch { fail(L('つながりませんでした。もう一度どうぞ', 'Could not connect. Try again')); return; }
   if (!m.ok) { fail(m.err === 'wait' ? L('少し待ってからもう一度どうぞ', 'Wait a moment and try again') : L('作れませんでした', 'Could not create it')); return; }
-  const url = `${location.origin}${BASE}p/${m.id}`;
+  const url = `${SITE}p/${m.id}`;
   shareMade = url; btn.classList.add('hidden');
   const text = L(`だんじり疾走「${pName(place)}」${resInfo.rank ? resInfo.rank + '位! ' : ''}${items ? `ひっつけた物 ${items}個（${fmtKg(kg)}）` : ''} #だんじり疾走`, `Danjiri Dash — ${pName(place)}${resInfo.rank ? ' #' + resInfo.rank : ''}${items ? `, stuck ${items} things` : ''} #DanjiriDash`);
   $('shareOut').innerHTML = `<img src="${img}" alt=""><input readonly value="${esc(url)}">${shareButtons(url, text)}`;
@@ -1944,6 +1950,30 @@ function openSummaryWin() {
 // 下の戻るボタンはアイコンだけ（🏠 タイトルへ / ↩ 戻る）
 function scBackIcon(home) { const b = $('scBack'), t = home ? L('タイトルへ', 'Title') : L('戻る', 'Back'); b.textContent = home ? '🏠' : '↩'; b.title = t; b.setAttribute('aria-label', t); }
 function shareClose() { if (!shareView) return; shareView = null; $('itemsWin').classList.add('hidden'); $('scShare').classList.add('hidden'); document.querySelector('#showcase .sc-hint').classList.remove('hidden'); document.querySelector('#showcase .sc-bar').classList.remove('hidden'); scBackIcon(false); setURL(homeURL()); }
+// ================= Steam の実績（Steam 版だけ。steam/preload.cjs が window.steam を用意する） =================
+// 名前・説明は steam/achievements.md（Steamworks に同じ API 名で登録する）
+function steamAchieve(st, rank) {
+  const S = window.steam; if (!S || window.__dj) return;
+  const a = [], fin = st.time > 0;
+  if (fin) {
+    a.push('FIRST_FINISH');
+    if (rank === 1) a.push(st.mode === 'online' ? 'WIN_ONLINE' : 'WIN_SOLO');
+    if (st.tod === 'night') a.push('NIGHT_RUN');
+    if (st.time / st.laps < 30) a.push('LAP_30');
+    if (PLACE_IDS.includes(st.place)) {   // 5 つの町すべてで完走
+      const done = new Set(store.get('danjiri-towns', '').split(',').filter(Boolean)); done.add(st.place); store.set('danjiri-towns', [...done].join(','));
+      if (PLACE_IDS.every(p => done.has(p))) a.push('ALL_TOWNS');
+    }
+  }
+  if (st.speed >= 150) a.push('SPEED_150');
+  if (st.drift >= 4) a.push('DRIFT_4');
+  if (st.air >= 2) a.push('AIR_2');
+  if (st.smash >= 300) a.push('SMASH_300');
+  if (st.smash >= 1000) a.push('SMASH_1000');
+  if (st.stuck >= 1e6) a.push('STUCK_1KT');
+  if (st.stuck >= 1e7) a.push('STUCK_10KT');
+  if (a.length) S.unlock(a);
+}
 // 結果画面の登録フォーム
 // ランクインできそうな時だけ登録フォームを出す（当日杯・歴代杯と比べて、どちらかで 100 位以内なら）
 const RK_LIMITS = { lap: [22, 600, true], speed: [1, 160], drift: [0.3, 15], stuck: [1, 2e7], smash: [1, 3000], air: [0.2, 5] };
@@ -1951,6 +1981,7 @@ async function showRankForm() {
   const f = $('rankForm'); f.classList.add('hidden');
   const st = { place, mode: mode === 'online' ? 'online' : 'solo', tod: night ? 'night' : 'day', laps: LAPS, time: player.finished ? player.finishTime : 0, speed: stats.topSpeed * 3.6, drift: stats.bestDrift, stuck: stuckKg(player), smash: stats.smash, air: stats.maxAir };
   const vals = { lap: st.time > 0 ? st.time / st.laps : 0, speed: st.speed, drift: st.drift, stuck: st.stuck, smash: st.smash, air: st.air };
+  steamAchieve(st, resInfo.rank);
   const shownFor = state;
   // 当日杯（直近 12 時間）と歴代杯の両方と比べる
   let md, ma; try { [md, ma] = await Promise.all([rankAsk({ t: 'ranks', place: st.place, scope: 'day', mode: st.mode }, 'ranks'), rankAsk({ t: 'ranks', place: st.place, scope: 'all', mode: st.mode }, 'ranks')]); } catch { return; }
@@ -1966,7 +1997,7 @@ async function showRankForm() {
   };
   const wd = wouldOf(md), wa = wouldOf(ma);
   if (!wd.length && !wa.length) return;   // どちらもランク外: フォームは出さない
-  const cupsOf = (d, a) => [st.mode === 'online' ? L('オンラインの部', 'Online') : L('シングルの部', 'Single'), d && L('当日杯', "Today's Cup"), a && L('歴代杯', 'All-time')].filter(Boolean).join(L('・', ' · '));
+  const cupsOf = (d, a) => [st.mode === 'online' ? L('みんな', 'Online') : L('ひとり', 'Solo'), d && L('当日杯', "Today's Cup"), a && L('歴代杯', 'All-time')].filter(Boolean).join(L('・', ' · '));
   // 名前やひとことを書かなくても、まず自動で記録する（名前は前に使ったもの。なければ名無し）。あとから名前・ひとことを付けられる
   f.innerHTML = `<div class="rf-title">🏆 ${L('ランキングに記録中…', 'Recording to the rankings…')}（${cupsOf(wd.length, wa.length)}）　<small>${esc(pName(place))}</small></div>`;
   f.classList.remove('hidden');
@@ -1975,8 +2006,9 @@ async function showRankForm() {
   let r;
   try { r = await rankAsk({ t: 'rank', ...st, name: name0, country: myCountry, comment: '', img: lastPreview, rec: rec && rec.f.length >= 70 ? { team: player.teamIdx, f: rec.f } : null, dj: djData() }, 'rankres'); }
   catch { f.innerHTML = `<div class="rf-title">🏆 ${L('ランキング', 'Rankings')}</div><div class="rf-msg">${L('通信できなかったため記録できませんでした', 'Network error, not recorded')}</div>`; return; }
-  if (!r.ok) { f.innerHTML = `<div class="rf-title">🏆 ${L('ランキング', 'Rankings')}</div><div class="rf-msg">${r.err === 'wait' ? L('続けて記録できないため、今回は記録しませんでした', 'Not recorded (too soon after the last one)') : r.err === 'cheat' ? L('走りの記録に不自然な動きがあったため、記録できませんでした', 'The run looked tampered with, so it was not recorded') : L('記録できませんでした', 'Could not record')}</div>`; return; }
+  if (!r.ok) { f.innerHTML = `<div class="rf-title">🏆 ${L('ランキング', 'Rankings')}</div><div class="rf-msg">${r.err === 'wait' ? L('続けて記録できないため、今回は記録しませんでした', 'Not recorded (too soon after the last one)') : L('記録できませんでした', 'Could not record')}</div>`; return; }
   const ga = r.gotAll || {}, gd = r.got || {};
+  if (window.steam) { const u = []; if (Object.values(gd).includes(1)) u.push('TODAY_CUP_1'); if (Object.keys(ga).length) u.push('ALL_TIME_RANKED'); if (u.length) window.steam.unlock(u); }
   const got = Object.entries(gd).sort((a, b) => a[1] - b[1]).map(([k, n]) => `${esc(catTitle(k))} ${L(`当日杯 ${n}位`, `Today #${n}`)}${ga[k] ? `<b style="color:var(--gold)">・${L(`歴代杯 ${ga[k]}位!`, `All-time #${ga[k]}!`)}</b>` : ''}`);
   const bestCat = Object.entries(gd).sort((a, b) => a[1] - b[1])[0];
   f.innerHTML = `<div class="rf-title">🏆 ${got.length ? L('ランクイン!', 'Ranked!') : L('記録しました', 'Recorded')}（${cupsOf(Object.keys(gd).length, Object.keys(ga).length)}）　<small>${esc(pName(place))}</small></div>
@@ -2001,7 +2033,7 @@ async function showRankForm() {
   };
 }
 // 共有: その記録（またはその町・部門の表）を開く URL
-const rankURL = (pl, cat, id) => `${location.origin}${BASE}?rank=${pl}&cat=${cat}${rkMode === 'online' ? '&m=online' : ''}${rkScope === 'all' ? '&s=all' : ''}${id ? '&id=' + id : ''}`;
+const rankURL = (pl, cat, id) => `${SITE}?rank=${pl}&cat=${cat}${rkMode !== 'solo' ? '&m=' + rkMode : ''}${rkScope === 'all' ? '&s=all' : ''}${id ? '&id=' + id : ''}`;
 // 見ているランキング/記録をアドレスバーにも反映（そのままコピーで共有できる）
 const setURL = u => { try { history.replaceState(null, '', u); } catch { } };
 const homeURL = () => { const k = new URLSearchParams(location.search).get('debug'); return BASE + (k ? '?debug=' + encodeURIComponent(k) : ''); };
@@ -2013,7 +2045,7 @@ async function debugOK() {
   const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k)))].map(b => b.toString(16).padStart(2, '0')).join('');
   return h === DEBUG_HASH;
 }
-const recURL = id => `${location.origin}${BASE}?r=${id}`;   // プレイ記録ごとの URL
+const recURL = id => `${SITE}?r=${id}`;   // プレイ記録ごとの URL
 const catName = k => { const c = RK_CATS.find(x => x[0] === k); return c ? L(c[1], c[2]) : k; };
 const pName = p => (LANG === 'en' ? PLACE_EN[p] : PLACES[p]);
 function shareButtons(url, text) {
@@ -2031,19 +2063,21 @@ function shareButtons(url, text) {
   return `<button class="share-btn" id="${id}">🔗 ${L('共有', 'Share')}</button><a class="share-btn x" href="${x}" target="_blank" rel="noopener noreferrer">𝕏 ${L('ポスト', 'Post')}</a><div class="share-msg" id="${id}m"></div>`;
 }
 // ランキングを見る画面
-let rkPlace = 'jp', rkCat = 'lap', rkData = null, rkOpenId = null, rkScope = 'day', rkMode = 'solo';   // rkMode: solo = シングルの部 / online = オンラインの部
+const rkVal = (cat, v) => (v == null ? '—' : cat[3](v));   // 値の残っていない記録（改造の一部）は —
+let rkPlace = 'jp', rkCat = 'lap', rkData = null, rkOpenId = null, rkScope = 'day', rkMode = 'solo';   // rkMode: solo = ひとり / online = みんな / cheat = 改造（弾かれた記録）
    // rkScope: day = 当日杯（直近 12 時間・基本） / all = 歴代
 const flagSvg = p => { const b = document.querySelector(`#placeSel button[data-p="${p}"] svg`); return b ? b.outerHTML : ''; };
 function openRanking(pl, md) { rkPlace = PLACES[pl] ? pl : 'jp'; rkMode = md || (mode === 'online' ? 'online' : 'solo'); $('rkDetail').classList.add('hidden'); $('ranking').classList.remove('hidden'); renderRkTabs(); loadRk(); }
 function renderRkTabs() {
-  $('rkMode').innerHTML = [['solo', '🎮 シングルの部', '🎮 Single'], ['online', '🌐 オンラインの部', '🌐 Online']].map(([k, j, en]) => `<button data-m="${k}" class="${k === rkMode ? 'sel' : ''}">${L(j, en)}</button>`).join('');
+  $('rkMode').innerHTML = [['solo', '🎮 ひとり', '🎮 Solo'], ['online', '🌐 みんな', '🌐 Online'], ['cheat', '🚫 改造', '🚫 Modded']].map(([k, j, en]) => `<button data-m="${k}" class="${k === rkMode ? 'sel' : ''}">${L(j, en)}</button>`).join('');
   $('rkMode').querySelectorAll('button').forEach(b => b.onclick = () => { if (rkMode === b.dataset.m) return; rkMode = b.dataset.m; renderRkTabs(); loadRk(); });
   $('rkScope').innerHTML = [['day', '🏁 当日杯', "🏁 Today's Cup", '直近12時間', 'Last 12 hours'], ['all', '👑 歴代', '👑 All-time', 'これまでの最高記録', 'Best ever']].map(([k, j, en, sj, se]) => `<button data-s="${k}" class="${k === rkScope ? 'sel' : ''}">${L(j, en)}<small>${L(sj, se)}</small></button>`).join('');
   $('rkScope').querySelectorAll('button').forEach(b => b.onclick = () => { if (rkScope === b.dataset.s) return; rkScope = b.dataset.s; renderRkTabs(); loadRk(); });
-  $('rkPlace').innerHTML = PLACE_IDS.map(p => `<button data-p="${p}" class="${p === rkPlace ? 'sel' : ''}">${flagSvg(p)}${esc(LANG === 'en' ? PLACE_EN[p] : PLACES[p])}</button>`).join('');
+  $('rkPlace').innerHTML = PLACE_IDS.map(p => `<button data-p="${p}" class="${p === rkPlace ? 'sel' : ''}">${flagSvg(p)}<span class="dd-t">${esc(LANG === 'en' ? PLACE_EN[p] : PLACES[p])}</span></button>`).join('');
   $('rkCat').innerHTML = RK_CATS.map(([k, ja, en, , tj, te, ic]) => `<button data-c="${k}" class="${k === rkCat ? 'sel' : ''}">${ic} ${L(tj, te)}<small style="display:block;font-size:10px;opacity:.75">${L(ja, en)}</small></button>`).join('');
   $('rkPlace').querySelectorAll('button').forEach(b => b.onclick = () => { rkPlace = b.dataset.p; renderRkTabs(); loadRk(); });
   ddify($('rkPlace'));
+  { const i = PLACE_IDS.indexOf(rkPlace); $('rkPrev').disabled = i <= 0; $('rkNext').disabled = i >= PLACE_IDS.length - 1; }
   $('rkCat').querySelectorAll('button').forEach(b => b.onclick = () => { rkCat = b.dataset.c; renderRkTabs(); renderRkList(); });
   const selTab = $('rkCat').querySelector('.sel'); if (selTab) selTab.scrollIntoView({ block: 'nearest', inline: 'center' });
   if (!rkOpenId) setURL(rankURL(rkPlace, rkCat));
@@ -2065,9 +2099,10 @@ function agoText(at) {
 function renderRkList() {
   if (!rkData) return;
   const list = rkData.cats?.[rkCat] || [], cat = RK_CATS.find(c => c[0] === rkCat);
-  const hr = rkData.hours || 12, head = rkData.scope === 'day' ? `<div class="rk-day">${L(`当日杯: 直近 ${hr} 時間に走った記録のランキング`, `Today's Cup: runs from the last ${hr} hours`)}</div>` : '';
-  if (!list.length) { $('rkList').innerHTML = head + `<div class="collNone" style="text-align:center;padding:30px 0">${rkData.scope === 'day' ? L('直近の記録はまだありません。一番乗りを狙おう!', 'No recent records yet. Be the first!') : L('まだ記録がありません。一番乗りを狙おう!', 'No records yet. Be the first!')}</div>`; return; }
-  $('rkList').innerHTML = head + list.map((e, i) => `<div class="rk-row" data-i="${i}"><span class="rk-n">${i + 1}</span>${cFlag(e.country)}<div><b>${esc(e.name)}</b>${e.img ? ' 📷' : ''}<small>${esc(e.comment || '')}</small></div><span class="rk-v">${cat[3](e.val)}<small class="rk-ago">${agoText(e.at)}</small></span></div>`).join('');
+  const hr = rkData.hours || 12, cheat = rkData.mode === 'cheat';
+  const head = (cheat ? `<div class="rk-day rk-cheat">${L('改造と判定され、ランキングに載らなかった記録です', 'Runs rejected as modded. They are not in the rankings.')}</div>` : '') + (rkData.scope === 'day' ? `<div class="rk-day">${L(`当日杯: 直近 ${hr} 時間に${cheat ? '弾かれた記録' : '走った記録のランキング'}`, `Today's Cup: ${cheat ? 'rejected runs' : 'runs'} from the last ${hr} hours`)}</div>` : '');
+  if (!list.length) { $('rkList').innerHTML = head + `<div class="collNone" style="text-align:center;padding:30px 0">${cheat ? L('ありません', 'None') : rkData.scope === 'day' ? L('直近の記録はまだありません。一番乗りを狙おう!', 'No recent records yet. Be the first!') : L('まだ記録がありません。一番乗りを狙おう!', 'No records yet. Be the first!')}</div>`; return; }
+  $('rkList').innerHTML = head + list.map((e, i) => `<div class="rk-row" data-i="${i}"><span class="rk-n">${i + 1}</span>${cFlag(e.country)}<div><b>${esc(e.name)}</b>${e.img ? ' 📷' : ''}<small>${esc(e.comment || '')}</small></div><span class="rk-v">${rkVal(cat, e.val)}<small class="rk-ago">${agoText(e.at)}</small></span></div>`).join('');
   $('rkList').querySelectorAll('.rk-row').forEach(row => row.onclick = () => showRkDetail(list[+row.dataset.i], cat, +row.dataset.i + 1));
   // 共有 URL から開いた時は、その記録を見せる
   if (rkOpenId) { const i = list.findIndex(e => e.id === rkOpenId); rkOpenId = null; if (i >= 0) showRkDetail(list[i], cat, i + 1); }
@@ -2075,7 +2110,7 @@ function renderRkList() {
 // この記録が載っている部門と順位（タップでその部門に切り替え）
 function recRanks(id) {
   const out = [];
-  for (const c of RK_CATS) { const list = rkData?.cats?.[c[0]] || [], i = list.findIndex(x => x.id === id); if (i >= 0) out.push(`<button data-c="${c[0]}" class="${c[0] === rkCat ? 'sel' : ''}">${c[6]} ${esc(L(c[4], c[5]))} <b>${i + 1}${L('位', '')}</b> <small>${c[3](list[i].val)}</small></button>`); }
+  for (const c of RK_CATS) { const list = rkData?.cats?.[c[0]] || [], i = list.findIndex(x => x.id === id); if (i >= 0) out.push(`<button data-c="${c[0]}" class="${c[0] === rkCat ? 'sel' : ''}">${c[6]} ${esc(L(c[4], c[5]))} <b>${i + 1}${L('位', '')}</b> <small>${rkVal(c, list[i].val)}</small></button>`); }
   return out.join('');
 }
 function showRkDetail(e, cat, n) {
@@ -2084,13 +2119,13 @@ function showRkDetail(e, cat, n) {
   d.innerHTML = `<img class="pv" id="rkImg" alt="">
     ${n === 1 ? `<div style="font-family:'Dela Gothic One',sans-serif;color:var(--gold);font-size:18px">👑 ${catTitle(rkCat)}</div>` : ''}
     <div class="rk-dn">${n}. ${esc(e.name)}</div>
-    <div>${cFlag(e.country)} ${esc(cName(e.country))}　<b style="color:var(--gold)">${L(cat[1], cat[2])}: ${cat[3](e.val)}</b></div>
-    <div class="collNone">${esc(LANG === 'en' ? PLACE_EN[rkPlace] : PLACES[rkPlace])} · ${e.tod === 'night' ? L('夜', 'Night') : L('昼', 'Day')} · ${e.laps}${L('周', ' laps')} · ${date}</div>
+    <div>${cFlag(e.country)} ${esc(cName(e.country))}　<b style="color:var(--gold)">${L(cat[1], cat[2])}: ${rkVal(cat, e.val)}</b></div>
+    <div class="collNone">${esc(LANG === 'en' ? PLACE_EN[rkPlace] : PLACES[rkPlace])} · ${e.tod === 'night' ? L('夜', 'Night') : L('昼', 'Day')}${e.laps ? ` · ${e.laps}${L('周', ' laps')}` : ''} · ${date}</div>
     ${e.comment ? `<div class="rk-dc">「${esc(e.comment)}」</div>` : ''}
     <div class="rk-actions">${e.rep ? `<button class="go" id="rkPlay">▶ ${L('走りを再生', 'Play the run')}</button>` : ''}${e.dj ? `<button class="go ghost" id="rkItems">🧲 ${L('積んだもの', 'Haul')}</button><button class="go online" id="rkDj">🏮 ${L('だんじり表示', 'View danjiri')}</button>` : ''}</div>
     <div class="rk-recs">${recRanks(e.id)}</div>
     <div class="mb-chips" id="rkItemList"></div>
-    <div class="rk-share">${shareButtons(recURL(e.id), L(`だんじり疾走「${pName(rkPlace)}」${catName(rkCat)} ${n}位 ${e.name}（${cat[3](e.val)}）`, `Danjiri Dash — ${pName(rkPlace)} ${catName(rkCat)} #${n} ${e.name} (${cat[3](e.val)})`))}</div>
+    <div class="rk-share">${shareButtons(recURL(e.id), L(`だんじり疾走「${pName(rkPlace)}」${catName(rkCat)} ${n}位 ${e.name}（${rkVal(cat, e.val)}）`, `Danjiri Dash — ${pName(rkPlace)} ${catName(rkCat)} #${n} ${e.name} (${rkVal(cat, e.val)})`))}</div>
     <button class="go ghost" id="rkBack">${L('もどる', 'Back')}</button>`;
   d.classList.remove('hidden');
   setURL(recURL(e.id));
@@ -2117,7 +2152,7 @@ function onlineCountTick() {
   if (OC.ws && OC.ws.readyState === 1) { OC.ws.send(JSON.stringify({ t: 'stats' })); return; }
   if (OC.ws) return;
   try {
-    const ws = new WebSocket(wsURL());
+    const ws = openWS();
     OC.ws = ws;
     ws.onopen = () => ws.send(JSON.stringify({ t: 'stats' }));
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.t === 'stats') el.innerHTML = `<span class="dot"></span>${L('待ち', 'waiting')} ${m.wait}・${L('レース中', 'racing')} ${m.play}`; };
@@ -2129,7 +2164,7 @@ setInterval(onlineCountTick, 5000);
 function netConnect() {
   NET.failed = false; NET.bestRtt = 1e9;
   let ws;
-  try { ws = new WebSocket(wsURL()); }
+  try { ws = openWS(); }
   catch { NET.failed = true; renderLobby(); return; }
   NET.ws = ws;
   ws.onopen = () => {
@@ -2277,6 +2312,10 @@ function onNet(m) {
   else if (m.t === 'like') onLike(m);
   else if (m.t === 'pos') onPos(m);
   else if (m.t === 'result') showOnlineResult(m);
+  else if (m.t === 'hold') { // しばらくオンラインに入れない（シングルは遊べる）
+    netLeave(); toTitle();
+    setTimeout(() => alert(L(`しばらく「みんなで」に参加できません（あと約 ${m.min} 分）。「ひとりで」は遊べます。`, `You can't join online games for a while (about ${m.min} min left). Single play is still available.`)), 50);
+  }
   else if (m.t === 'dup') { // 同じ回線の別の画面（タブ・端末）で入ったので、こちらは抜ける（つなぎ直さない）
     netLeave(); toTitle();
     setTimeout(() => alert(L('同じ回線の別の画面から「みんなで」に入ったため、こちらは退出しました。（1 人 1 台まで）', 'You joined online from another screen on the same connection, so this one left. (One player per connection)')), 50);
@@ -2456,7 +2495,7 @@ function netTick(force) {
 // 待機室の番付: ランキング（オンラインの部・当日杯）のその町の 1 周タイム（サーバーが部屋の知らせに付けてくる）
 function rankingHTML() {
   const B = NET.board; if (!B || !B.place) return '';
-  const head = `<b>🏁 ${L('当日杯・オンラインの部', "Today's Cup · Online")}<small style="display:block;font-size:10px;opacity:.75">${esc(pName(B.place))} ${esc(catTitle('lap'))}（${L('1周タイム・直近 12 時間', 'lap time, last 12 h')}）</small></b>`;
+  const head = `<b>🏁 ${L('当日杯・みんな', "Today's Cup · Online")}<small style="display:block;font-size:10px;opacity:.75">${esc(pName(B.place))} ${esc(catTitle('lap'))}（${L('1周タイム・直近 12 時間', 'lap time, last 12 h')}）</small></b>`;
   return head + (B.list.length ? '<ol>' + B.list.map(b => `<li><b class="rk-t">${fmt(b.time)}</b>${cFlag(b.country)}${esc(b.name)}</li>`).join('') + '</ol>' : `<div style="font-size:12px;opacity:.75">${L('まだ記録がありません', 'No records yet')}</div>`);
 }
 function renderLobby() {
@@ -2584,6 +2623,11 @@ function setupTitle() {
   document.querySelectorAll('#custom .cu-sec').forEach(d => d.addEventListener('toggle', () => { if (d.open) d.querySelectorAll('.cu-fin .sel').forEach(b => b.scrollIntoView({ block: 'nearest', inline: 'center' })); if (d.open) document.querySelectorAll('#custom .cu-sec').forEach(o => { if (o !== d) o.open = false; }); })); $('cuShow').onclick = () => cuFold(false);
   $('rankBtn').onclick = () => openRanking(place); $('resRankBtn').onclick = () => openRanking(place);
   $('rkClose').onclick = () => { $('ranking').classList.add('hidden'); setURL(homeURL()); };
+  $('rkX').onclick = () => $('rkClose').click();
+  const rkStep = d => { const i = PLACE_IDS.indexOf(rkPlace) + d; if (i < 0 || i >= PLACE_IDS.length) return; rkPlace = PLACE_IDS[i]; renderRkTabs(); loadRk(); };   // 端（最初・最後の町）で止まる
+  $('rkPrev').onclick = () => rkStep(-1); $('rkNext').onclick = () => rkStep(1);
+  $('mbX').onclick = () => $('mbClose').click();
+  if (DESKTOP) { $('appExitBtn').classList.remove('hidden'); $('appExitBtn').onclick = () => window.close(); }   // Steam 版だけ「終了」
   $('mbBtn').onclick = () => openMyBest(place); $('resMbBtn').onclick = () => openMyBest(place); $('mbClose').onclick = () => $('mybest').classList.add('hidden');
   $('showBtn').onclick = playMatch; $('rpStop').onclick = replayStop;
   $('rpPrev').onclick = () => rpPick(-1); $('rpNext').onclick = () => rpPick(1);
@@ -2756,6 +2800,8 @@ function frame(nowMs) {
   const sp = player.car.speed;
   speedPass.uniforms.uAmt.value = racing ? clamp((sp - 17) / 12, 0, 1) + (player.car.boosting ? 0.35 : 0) : 0;
   speedPass.uniforms.uTime.value = t; speedPass.uniforms.uAspect.value = innerWidth / innerHeight;
+  // 曲がり角のナビ（走りの線を道に光らせる）: 自分で走っている間だけ
+  if (navLine) navLine.update(player.car.s, t, state === 'race' && !player.finished, dt);
   if (quality === 'high') composer.render(); else { renderer.render(scene, camera); }
   renderXray();
   if (wantPreview) { wantPreview = false; grabPreview(); }
@@ -2770,6 +2816,7 @@ async function boot() {
     ]);
   } catch { }
   course = SIM.buildCourse();
+  navLine = makeNavLine(course); scene.add(navLine.mesh);
   loadStage(place, night);
   prepMini();
   applyQuality(); applyTimeOfDay();
@@ -2784,9 +2831,9 @@ async function boot() {
   { const r = new URLSearchParams(location.search).get('r');
     if (r && /^[0-9a-z]{1,12}$/.test(r)) rankAsk({ t: 'rankfind', id: r }, 'rankfind').then(m => {
       if (!m.place) { openRanking('jp'); return; }   // 圏外に落ちた記録
-      const cs = Object.keys(m.at).sort((a, b) => m.at[a] - m.at[b]); rkCat = cs[0] || 'lap'; rkOpenId = r; rkScope = m.scope === 'day' ? 'day' : 'all'; openRanking(m.place, m.mode === 'online' ? 'online' : 'solo');
+      const cs = Object.keys(m.at).sort((a, b) => m.at[a] - m.at[b]); rkCat = cs[0] || 'lap'; rkOpenId = r; rkScope = m.scope === 'day' ? 'day' : 'all'; openRanking(m.place, ['online', 'cheat'].includes(m.mode) ? m.mode : 'solo');
     }).catch(() => { }); }
-  { const q = new URLSearchParams(location.search), rp = q.get('rank'); if (rp && PLACES[rp]) { const c = q.get('cat'); if (RK_CATS.some(x => x[0] === c)) rkCat = c; rkOpenId = q.get('id') || null; rkScope = q.get('s') === 'all' ? 'all' : 'day'; openRanking(rp, q.get('m') === 'online' ? 'online' : 'solo'); } }
+  { const q = new URLSearchParams(location.search), rp = q.get('rank'); if (rp && PLACES[rp]) { const c = q.get('cat'); if (RK_CATS.some(x => x[0] === c)) rkCat = c; rkOpenId = q.get('id') || null; rkScope = q.get('s') === 'all' ? 'all' : 'day'; openRanking(rp, ['online', 'cheat'].includes(q.get('m')) ? q.get('m') : 'solo'); } }
   debugOK().then(ok => { if (!ok) return;
     window.__dj = {
       placeAt(s, lane = 0, mode = 0) { SIM.placeCar(player.car, course, s, lane); player.car.prog = s; camMode = mode; cam.ready = false; for (const r of racers) r.ropes.forEach(o => (o.init = false)); },
