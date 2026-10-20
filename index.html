@@ -48,6 +48,11 @@
 
   /* ---------- HUD ---------- */
   #hud { position: fixed; inset: 0; pointer-events: none; }
+  /* 視点切り替え（右の方。押すたびに うしろ → 近く → 本人視点 → 上から → 横から） */
+  #camBtn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; align-content: center; pointer-events: auto; touch-action: none; cursor: pointer; z-index: 5; background: rgba(18,12,36,0.7); border: 2px solid var(--gold); font-size: 20px; line-height: 1; user-select: none; -webkit-user-select: none; }
+  #camBtn .fa { width: 24px; height: 20px; color: var(--paper); }
+  #camBtn small { font-size: 9px; font-weight: 900; color: var(--gold); margin-top: 2px; }
+  #camBtn:active { transform: translateY(-50%) scale(0.92); }
   #tl { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 12px; padding: 8px 14px 10px; min-width: 150px; }
   #tl .rank { font-family: 'Dela Gothic One', sans-serif; font-size: 46px; line-height: 1; color: var(--gold); text-shadow: 0 3px 0 #6b3d10; }
   #tl .rank small { font-size: 16px; color: var(--paper); margin-left: 4px; text-shadow: none; }
@@ -60,8 +65,11 @@
   #spd small { color: var(--muted); margin-left: 4px; }
   .bar { position: relative; height: 14px; border-radius: 7px; background: rgba(255,255,255,0.14); overflow: hidden; margin-top: 8px; }
   .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 7px; }
-  #boostBar { background: linear-gradient(90deg, #e2402f, #ffb02e, #fff2a8); }
+  #boostBar { background: linear-gradient(90deg, #8a4a3a, #9a7a4a); opacity: .7; transition: opacity .2s; }   /* まだ使えない: くすんだ色 */
+  #boostBar.ready { background: linear-gradient(90deg, #e2402f, #ffb02e, #fff2a8); opacity: 1; }   /* 使える */
   #boostBar.full { box-shadow: 0 0 12px #ffd23f; animation: glow .5s ease-in-out infinite alternate; }
+  #boostBar.soryaOn { opacity: 1; background: linear-gradient(90deg, #ff2a10, #ffd23f, #fff, #ffd23f, #ff2a10) 0 0 / 200% 100%; box-shadow: 0 0 14px #ff6a20, 0 0 4px #fff; animation: boostFlow .35s linear infinite; }   /* ソーリャ中: 炎が流れる */
+  @keyframes boostFlow { to { background-position: -200% 0; } }
   @keyframes glow { from { filter: brightness(1); } to { filter: brightness(1.5); } }
   .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
   .lbl b { color: var(--gold); font-family: 'Dela Gothic One', sans-serif; font-weight: 400; }
@@ -92,6 +100,7 @@
   .rank-form input, .rank-form select { width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.35); color: var(--paper); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 5px 7px; font: inherit; user-select: text; -webkit-user-select: text; }
   .rank-form .rf-row { display: flex; gap: 6px; }
   .rank-form button { grid-column: 1 / -1; justify-self: center; }
+  .rank-form #rfSend { font-size: 14px; padding: 6px 18px; min-width: 0; min-height: 0; border-width: 2px; box-shadow: 0 3px 0 rgba(0,0,0,0.35); }   /* 名前を付けるのはおまけなので小さめ */
   .rank-form .rf-msg { grid-column: 1 / -1; text-align: center; color: var(--gold); min-height: 1.2em; font-weight: 700; }
   .ci { cursor: pointer; } .ci:hover { border-color: var(--gold); }
   #replayBar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px; background: rgba(18,12,36,0.88); border: 2px solid var(--gold-deep); border-radius: 30px; padding: 6px 8px 6px 18px; font-family: 'Dela Gothic One', sans-serif; font-size: 17px; }
@@ -321,34 +330,45 @@
   body.touch #backBtn small { display: none; }
   @keyframes backPulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
   /* 曲がり角の案内: 道路標識のような曲がる矢印を、曲がる側に大きく */
-  #turn { position: absolute; top: 15%; display: flex; align-items: center; gap: 10px; text-align: center; font-family: 'Dela Gothic One', sans-serif; color: #1b1020; pointer-events: none; transition: left .25s; transform: translateX(var(--tx, -50%)); background: linear-gradient(#ffe14a, #f2a81c); border: 4px solid #1b1020; border-radius: 22px; padding: 8px 22px 8px 14px; box-shadow: 0 6px 0 #1b1020, 0 0 30px rgba(255,200,40,0.7); }
-  #turn.L { left: 32%; } #turn.R { left: 68%; flex-direction: row-reverse; padding: 8px 14px 8px 22px; }
-  @media (max-width: 700px) { #turn { --tx: 0px; } #turn.L { left: 10px; transform-origin: left center; } #turn.R { left: auto; right: 10px; transform-origin: right center; } }   /* スマホは中央に寄せず、曲がる側の端に小さく出す */
-  #turn .arr { width: 92px; height: 92px; flex: none; animation: turnArr .38s ease-in-out infinite alternate; }
+  /* 次の角の案内: 道をふさがないよう、画面の上のまん中に小さな札で出す（矢印＋「右へ!!」＋残り m） */
+  #turn { position: absolute; top: max(22px, env(safe-area-inset-top)); left: 50%; transform: translateX(calc(-50% + var(--sx, 0px))) rotate(var(--rot, 0deg)); transition: transform .2s; display: flex; align-items: center; gap: 6px; font-family: 'Dela Gothic One', sans-serif; color: #1b1020; pointer-events: none; background: linear-gradient(#ffe14a, #f2a81c); border: 3px solid #1b1020; border-radius: 999px; padding: 3px 16px 3px 8px; box-shadow: 0 3px 0 #1b1020; opacity: .9; }
+  #turn.R { flex-direction: row-reverse; padding: 3px 8px 3px 16px; }
+  /* 曲がる側へ寄せて、そちらへ傾ける（見ただけで右か左か分かる） */
+  #turn.L { --sx: -18vw; --rot: -9deg; } #turn.R { --sx: 18vw; --rot: 9deg; }
+  #turn .arr { width: 44px; height: 44px; flex: none; animation: turnArr .38s ease-in-out infinite alternate; }
   #turn .arr svg { width: 100%; height: 100%; display: block; }
   #turn.L .arr svg { transform: scaleX(-1); }
-  #turn.L .arr { --dx: -12px; } #turn.R .arr { --dx: 12px; }
-  #turn .tx { font-size: 50px; line-height: 1.05; white-space: nowrap; }
-  @media (max-width: 480px) { #turn .arr { width: 40px; height: 40px; } #turn .tx { font-size: 24px; } #turn.now .tx { font-size: 28px !important; } #turn small { font-size: 11px !important; } #turn { gap: 6px; border-width: 3px; border-radius: 16px; } }
+  #turn.L .arr { --dx: -6px; } #turn.R .arr { --dx: 6px; }
+  #turn .tx { font-size: 28px; line-height: 1.05; white-space: nowrap; }
   #turn .tx:empty { display: none; }
-  #turn small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 18px; color: #1b1020; }
-  #turn.now { background: linear-gradient(#ff5a3c, #c8180c); color: #fff; animation: turnPulse .32s ease-in-out infinite alternate; }
-  #turn.now small { color: #fff; } #turn.now .tx { font-size: 66px; }
-  @keyframes turnPulse { from { transform: translateX(var(--tx, -50%)) scale(1); box-shadow: 0 6px 0 #1b1020, 0 0 20px rgba(255,60,40,0.6); } to { transform: translateX(var(--tx, -50%)) scale(1.1); box-shadow: 0 6px 0 #1b1020, 0 0 60px rgba(255,60,40,1); } }
-  #turnEdge { position: absolute; top: 0; bottom: 0; width: 22%; pointer-events: none; opacity: 0; transition: opacity .2s; }
-  #turnEdge.L { left: 0; background: linear-gradient(90deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
-  #turnEdge.R { right: 0; background: linear-gradient(270deg, rgba(255,50,30,0.55), rgba(255,50,30,0)); opacity: 1; animation: blink .32s steps(2) infinite; }
-  /* 曲がる向きにチッカチッカ（矢印が出たあと、外向きに流れて点滅） */
-  #turn .blk { position: absolute; top: 50%; display: flex; gap: 4px; opacity: 0; filter: drop-shadow(2px 0 0 #1b1020) drop-shadow(-2px 0 0 #1b1020) drop-shadow(0 2px 0 #1b1020) drop-shadow(0 -2px 0 #1b1020) drop-shadow(0 0 10px rgba(255,190,20,.8)); transform: translateY(-50%); animation: blkIn .2s .35s forwards; }
-  #turn.L .blk { right: calc(100% + 8px); flex-direction: row-reverse; } #turn.R .blk { left: calc(100% + 8px); }
-  #turn .blk i { width: 36px; height: 62px; background: #ffd21c; clip-path: polygon(0 0, 45% 0, 100% 50%, 45% 100%, 0 100%, 55% 50%); opacity: .2; animation: chikka .7s linear infinite; }
+  #turn small { display: block; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 13px; color: #1b1020; white-space: nowrap; }
+  #turn.now { background: linear-gradient(#ff5a3c, #c8180c); color: #fff; opacity: 1; animation: turnPulse .32s ease-in-out infinite alternate; }
+  #turn.now small { color: #fff; }
+  /* 札の外、曲がる側に小さな »»» がチッカチッカと流れる（札と一緒に寄って傾く） */
+  #turn .blk { position: absolute; top: 50%; display: flex; gap: 2px; opacity: 0; transform: translateY(-50%); filter: drop-shadow(1px 0 0 #1b1020) drop-shadow(-1px 0 0 #1b1020) drop-shadow(0 1px 0 #1b1020) drop-shadow(0 -1px 0 #1b1020); animation: blkIn .2s .2s forwards; }
+  #turn.L .blk { right: calc(100% + 6px); flex-direction: row-reverse; } #turn.R .blk { left: calc(100% + 6px); }
+  #turn .blk i { width: 16px; height: 28px; background: #ffd21c; clip-path: polygon(0 0, 45% 0, 100% 50%, 45% 100%, 0 100%, 55% 50%); opacity: .2; animation: chikka .7s linear infinite; }
   #turn.L .blk i { transform: scaleX(-1); }
   #turn .blk i:nth-child(2) { animation-delay: .12s; } #turn .blk i:nth-child(3) { animation-delay: .24s; }
   #turn.now .blk i { background: #ff4a2a; animation-duration: .45s; }
   #turn.now .blk i:nth-child(2) { animation-delay: .08s; } #turn.now .blk i:nth-child(3) { animation-delay: .16s; }
+  @keyframes turnPulse { from { transform: translateX(calc(-50% + var(--sx, 0px))) rotate(var(--rot, 0deg)) scale(1); } to { transform: translateX(calc(-50% + var(--sx, 0px))) rotate(var(--rot, 0deg)) scale(1.08); } }
+  /* 曲がる側の画面の端に、細い光の帯（道は隠さない） */
+  #turnEdge { position: absolute; top: 0; bottom: 0; width: 12px; pointer-events: none; opacity: 0; transition: opacity .2s; }
+  #turnEdge.L { left: 0; background: linear-gradient(90deg, rgba(255,60,30,0.75), rgba(255,60,30,0)); opacity: 1; animation: blink .4s steps(2) infinite; }
+  #turnEdge.R { right: 0; background: linear-gradient(270deg, rgba(255,60,30,0.75), rgba(255,60,30,0)); opacity: 1; animation: blink .4s steps(2) infinite; }
+  @media (max-width: 640px) {   /* スマホ縦: 左上の順位・右上の地図より下（空のあたり）に、さらに小さく */
+    #turn { top: calc(max(12px, env(safe-area-inset-top)) + 240px); border-width: 2px; padding: 2px 12px 2px 6px; gap: 4px; }   /* 右上の速度計より下。左右に寄せるので道のまん中はふさがない */
+    #turn.L { --sx: -24vw; } #turn.R { --sx: 24vw; }
+    #turn.R { padding: 2px 6px 2px 12px; }
+    #turn .arr { width: 30px; height: 30px; } #turn .tx { font-size: 20px; } #turn small { font-size: 11px; }
+    #turn .blk i { width: 11px; height: 20px; }
+    #turn.L .blk { right: auto; left: 4px; top: calc(100% + 4px); transform: none; } #turn.R .blk { left: auto; right: 4px; top: calc(100% + 4px); transform: none; }   /* スマホは画面からはみ出さないよう札の下に */
+  }
+  @media (max-height: 520px) { body.touch #turn { top: 116px; } #turn.L { --sx: -16vw; } #turn.R { --sx: 16vw; } #turn .arr { width: 30px; height: 30px; } #turn .tx { font-size: 20px; } #turn small { font-size: 11px; } }   /* スマホ横: まん中上の速度計の下に、小さく */
+  /* 曲がる向きにチッカチッカ（矢印が出たあと、外向きに流れて点滅） */
   @keyframes blkIn { to { opacity: 1; } }
   @keyframes chikka { 0%, 45% { opacity: 1; } 46%, 100% { opacity: .2; } }
-  @media (max-width: 700px) { #turn .blk i { width: 22px; height: 40px; } #turn .blk { gap: 2px; top: calc(100% + 10px); transform: none; } #turn.L .blk { right: auto; left: 6px; } #turn.R .blk { left: auto; right: 6px; } }   /* スマホは画面からはみ出さないよう札の下に */
   @keyframes turnArr { from { transform: translateX(0); } to { transform: translateX(var(--dx)); } }
   #warn { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); font-family: 'Dela Gothic One', sans-serif; font-size: 34px; color: #ff4d4d; text-shadow: 0 3px 0 #300; animation: blink .4s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0.2; } }
@@ -362,7 +382,16 @@
   #stick { position: absolute; width: 130px; height: 130px; margin: -65px 0 0 -65px; border-radius: 50%; border: 3px solid rgba(255,246,228,0.5); background: rgba(16,12,32,0.35); pointer-events: none; }
   #knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff6e4, #c9b48a); box-shadow: 0 3px 8px rgba(0,0,0,0.5); }
   .tbtn { position: absolute; pointer-events: auto; border-radius: 50%; border: 3px solid var(--gold); color: var(--paper); font-family: 'Dela Gothic One', sans-serif; touch-action: none; display: grid; place-items: center; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
-  #tBoost { right: 20px; bottom: 120px; width: 104px; height: 104px; font-size: 19px; background: radial-gradient(circle, rgba(226,64,47,0.9), rgba(120,20,10,0.9)); }
+  #tBoost { right: 20px; bottom: max(24px, env(safe-area-inset-bottom)); width: 104px; height: 104px; font-size: 19px; background: radial-gradient(circle, rgba(226,64,47,0.9), rgba(120,20,10,0.9)); }
+  /* ボタンの内側の輪で、ソーリャのたまり具合（--b: 0〜1）。たまっていない = くすんだ色 / 使える = 金色 / ソーリャ中 = 残りの輪が炎色に */
+  #tBoost { isolation: isolate; --b: 0; --rc: #9a7a4a; }
+  #tBoost::before { content: ''; position: absolute; inset: 3px; border-radius: 50%; z-index: -1; background: conic-gradient(var(--rc) calc(var(--b) * 1turn), rgba(255,255,255,0.14) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px)); mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px)); }
+  #tBoost.ready { --rc: #ffc23a; }
+  #tBoost.full { --rc: #ffe27a; box-shadow: 0 0 16px #ffd23f; }
+  #tBoost.soryaOn { --rc: #fff2a8; box-shadow: 0 0 18px #ff6a20; }
+  #tBoost.soryaOn::before { animation: boostFire .18s linear infinite alternate; }   /* ソーリャ中: 残りの分だけの輪が炎色にチラチラ（減っていくのが見える） */
+  @property --rc { syntax: '<color>'; inherits: true; initial-value: #9a7a4a; }
+  @keyframes boostFire { from { --rc: #ff3a10; } to { --rc: #fff2a8; } }
   #tDrift { right: 134px; bottom: 34px; width: 96px; height: 96px; font-size: 15px; background: radial-gradient(circle, rgba(59,111,216,0.9), rgba(20,40,110,0.9)); }
   #tBrake { right: 26px; bottom: 26px; width: 78px; height: 78px; font-size: 15px; background: rgba(16,12,32,0.6); border-color: rgba(255,246,228,0.6); }
   .tbtn.on { filter: brightness(1.45); transform: scale(0.95); }
@@ -371,11 +400,13 @@
     body.touch #meter { top: 10px; left: 50%; right: auto; transform: translateX(-50%); width: 210px; padding: 4px 10px 6px; }
     body.touch #spd b { font-size: 26px; }
     body.touch #meter .lbl { margin-top: 2px; } body.touch #meter .bar { height: 9px; margin-top: 3px; }
-    body.touch #tBoost { bottom: 104px; width: 92px; height: 92px; } body.touch #tDrift { right: 122px; bottom: 22px; width: 86px; height: 86px; } body.touch #tBrake { width: 68px; height: 68px; bottom: 18px; }
+    body.touch #tBoost { bottom: max(16px, env(safe-area-inset-bottom)); width: 92px; height: 92px; } body.touch #tDrift { right: 122px; bottom: 22px; width: 86px; height: 86px; } body.touch #tBrake { width: 68px; height: 68px; bottom: 18px; }
     #tl { padding: 4px 10px; } #tl .rank { font-size: 30px; }
   }
   body.touch #spd b { font-size: 34px; }
   body.touch #help { display: none; }
+  body.touch #meter .boostRow { display: none; }
+  #tBrake { display: none !important; }   /* 止まるのはスティックを下に引けばできるので、ボタンは出さない */   /* スマホはソーリャボタンの輪で見えるので、速度計のゲージは出さない */
 
   /* ---------- Overlays ---------- */
   .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(15,11,30,0.25), rgba(15,11,30,0.78)); overflow-y: auto; }
@@ -448,6 +479,8 @@
   .lobbyCount { font-family: 'Dela Gothic One', sans-serif; font-size: 22px; color: var(--gold); margin: 6px 0; }
   .ranking { font-size: 13px; color: var(--muted); text-align: left; margin-top: 10px; max-height: 160px; overflow-y: auto; }
   .ranking ol { padding-left: 22px; } .ranking b { color: var(--paper); }
+  .ranking .rk-t { display: inline-block; min-width: 4.6em; font-variant-numeric: tabular-nums; }   /* タイムを左にそろえて */
+  .ranking li img { width: 14px; height: 10px; margin-right: 4px; vertical-align: middle; }
   #nextInfo { font-size: 14px; color: var(--muted); margin-top: 8px; min-height: 1.2em; }
   #nextInfo.nx-on { margin: 10px auto 4px; max-width: 360px; background: linear-gradient(#2a1c48, #1a1230); border: 2px solid var(--gold); border-radius: 18px; padding: 10px 14px; box-shadow: 0 0 18px rgba(242,193,78,0.35); color: var(--paper); }
   #nextInfo .nx-t { font-weight: 700; font-size: 15px; }
@@ -460,10 +493,8 @@
     #mini { width: 112px; height: 112px; }
     #tl { min-width: 118px; padding: 6px 10px; } #tl .rank { font-size: 34px; }
     .msg { font-size: 26px; } .msg.big { font-size: 44px; } #backBtn { font-size: 19px; padding: 9px 18px; bottom: 30%; }
-    #turn .arr { width: 56px; height: 56px; } #turn .tx { font-size: 30px; } #turn.now .tx { font-size: 38px; } #turn small { font-size: 13px; } #turn, #turn.R { padding: 4px 12px 6px; }
     #count { font-size: 96px; }
     body.touch #meter { top: 136px; width: 112px; }
-    body.touch #turn { top: 318px; }   /* 右に出たとき速度計に重ならないよう、その下に */
     .grid2 { grid-template-columns: 1fr; }
   }
 </style>
@@ -480,14 +511,15 @@
   <canvas id="mini" width="220" height="220"></canvas>
   <div id="meter" class="panel">
     <div id="spd"><b id="spdN">0</b><small>km/h</small></div>
-    <div class="lbl"><span data-en="Spirit (SORYA!)">気合（ソーリャ）</span><b id="boostT"></b></div>
-    <div class="bar"><i id="boostBar"></i></div>
+    <div class="lbl boostRow"><span data-en="SORYA!">ソーリャ</span><b id="boostT"></b></div>
+    <div class="bar boostRow"><i id="boostBar"></i></div>
     <div class="lbl"><span data-en="Tilt">傾き</span><span id="tiltT"></span></div>
     <div class="bar"><i id="tiltBar"></i></div>
   </div>
   <div id="msgs"></div>
   <div id="warn" class="hidden"></div>
   <div id="endCount" class="hidden"></div>
+  <div id="camBtn" title="視点を切り替え（C）"><svg class="fa" aria-hidden="true" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M213.1 64.8L202.7 96H128c-35.3 0-64 28.7-64 64V416c0 35.3 28.7 64 64 64H512c35.3 0 64-28.7 64-64V160c0-35.3-28.7-64-64-64H437.3L426.9 64.8C420.4 45.2 402.1 32 381.4 32H258.6c-20.7 0-39 13.2-45.5 32.8zM448 256c0 8.8-7.2 16-16 16H355.3c-6.2 0-11.3-5.1-11.3-11.3c0-3 1.2-5.9 3.3-8L371 229c-13.6-13.4-31.9-21-51-21c-19.2 0-37.7 7.6-51.3 21.3L249 249c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l19.7-19.7C257.4 172.7 288 160 320 160c31.8 0 62.4 12.6 85 35l23.7-23.7c2.1-2.1 5-3.3 8-3.3c6.2 0 11.3 5.1 11.3 11.3V256zM192 320c0-8.8 7.2-16 16-16h76.7c6.2 0 11.3 5.1 11.3 11.3c0 3-1.2 5.9-3.3 8L269 347c13.6 13.4 31.9 21 51 21c19.2 0 37.7-7.6 51.3-21.3L391 327c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-19.7 19.7C382.6 403.3 352 416 320 416c-31.8 0-62.4-12.6-85-35l-23.7 23.7c-2.1 2.1-5 3.3-8 3.3c-6.2 0-11.3-5.1-11.3-11.3V320z"/></svg><small data-en="View">視点</small></div>
   <div id="backBtn" class="hidden" data-en="↩ Back to course<small>or press R</small>">↩ コースに戻る<small>R キーでも戻れる</small></div>
   <div id="turnEdge"></div>
   <div id="turn" class="hidden"><div class="blk"><i></i><i></i><i></i></div><div class="arr"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M34 96 V58 Q34 34 58 34 H66" fill="none" stroke="currentColor" stroke-width="19" stroke-linecap="round"/><path d="M60 8 L96 34 L60 60 Z" fill="currentColor" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/></svg></div><div class="tb"><div class="tx"></div><small></small></div></div>
@@ -677,6 +709,6 @@
   window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.message || ''); });
   window.addEventListener('unhandledrejection', e => { const el = document.getElementById('err'); if (el) el.textContent = 'エラー: ' + (e.reason && e.reason.message || e.reason); });
 </script>
-<script type="module" src="js/game.js?v=176"></script>
+<script type="module" src="js/game.js?v=198"></script>
 </body>
 </html>

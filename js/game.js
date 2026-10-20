@@ -5,13 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as SIM from './sim.js?v=176';
-import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=176';
-import { buildWorld } from './world.js?v=176';
-import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=176';
-import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=176';
-import { FX, SpeedShader } from './fx.js?v=176';
-import * as AU from './audio.js?v=176';
+import * as SIM from './sim.js?v=198';
+import { GLYPHS, FONT, setOutlines, bannerTex } from './gfx.js?v=198';
+import { buildWorld } from './world.js?v=198';
+import { PLACES, PLACE_IDS, SKIES, stageName } from './stages.js?v=198';
+import { makeDanjiri, animateDanjiri, CrowdRig, crewPose, newPose, HIP_Y, setLanternGlow, FINISHES, setFinish, HAIRS, OUTFITS, DJ_TYPES } from './models.js?v=198';
+import { FX, SpeedShader } from './fx.js?v=198';
+import * as AU from './audio.js?v=198';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -193,7 +193,14 @@ cordMesh.frustumCulled = false; cordMesh.count = 0; scene.add(cordMesh);
 let state = 'loading', prevState = null, mode = 'solo';
 let racers = [], player = null;
 let LAPS = +store.get('danjiri-laps', 2), selTeam = +store.get('danjiri-team', 0);
-let raceStart = 0, raceT = 0, resultTimer = 0, timeScale = 1, shake = 0, camMode = 0;
+let raceStart = 0, raceT = 0, resultTimer = 0, timeScale = 1, shake = 0, camMode = +store.get('danjiri-cam', 0) || 0;
+// 視点: 0 = うしろ（ふつう）/ 3 = 近く / 4 = 本人視点（屋根の上の大工方から前を見る）/ 1 = 上から。C キーか右の視点ボタンでこの順に切り替え（2 = 横からは使わない）
+const CAM_ORDER = [0, 3, 4, 1], CAM_NAMES = { 0: ['うしろ', 'Chase'], 3: ['近く', 'Close'], 4: ['本人視点', 'Rider view'], 1: ['上から', 'High'], 2: ['横から', 'Side'] };
+if (!CAM_ORDER.includes(camMode)) camMode = 0;
+function nextCam() {
+  camMode = CAM_ORDER[(CAM_ORDER.indexOf(camMode) + 1) % CAM_ORDER.length]; cam.ready = false; store.set('danjiri-cam', String(camMode));
+  const n = CAM_NAMES[camMode]; message(L(`視点: ${n[0]}`, `Camera: ${n[1]}`), 'good');
+}
 let stats = {};
 let propGrid = new Map();
 const goalS = () => SIM.START_S + LAPS * course.L;
@@ -937,7 +944,8 @@ function updateCamera(dt, t) {
   cam.yaw += dy * Math.min(1, dt * (slide ? 3.0 : 3.6));
   const fx0 = Math.sin(cam.yaw), fz0 = Math.cos(cam.yaw), rx = -fz0, rz = fx0;
   let want;
-  if (camMode === 0) {
+  if (camMode === 0 || camMode === 3) {
+    const near = camMode === 3;   // 近く: うしろの半分くらいの距離
     // すぐ前に別のだんじりがいて前が見えない時（スタートの団子など）は、カメラを引いて少し上から見下ろす
     let block = 0;
     for (const r of racers) {
@@ -952,9 +960,14 @@ function updateCamera(dt, t) {
     if (cam.occT > 0) block = Math.max(block, 1);
     cam.lift = (cam.lift || 0) + (clamp(block * 1.6, 0, 1) - (cam.lift || 0)) * Math.min(1, dt * (block > (cam.lift || 0) ? 2.5 : 0.8));
     const lf = cam.lift;
-    const dist = 10.5 + sp * 0.12 + (c.air ? 3 : 0) + lf * 5, h = 4.3 + sp * 0.04 + (c.air ? 1.5 : 0) + lf * 7;
+    const dist = (near ? 6.5 : 10.5) + sp * (near ? 0.06 : 0.12) + (c.air ? 3 : 0) + lf * 5, h = (near ? 7 : 4.3) + sp * 0.04 + (c.air ? 1.5 : 0) + lf * 7;   // 近く: 屋根の少し上から、前の道が見えるように
     want = tmpP.set(c.x - fx0 * dist, c.y + h, c.z - fz0 * dist);
-    cam.look.set(c.x + fx0 * (6 + lf * 8), c.y + 2.6, c.z + fz0 * (6 + lf * 8));
+    cam.look.set(c.x + fx0 * ((near ? 14 : 6) + lf * 8), c.y + 2.6, c.z + fz0 * ((near ? 14 : 6) + lf * 8));
+  } else if (camMode === 4) {
+    // 本人視点: だんじりの屋根の前のほう（大工方の立つ所）から、進む先を見る
+    const hx = Math.sin(c.yaw), hz = Math.cos(c.yaw);
+    want = tmpP.set(c.x + hx * 1.6, c.y + 6.6, c.z + hz * 1.6);
+    cam.look.set(c.x + hx * 24, c.y + 3.4, c.z + hz * 24);
   } else if (camMode === 1) {
     want = tmpP.set(c.x - fx0 * 14, c.y + 10, c.z - fz0 * 14);
     cam.look.set(c.x + fx0 * 8, c.y + 1.5, c.z + fz0 * 8);
@@ -964,8 +977,8 @@ function updateCamera(dt, t) {
     cam.look.set(c.x + fx0 * 2, c.y + 3, c.z + fz0 * 2);
   }
   // 家の中に入らないように道へ寄せる
-  clampCam(want, 1.6);
-  if (!cam.ready) cam.pos.copy(want); else cam.pos.lerp(want, 1 - Math.exp(-dt * (camMode === 2 ? 3 : 7)));
+  if (camMode !== 4) clampCam(want, 1.6);
+  if (!cam.ready || camMode === 4) cam.pos.copy(want); else cam.pos.lerp(want, 1 - Math.exp(-dt * (camMode === 2 ? 3 : 7)));   // 本人視点はだんじりにぴったり
   const gy = groundAt(cam.pos.x, cam.pos.z, -1) + 1.2;
   if (cam.pos.y < gy) cam.pos.y = gy;
   cam.ready = true;
@@ -975,7 +988,7 @@ function updateCamera(dt, t) {
     shake = Math.max(0, shake - dt * 2.2);
   }
   camera.lookAt(cam.look);
-  if (camMode === 0) camera.rotateZ(-c.roll * 0.18);
+  if (camMode === 0 || camMode === 3) camera.rotateZ(-c.roll * 0.18); else if (camMode === 4) camera.rotateZ(-c.roll * 0.6);
   const fov = clamp(60 + sp * 0.45 + (c.boosting ? 10 : 0), 55, 92);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
 }
@@ -992,7 +1005,7 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   if (state === 'title' && e.code === 'Enter') { if ($('step2').classList.contains('hidden')) titleStep(2); else startSolo(); return; }
   if (state === 'result' && mode === 'solo' && (e.code === 'Enter' || e.code === 'KeyR')) { startSolo(); return; }
-  if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
+  if (e.code === 'KeyC') nextCam();
   else if (e.code === 'KeyM') { AU.setMuted(!AU.audio.muted); message(AU.audio.muted ? L('音 OFF', 'Sound OFF') : L('音 ON', 'Sound ON')); }
   else if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
   else if (e.code === 'KeyR' && state === 'race' && !player.car.air) backToCourse();
@@ -1032,7 +1045,7 @@ function readInput(dt) {
 }
 // スマホ: ボタンの連打やつまむ操作で画面が拡大しないようにする（iOS は user-scalable=no を無視するため）
 {
-  const inPad = e => e.target && e.target.closest && e.target.closest('#touch, .tbtn, #stickZone, #backBtn');
+  const inPad = e => e.target && e.target.closest && e.target.closest('#touch, .tbtn, #stickZone, #backBtn, #camBtn');
   document.addEventListener('touchstart', e => { if (inPad(e)) e.preventDefault(); }, { passive: false });
   let lastEnd = 0;
   document.addEventListener('touchend', e => { const n = Date.now(); if (inPad(e) || n - lastEnd < 300) e.preventDefault(); lastEnd = n; }, { passive: false });
@@ -1064,6 +1077,7 @@ function readInput(dt) {
   };
   hold($('tBoost'), 'boost'); hold($('tBrake'), 'brake');
   $('backBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); backToCourse(); });
+  $('camBtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); nextCam(); });
 }
 
 // ================= HUD =================
@@ -1119,8 +1133,10 @@ function updateHUD() {
   setT($('lapT'), `${clamp(Math.floor((c.prog - SIM.START_S) / course.L) + 1, 1, LAPS)}/${LAPS}`);
   setT($('timeT'), fmt(state === 'countdown' ? 0 : player.finished ? player.finishTime : raceT));
   setT($('spdN'), Math.round(c.speed * 3.6));
-  const bb = $('boostBar'); bb.style.width = (c.boost * 100).toFixed(1) + '%'; bb.classList.toggle('full', c.boost > 0.98);
-  setT($('boostT'), c.boosting ? L('ソーリャ!', 'SORYA!') : c.boost > 0.25 ? (isTouch ? L('ボタンで加速', 'Tap to boost') : L('Shift で加速', 'Shift to boost')) : '');
+  // ソーリャのゲージは文字を出さず色で: たまっていない = くすんだ色 / 使える = 明るく光る / ソーリャ中 = 炎が流れる
+  const bb = $('boostBar'); bb.style.width = (c.boost * 100).toFixed(1) + '%';
+  for (const el of [bb, $('tBoost')]) { el.classList.toggle('soryaOn', !!c.boosting); el.classList.toggle('ready', !c.boosting && c.boost > 0.25); el.classList.toggle('full', !c.boosting && c.boost > 0.98); }
+  if (isTouch) $('tBoost').style.setProperty('--b', c.boost.toFixed(3));   // スマホのソーリャボタンの輪
   const tilt = Math.min(1, Math.abs(c.roll) / SIM.CAR.TIP);
   $('tiltBar').style.width = (tilt * 100).toFixed(1) + '%';
   setT($('tiltT'), tilt > 0.75 ? L('危ない!', 'Careful!') : '');
@@ -1950,30 +1966,37 @@ async function showRankForm() {
   };
   const wd = wouldOf(md), wa = wouldOf(ma);
   if (!wd.length && !wa.length) return;   // どちらもランク外: フォームは出さない
-  const cups = [st.mode === 'online' ? L('オンラインの部', 'Online') : L('シングルの部', 'Single'), wd.length && L('当日杯', "Today's Cup"), wa.length && L('歴代杯', 'All-time')].filter(Boolean).join(L('・', ' · '));
-  const line = (ic, name, w) => w.length ? `<div class="rf-would">${ic} <b>${name}</b>: ${w.slice(0, 3).map(([k, n]) => `${esc(catTitle(k))} ${L(`${n}位`, `#${n}`)}`).join('・')}</div>` : '';
-  f.innerHTML = `<div class="rf-title">🏆 ${L('ランキングに登録', 'Submit to the rankings')}（${cups}）　<small>${esc(pName(place))}</small></div>
-    ${line('🏁', L('当日杯', "Today's Cup"), wd)}${line('👑', L('歴代杯', 'All-time'), wa)}
+  const cupsOf = (d, a) => [st.mode === 'online' ? L('オンラインの部', 'Online') : L('シングルの部', 'Single'), d && L('当日杯', "Today's Cup"), a && L('歴代杯', 'All-time')].filter(Boolean).join(L('・', ' · '));
+  // 名前やひとことを書かなくても、まず自動で記録する（名前は前に使ったもの。なければ名無し）。あとから名前・ひとことを付けられる
+  f.innerHTML = `<div class="rf-title">🏆 ${L('ランキングに記録中…', 'Recording to the rankings…')}（${cupsOf(wd.length, wa.length)}）　<small>${esc(pName(place))}</small></div>`;
+  f.classList.remove('hidden');
+  if (window.__dj) { f.innerHTML += `<div class="rf-msg">${L('試験モード中は記録しません', 'Not recorded in test mode')}</div>`; return; }
+  const name0 = myName || L('名無し', 'Anonymous');
+  let r;
+  try { r = await rankAsk({ t: 'rank', ...st, name: name0, country: myCountry, comment: '', img: lastPreview, rec: rec && rec.f.length >= 70 ? { team: player.teamIdx, f: rec.f } : null, dj: djData() }, 'rankres'); }
+  catch { f.innerHTML = `<div class="rf-title">🏆 ${L('ランキング', 'Rankings')}</div><div class="rf-msg">${L('通信できなかったため記録できませんでした', 'Network error, not recorded')}</div>`; return; }
+  if (!r.ok) { f.innerHTML = `<div class="rf-title">🏆 ${L('ランキング', 'Rankings')}</div><div class="rf-msg">${r.err === 'wait' ? L('続けて記録できないため、今回は記録しませんでした', 'Not recorded (too soon after the last one)') : r.err === 'cheat' ? L('走りの記録に不自然な動きがあったため、記録できませんでした', 'The run looked tampered with, so it was not recorded') : L('記録できませんでした', 'Could not record')}</div>`; return; }
+  const ga = r.gotAll || {}, gd = r.got || {};
+  const got = Object.entries(gd).sort((a, b) => a[1] - b[1]).map(([k, n]) => `${esc(catTitle(k))} ${L(`当日杯 ${n}位`, `Today #${n}`)}${ga[k] ? `<b style="color:var(--gold)">・${L(`歴代杯 ${ga[k]}位!`, `All-time #${ga[k]}!`)}</b>` : ''}`);
+  const bestCat = Object.entries(gd).sort((a, b) => a[1] - b[1])[0];
+  f.innerHTML = `<div class="rf-title">🏆 ${got.length ? L('ランクイン!', 'Ranked!') : L('記録しました', 'Recorded')}（${cupsOf(Object.keys(gd).length, Object.keys(ga).length)}）　<small>${esc(pName(place))}</small></div>
+    <div class="rf-would">${got.length ? got.slice(0, 4).join('<br>') : L('今回は 100 位の外でした', 'Outside the top 100 this time')}</div>
     <img src="${lastPreview || ''}" alt="">
+    <div class="rf-would" style="opacity:.8">${L(`「${esc(name0)}」で載りました。名前・ひとことを付けるなら↓（1 時間以内）`, `Listed as "${esc(name0)}". Add your name / comment below (within 1 hour)`)}</div>
     <div class="rf-row"><input id="rfName" maxlength="12" value="${esc(myName || '')}" placeholder="${L('名前', 'Name')}"><select id="rfCountry">${COUNTRIES.map(c => `<option value="${c[0]}"${c[0] === myCountry ? ' selected' : ''}>${esc(L(c[1], c[2]))}</option>`).join('')}</select></div>
     <input id="rfComment" maxlength="60" placeholder="${L('ひとこと（60字まで）', 'Comment (up to 60 chars)')}">
-    <button class="go" id="rfSend">${L('登録する', 'Submit')}</button><div class="rf-msg" id="rfMsg"></div>`;
-  f.classList.remove('hidden');
+    <button class="go" id="rfSend">${L('名前・ひとことを付ける', 'Save name / comment')}</button><div class="rf-msg" id="rfMsg"></div>`;
+  // 自分の記録を共有（いちばん良い順位の部門）
+  if (bestCat) { const sh = document.createElement('div'); sh.className = 'rk-share'; sh.style.gridColumn = '1 / -1'; sh.innerHTML = shareButtons(recURL(r.id), L(`だんじり疾走「${pName(st.place)}」${catName(bestCat[0])}当日杯で ${bestCat[1]}位になった!`, `I placed #${bestCat[1]} in today's ${catName(bestCat[0])} cup at ${pName(st.place)} in Danjiri Dash!`)); f.appendChild(sh); }
   $('rfSend').onclick = async () => {
     const btn = $('rfSend'), msg = $('rfMsg');
     const name = $('rfName').value.trim().slice(0, 12) || L('名無し', 'Anonymous');
-    myName = name; myCountry = $('rfCountry').value; store.set('danjiri-name', name); store.set('danjiri-country', myCountry);
-    if (window.__dj) { msg.textContent = L('試験モード中は登録できません', 'Not available in test mode'); return; }
+    myName = $('rfName').value.trim().slice(0, 12); myCountry = $('rfCountry').value; store.set('danjiri-name', myName); store.set('danjiri-country', myCountry);
     btn.disabled = true; msg.textContent = L('送信中…', 'Sending…');
     try {
-      const r = await rankAsk({ t: 'rank', ...st, name, country: myCountry, comment: $('rfComment').value.trim().slice(0, 60), img: lastPreview, rec: rec && rec.f.length >= 70 ? { team: player.teamIdx, f: rec.f } : null, dj: djData() }, 'rankres');
-      if (!r.ok) { msg.textContent = r.err === 'wait' ? L('少し待ってからもう一度どうぞ', 'Please wait a moment and try again') : r.err === 'cheat' ? L('走りの記録に不自然な動きがあったため、登録できませんでした', 'The run looked tampered with, so it was not submitted') : L('登録できませんでした', 'Could not submit'); btn.disabled = false; return; }
-      const ga = r.gotAll || {}, got = Object.entries(r.got || {}).sort((a, b) => a[1] - b[1]).map(([k, n]) => `${esc(catTitle(k))} ${L(`当日杯 ${n}位`, `Today #${n}`)}${ga[k] ? `<b style="color:var(--gold)">・${L(`歴代杯 ${ga[k]}位!`, `All-time #${ga[k]}!`)}</b>` : ''}`);
-      msg.innerHTML = got.length ? `${L('ランクイン!', 'Ranked!')}<br>` + got.join('<br>') : L('登録しました（今回はランク外）', 'Submitted (not in the top 100 this time)');
-      // 自分の記録を共有（いちばん良い順位の部門）
-      const bestCat = Object.entries(r.got || {}).sort((a, b) => a[1] - b[1])[0];
-      if (bestCat) { const sh = document.createElement('div'); sh.className = 'rk-share'; sh.style.gridColumn = '1 / -1'; sh.innerHTML = shareButtons(recURL(r.id), L(`だんじり疾走「${pName(st.place)}」${catName(bestCat[0])}当日杯で ${bestCat[1]}位になった!`, `I placed #${bestCat[1]} in today's ${catName(bestCat[0])} cup at ${pName(st.place)} in Danjiri Dash!`)); $('rankForm').appendChild(sh); }
-      btn.textContent = L('登録済み', 'Done');
+      const e = await rankAsk({ t: 'rankedit', id: r.id, key: r.key, name, country: myCountry, comment: $('rfComment').value.trim().slice(0, 60) }, 'rankeditres');
+      if (!e.ok) { msg.textContent = e.err === 'wait' ? L('少し待ってからもう一度どうぞ', 'Please wait a moment and try again') : e.err === 'key' ? L('時間が過ぎたため変えられませんでした', 'Too late to change it') : L('変えられませんでした', 'Could not save'); btn.disabled = false; return; }
+      msg.textContent = L(`「${name}」で載せました`, `Saved as "${name}"`); btn.disabled = false;
     } catch { msg.textContent = L('通信できませんでした', 'Network error'); btn.disabled = false; }
   };
 }
@@ -2267,7 +2290,7 @@ function onRoom(m) {
   NET.seen = ids; NET.seenRoom = m.room;
   if (NET.chatRoom !== m.room) { NET.chatRoom = m.room; NET.chat = []; renderChat(); }
   showChat(true);
-  NET.room = m; LAPS = m.laps;
+  NET.room = m; LAPS = m.laps; if (m.board) NET.board = m.board;
   const me = m.players.find(p => p.id === NET.id);
   const key = m.room + ':' + m.startAt;
   if (m.phase === 'race' && me && me.racing && NET.raceKey !== key && ['lobby', 'result', 'finish', 'watch', 'replay'].includes(state)) { if (state === 'replay') { RP.on = false; RP.match = false; $('replayBar').classList.add('hidden'); } watchEnd(); NET.raceKey = key; NET.ghost = false; startOnlineRace(m); return; }
@@ -2430,7 +2453,12 @@ function netTick(force) {
   const f = (c.air ? 1 : 0) | (c.crashT > 0 ? 2 : 0) | (c.boosting ? 4 : 0) | (c.drift ? 8 : 0) | (c.tipped ? 16 : 0);
   netSend({ t: 'st', x: r2(c.x), z: r2(c.z), y: r2(c.y), yaw: r2(c.yaw * 100) / 100, roll: r2(c.roll), pitch: r2(c.pitch), vx: r2(c.vx), vz: r2(c.vz), p: r2(c.prog), f });
 }
-function rankingHTML() { return NET.best.length ? `<b>${L('オンライン最速番付', 'Online fastest')}</b><ol>` + NET.best.map(b => `<li>${esc(b.name)}（${(TEAMS[b.team] ? teamName(TEAMS[b.team]) : '')}）<b>${fmt(b.time)}</b></li>`).join('') + '</ol>' : ''; }
+// 待機室の番付: ランキング（オンラインの部・当日杯）のその町の 1 周タイム（サーバーが部屋の知らせに付けてくる）
+function rankingHTML() {
+  const B = NET.board; if (!B || !B.place) return '';
+  const head = `<b>🏁 ${L('当日杯・オンラインの部', "Today's Cup · Online")}<small style="display:block;font-size:10px;opacity:.75">${esc(pName(B.place))} ${esc(catTitle('lap'))}（${L('1周タイム・直近 12 時間', 'lap time, last 12 h')}）</small></b>`;
+  return head + (B.list.length ? '<ol>' + B.list.map(b => `<li><b class="rk-t">${fmt(b.time)}</b>${cFlag(b.country)}${esc(b.name)}</li>`).join('') + '</ol>' : `<div style="font-size:12px;opacity:.75">${L('まだ記録がありません', 'No records yet')}</div>`);
+}
 function renderLobby() {
   const m = NET.room;
   $('lobbyRank').innerHTML = rankingHTML();
@@ -2466,7 +2494,6 @@ function updateNextInfo() {
 function setNext(el, key, html) { if (el.dataset.k === key) return; el.dataset.k = key; el.innerHTML = html; el.classList.toggle('nx-on', !!html && key !== 'race'); }
 function showOnlineResult(m) {
   if (mode !== 'online' || !NET.raceKey || !['countdown', 'race', 'finish', 'watch'].includes(state)) return;
-  NET.best = m.best || NET.best;
   if (NET.ghost) { message(L('本戦のレースが終わりました', 'The main race has finished'), 'gold'); return; }   // ゴーストは自分のゴールまで走る
   const watching = state === 'watch'; watchEnd();
   state = 'result'; AU.stopMusic();
@@ -2474,8 +2501,7 @@ function showOnlineResult(m) {
   $('resTable').innerHTML = m.list.map(e => `<tr class="${e.id === NET.id ? 'me' : ''}"><td>${L(`${e.rank}位`, `#${e.rank}`)}</td><td>${swatch(TEAMS[e.team])}${esc(e.cpu ? 'CPU ' + teamName(TEAMS[e.team]) : e.name)}${e.id === NET.id ? L('（あなた）', ' (you)') : ''}</td><td>${fmt(e.time)}</td>${likeCell(String(e.id))}</tr>`).join('');
   const mine = m.list.find(e => e.id === NET.id); resInfo = { rank: mine ? mine.rank : 0, n: m.list.length }; shareReset(!watching);
   $('resTitle').textContent = !mine ? L('結果', 'Results') : mine.rank === 1 ? L('優勝! 町の誇りや!', 'VICTORY! Pride of the town!') : L(`${mine.rank}位`, `#${mine.rank}`);
-  const bi = mine && !mine.est ? NET.best.findIndex(b => b.name === myName && b.time === mine.time) : -1;
-  $('resNew').textContent = bi >= 0 ? L(`オンライン番付 ${bi + 1}位 に入りました!`, `Online ranking #${bi + 1}!`) : '';
+  $('resNew').textContent = '';   // 番付の順位は下の「ランキングに記録」で出す
   if (watching) { $('resNew').textContent = L('観戦したレースの結果。次のレースから参加します', 'Results of the race you watched. You join the next one'); $('resStats').innerHTML = ''; $('resColl').innerHTML = ''; $('rankForm').classList.add('hidden'); $('resBadge').classList.add('hidden'); }
   else { $('resStats').innerHTML = statsHTML(); $('resColl').innerHTML = collectedHTML(player, true); bindCollected(); cancelAnimationFrame(weighRAF); weighRAF = 0; showRankForm(); updateMyBest(); }
   $('retryBtn').classList.add('hidden');
