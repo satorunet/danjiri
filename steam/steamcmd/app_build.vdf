@@ -1,0 +1,14 @@
+"AppBuild"
+{
+	"AppID"	"APPID"
+	"Desc"	"Danjiri Dash build"
+	"ContentRoot"	"../dist/"
+	"BuildOutput"	"./output/"
+	"SetLive"	""
+	"Depots"
+	{
+		"WIN_DEPOT"	"depot_win.vdf"
+		"LINUX_DEPOT"	"depot_linux.vdf"
+		"MAC_DEPOT"	"depot_mac.vdf"
+	}
+}

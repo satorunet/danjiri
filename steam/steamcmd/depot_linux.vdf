@@ -1,0 +1,11 @@
+"DepotBuild"
+{
+	"DepotID"	"LINUX_DEPOT"
+	"ContentRoot"	"../dist/Danjiri Dash-linux-x64/"
+	"FileMapping"
+	{
+		"LocalPath"	"*"
+		"DepotPath"	"."
+		"Recursive"	"1"
+	}
+}

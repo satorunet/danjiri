@@ -1,0 +1,11 @@
+"DepotBuild"
+{
+	"DepotID"	"WIN_DEPOT"
+	"ContentRoot"	"../dist/Danjiri Dash-win32-x64/"
+	"FileMapping"
+	{
+		"LocalPath"	"*"
+		"DepotPath"	"."
+		"Recursive"	"1"
+	}
+}

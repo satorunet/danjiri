@@ -1,0 +1,11 @@
+"DepotBuild"
+{
+	"DepotID"	"MAC_DEPOT"
+	"ContentRoot"	"../dist/Danjiri Dash-darwin-x64/"
+	"FileMapping"
+	{
+		"LocalPath"	"*"
+		"DepotPath"	"."
+		"Recursive"	"1"
+	}
+}

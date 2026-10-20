@@ -1,0 +1,23 @@
+{
+  "name": "danjiri-dash",
+  "productName": "Danjiri Dash",
+  "version": "1.0.0",
+  "private": true,
+  "description": "だんじり疾走 — Steam 版（Electron）",
+  "author": "satoru.net",
+  "main": "main.cjs",
+  "scripts": {
+    "web": "node scripts/build-web.mjs",
+    "start": "npm run web && electron .",
+    "dist": "npm run web && node scripts/package.mjs"
+  },
+  "dependencies": {
+    "steamworks.js": "0.4.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.5.0",
+    "resedit": "3.1.0",
+    "three": "0.160.0"
+  }
+}
